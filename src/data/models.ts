@@ -1,0 +1,141 @@
+// ─── Session ─────────────────────────────────────────────────────────────────
+
+export interface Session {
+  id: string          // ISO timestamp used as primary key
+  startTime: string   // ISO
+  endTime: string | null
+  originLat: number
+  originLon: number
+  originAltMSL: number
+  maxAGL: number
+  totalDistanceNM: number
+  deviceInfo: string
+}
+
+// ─── Track Points ─────────────────────────────────────────────────────────────
+
+export interface TrackPoint {
+  sessionId: string
+  ts: number        // unix ms
+  lat: number
+  lon: number
+  altMSL: number    // meters
+  speed: number     // m/s
+  heading: number   // degrees
+  accuracy: number  // meters
+}
+
+// ─── Events / Stamps ─────────────────────────────────────────────────────────
+
+export type StampEventType =
+  | 'session_start'
+  | 'session_end'
+  | 'takeoff'
+  | 'landing'
+  | 'engine_start'
+  | 'engine_shutdown'
+  | 'checklist_complete'
+  | 'wing_layout'
+  | 'custom'
+
+export interface StampEvent {
+  id: string        // uuid
+  sessionId: string
+  ts: number        // unix ms
+  type: StampEventType
+  lat: number
+  lon: number
+  altMSL: number    // meters
+  altAGL: number    // meters above origin
+  speed: number     // m/s
+  note: string | null
+}
+
+// ─── Checklists ───────────────────────────────────────────────────────────────
+
+export type ChecklistCategory =
+  | 'preflight'
+  | 'before_takeoff'
+  | 'in_flight'
+  | 'before_landing'
+  | 'post_flight'
+  | 'custom'
+
+export interface ChecklistItem {
+  id: string
+  text: string
+  order: number
+}
+
+export interface Checklist {
+  id: string
+  name: string
+  category: ChecklistCategory
+  items: ChecklistItem[]
+  createdAt: string  // ISO
+  updatedAt: string  // ISO
+}
+
+// ─── Airports ─────────────────────────────────────────────────────────────────
+
+export interface Airport {
+  id: string    // "KJEF"
+  name: string
+  lat: number
+  lon: number
+  elev: number  // ft MSL
+}
+
+// ─── Instruments ─────────────────────────────────────────────────────────────
+
+export type InstrumentId =
+  | 'gs'        // Ground speed (kt)
+  | 'agl'       // Altitude AGL (ft)
+  | 'msl'       // GPS altitude MSL (ft)
+  | 'vs'        // Vertical speed (fpm)
+  | 'hdg'       // Ground track (°)
+  | 'dist'      // Distance to origin (nm)
+  | 'brg'       // Bearing to origin (°)
+  | 'etime'     // Elapsed flight time
+  | 'sess'      // Elapsed session time
+  | 'maxalt'    // Max AGL this session (ft)
+
+export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
+  gs: 'GND SPD',
+  agl: 'AGL',
+  msl: 'MSL',
+  vs: 'V/S',
+  hdg: 'TRACK',
+  dist: 'DIST',
+  brg: 'BRG',
+  etime: 'FLT',
+  sess: 'SESS',
+  maxalt: 'MAX AGL',
+}
+
+export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
+  gs: 'kt',
+  agl: 'ft',
+  msl: 'ft',
+  vs: 'fpm',
+  hdg: '°',
+  dist: 'nm',
+  brg: '°',
+  etime: '',
+  sess: '',
+  maxalt: 'ft',
+}
+
+export const DEFAULT_INSTRUMENT_STRIP: InstrumentId[] = ['agl', 'msl', 'gs', 'hdg', 'dist', 'etime']
+
+// ─── GPS Position ─────────────────────────────────────────────────────────────
+
+export interface GPSPosition {
+  lat: number
+  lon: number
+  altMSL: number    // meters
+  speed: number     // m/s
+  heading: number   // degrees
+  accuracy: number  // meters
+  ts: number        // unix ms
+}
