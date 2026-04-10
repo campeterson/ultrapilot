@@ -1,5 +1,12 @@
 import type { InstrumentId } from '../models'
-import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM } from './gps-logic'
+import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM, crossTrackErrorNM, estimatedTimeEnrouteMin } from './gps-logic'
+
+export interface DirectToTarget {
+  lat: number
+  lon: number
+  fromLat: number  // position when D→ was activated (for XTK reference track)
+  fromLon: number
+}
 
 export interface InstrumentValues {
   gs: number        // knots
@@ -12,6 +19,10 @@ export interface InstrumentValues {
   etime: number     // ms (elapsed flight time)
   sess: number      // ms (elapsed session time)
   maxalt: number    // feet (max AGL this session)
+  dtk: number | null   // degrees (null when no direct-to)
+  dte: number | null   // nm
+  xtk: number | null   // nm (signed)
+  ete: number | null   // minutes
 }
 
 export interface RawPosition {
@@ -32,11 +43,26 @@ export function deriveInstruments(
   vsFpm: number,
   sessionStartMs: number,
   flightStartMs: number | null,
-  maxAGLft: number
+  maxAGLft: number,
+  directTo?: DirectToTarget | null,
 ): InstrumentValues {
   const agl = computeAGLft(pos.altMSL, originAltMSLm)
+  const gs = msToKnots(pos.speed)
+
+  let dtk: number | null = null
+  let dte: number | null = null
+  let xtk: number | null = null
+  let ete: number | null = null
+
+  if (directTo) {
+    dtk = bearing(pos.lat, pos.lon, directTo.lat, directTo.lon)
+    dte = haversineNM(pos.lat, pos.lon, directTo.lat, directTo.lon)
+    xtk = crossTrackErrorNM(pos.lat, pos.lon, directTo.fromLat, directTo.fromLon, directTo.lat, directTo.lon)
+    ete = estimatedTimeEnrouteMin(dte, gs)
+  }
+
   return {
-    gs: msToKnots(pos.speed),
+    gs,
     agl,
     msl: metersToFeet(pos.altMSL),
     vs: vsFpm,
@@ -46,6 +72,10 @@ export function deriveInstruments(
     etime: flightStartMs !== null ? pos.ts - flightStartMs : 0,
     sess: pos.ts - sessionStartMs,
     maxalt: Math.max(maxAGLft, agl),
+    dtk,
+    dte,
+    xtk,
+    ete,
   }
 }
 
@@ -74,6 +104,14 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
       return formatElapsed(values.sess)
     case 'maxalt':
       return Math.round(values.maxalt).toString()
+    case 'dtk':
+      return values.dtk !== null ? formatDeg(values.dtk) : '---'
+    case 'dte':
+      return values.dte !== null ? formatNM(values.dte) : '---'
+    case 'xtk':
+      return values.xtk !== null ? values.xtk.toFixed(2) : '---'
+    case 'ete':
+      return values.ete !== null ? Math.round(values.ete).toString() : '---'
   }
 }
 

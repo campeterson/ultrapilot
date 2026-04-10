@@ -114,6 +114,10 @@ export type InstrumentId =
   | 'etime'     // Elapsed flight time
   | 'sess'      // Elapsed session time
   | 'maxalt'    // Max AGL this session (ft)
+  | 'dtk'       // Desired track to direct-to (°)
+  | 'dte'       // Distance to direct-to (nm)
+  | 'xtk'       // Cross-track error (nm)
+  | 'ete'       // Est. time enroute to direct-to (min)
 
 export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   gs: 'GND SPD',
@@ -126,6 +130,10 @@ export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   etime: 'FLT',
   sess: 'SESS',
   maxalt: 'MAX AGL',
+  dtk: 'DTK',
+  dte: 'DTE',
+  xtk: 'XTK',
+  ete: 'ETE',
 }
 
 export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
@@ -139,6 +147,10 @@ export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
   etime: '',
   sess: '',
   maxalt: 'ft',
+  dtk: '°',
+  dte: 'nm',
+  xtk: 'nm',
+  ete: 'min',
 }
 
 export const DEFAULT_INSTRUMENT_STRIP: InstrumentId[] = ['agl', 'msl', 'gs', 'hdg', 'dist', 'etime']

@@ -30,6 +30,7 @@ interface InstrumentStore {
 const NULL_VALUES: InstrumentValues = {
   gs: 0, agl: 0, msl: 0, vs: 0, hdg: 0,
   dist: 0, brg: 0, etime: 0, sess: 0, maxalt: 0,
+  dtk: null, dte: null, xtk: null, ete: null,
 }
 
 export const useInstrumentStore = create<InstrumentStore>((set, get) => ({

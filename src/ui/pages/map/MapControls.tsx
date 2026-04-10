@@ -4,6 +4,7 @@ import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
+import { useDirectToStore } from '../../../state/direct-to-store'
 import { bulkAddTrackPoints } from '../../../data/db'
 import { computeAGLft } from '../../../data/logic/gps-logic'
 import { StampModal } from './StampModal'
@@ -32,6 +33,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
   const [stampOpen, setStampOpen] = useState(false)
   const { session, sessionStatus } = useSessionStore()
   const { addStamp } = useTimelineStore()
+  const { target: directTo, clearTarget } = useDirectToStore()
 
   async function handleStamp(type: import('../../../data/models').StampEventType, note: string | null) {
     const pos = useGPSStore.getState().position
@@ -52,9 +54,28 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 
   return (
     <>
-      {/* Bottom-left: recenter */}
+      {/* Bottom-left: recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50 }}>
         <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
+        {directTo && (
+          <button
+            onClick={clearTarget}
+            title="Cancel Direct-To"
+            style={{
+              ...btnBase,
+              width: 'auto',
+              padding: '0 12px',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: theme.colors.magenta,
+              borderColor: theme.colors.magenta,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            × D→
+          </button>
+        )}
       </div>
 
       {/* STAMP button — center bottom */}

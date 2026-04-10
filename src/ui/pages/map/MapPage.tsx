@@ -5,6 +5,7 @@ import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
+import { useDirectToStore } from '../../../state/direct-to-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
@@ -48,6 +49,18 @@ function makeArrowIcon(headingDeg: number): L.DivIcon {
   })
 }
 
+function makeDirectToIcon(): L.DivIcon {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 20 20" width="20" height="20">
+    <polygon points="0,-8 8,0 0,8 -8,0" fill="none" stroke="${theme.colors.magenta}" stroke-width="2.5" stroke-linejoin="round"/>
+  </svg>`
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  })
+}
+
 interface TapMenu {
   lat: number
   lon: number
@@ -61,6 +74,8 @@ export function MapPage() {
   const originMarkerRef = useRef<L.CircleMarker | null>(null)
   const liveTrackRef = useRef<Polyline | null>(null)
   const dirLineRef = useRef<Polyline | null>(null)
+  const directToLineRef = useRef<Polyline | null>(null)
+  const directToMarkerRef = useRef<Marker | null>(null)
   const distRingsRef = useRef<Circle[]>([])
   const waypointMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
   const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
@@ -71,6 +86,7 @@ export function MapPage() {
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
+  const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
 
   const [tapMenu, setTapMenu] = useState<TapMenu | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
@@ -204,6 +220,44 @@ export function MapPage() {
       distRingsRef.current = []
     }
   }, [position, showDirectionLine, showDistanceRings])
+
+  // ── Direct-To line + destination marker ────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (!directTo || !position) {
+      directToLineRef.current?.remove()
+      directToLineRef.current = null
+      directToMarkerRef.current?.remove()
+      directToMarkerRef.current = null
+      return
+    }
+
+    const from: [number, number] = [position.lat, position.lon]
+    const to: [number, number] = [directTo.lat, directTo.lon]
+
+    if (!directToLineRef.current) {
+      directToLineRef.current = L.polyline([from, to], {
+        color: theme.colors.magenta,
+        weight: 2,
+        opacity: 0.85,
+        dashArray: '8 4',
+      }).addTo(map)
+    } else {
+      directToLineRef.current.setLatLngs([from, to])
+    }
+
+    if (!directToMarkerRef.current) {
+      directToMarkerRef.current = L.marker(to, {
+        icon: makeDirectToIcon(),
+        zIndexOffset: 90,
+      }).addTo(map)
+      directToMarkerRef.current.bindTooltip(`D→ ${directTo.name}`, { permanent: true, direction: 'top', className: 'origin-tooltip' })
+    } else {
+      directToMarkerRef.current.setLatLng(to)
+    }
+  }, [directTo, position])
 
   // ── Origin marker ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -388,7 +442,7 @@ export function MapPage() {
               display: 'flex', alignItems: 'center', gap: '10px',
               width: '100%', padding: '12px 16px',
               background: 'none', border: 'none',
-              borderBottom: session ? `1px solid ${theme.colors.darkBorder}` : 'none',
+              borderBottom: `1px solid ${theme.colors.darkBorder}`,
               color: theme.colors.cream, cursor: 'pointer',
               fontFamily: theme.font.primary, fontSize: theme.size.body,
               minHeight: theme.tapTarget, textAlign: 'left',
@@ -396,6 +450,32 @@ export function MapPage() {
           >
             <span>⌖</span> Add Waypoint
           </button>
+          {session && (
+            <button
+              onClick={() => {
+                const pos = useGPSStore.getState().position
+                setDirectTo({
+                  lat: tapMenu.lat,
+                  lon: tapMenu.lon,
+                  name: `${tapMenu.lat.toFixed(4)}, ${tapMenu.lon.toFixed(4)}`,
+                  fromLat: pos?.lat ?? tapMenu.lat,
+                  fromLon: pos?.lon ?? tapMenu.lon,
+                })
+                setTapMenu(null)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                width: '100%', padding: '12px 16px',
+                background: 'none', border: 'none',
+                borderBottom: `1px solid ${theme.colors.darkBorder}`,
+                color: theme.colors.magenta, cursor: 'pointer',
+                fontFamily: theme.font.primary, fontSize: theme.size.body,
+                minHeight: theme.tapTarget, textAlign: 'left',
+              }}
+            >
+              <span>◇</span> Direct To
+            </button>
+          )}
           {session && (
             <button
               onClick={async () => {

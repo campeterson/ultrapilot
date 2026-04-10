@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ultrapilot-1.0.5';
+const CACHE_NAME = 'ultrapilot-1.0.6';
 const SHELL = [
   './',
   './index.html',

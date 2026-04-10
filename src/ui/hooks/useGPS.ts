@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useGPSStore } from '../../state/gps-store'
 import { useSessionStore } from '../../state/session-store'
 import { useInstrumentStore } from '../../state/instrument-store'
+import { useDirectToStore } from '../../state/direct-to-store'
 import { bulkAddTrackPoints } from '../../data/db'
 import { verticalSpeedFpm } from '../../data/logic/gps-logic'
 import { deriveInstruments } from '../../data/logic/instrument-logic'
@@ -55,6 +56,7 @@ export function useGPS() {
           const { maxAGLft } = useInstrumentStore.getState()
           if (!currentSession) return
 
+          const { target: directTo } = useDirectToStore.getState()
           const values = deriveInstruments(
             { lat: pos.lat, lon: pos.lon, altMSL: pos.altMSL, speed: pos.speed, heading: pos.heading, ts: pos.ts },
             currentSession.originLat,
@@ -63,7 +65,8 @@ export function useGPS() {
             vsFpm,
             new Date(currentSession.startTime).getTime(),
             null,  // flight timer managed separately
-            maxAGLft
+            maxAGLft,
+            directTo,
           )
           setValues(values)
           updateMaxAGL(values.agl)

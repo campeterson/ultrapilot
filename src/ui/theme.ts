@@ -12,6 +12,7 @@ export const theme = {
     amber: '#e67e22',
     blue: '#3498db',
     purple: '#8e44ad',
+    magenta: '#e040fb',
     navBg: '#0c0c12',
     stripBg: 'rgba(14, 14, 20, 0.96)',
   },

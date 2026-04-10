@@ -70,6 +70,26 @@ export function formatNM(nm: number): string {
   return nm.toFixed(1)
 }
 
+/** Cross-track error in NM (signed: negative = left, positive = right).
+ *  from→to defines the desired track; [lat,lon] is current position. */
+export function crossTrackErrorNM(
+  lat: number, lon: number,
+  fromLat: number, fromLon: number,
+  toLat: number, toLon: number,
+): number {
+  const d13 = haversineNM(fromLat, fromLon, lat, lon) / EARTH_RADIUS_NM
+  const brg13 = bearing(fromLat, fromLon, lat, lon) * DEG_TO_RAD
+  const brg12 = bearing(fromLat, fromLon, toLat, toLon) * DEG_TO_RAD
+  return Math.asin(Math.sin(d13) * Math.sin(brg13 - brg12)) * EARTH_RADIUS_NM
+}
+
+/** Estimated time enroute in minutes given distance (NM) and speed (knots).
+ *  Returns 0 when speed is too low to compute meaningfully. */
+export function estimatedTimeEnrouteMin(distNM: number, speedKts: number): number {
+  if (speedKts < 1) return 0
+  return (distNM / speedKts) * 60
+}
+
 /** Compute destination point given start, bearing (degrees), and distance (NM).
  *  Returns [lat, lon] in decimal degrees. */
 export function destinationPoint(lat: number, lon: number, bearingDeg: number, distNM: number): [number, number] {

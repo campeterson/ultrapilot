@@ -7,6 +7,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
 import { useSessionStore } from '../../state/session-store'
+import { useDirectToStore } from '../../state/direct-to-store'
 import { trackEvent } from '../../lib/analytics'
 import { MapPage } from '../pages/map/MapPage'
 import { TimelinePage } from '../pages/timeline/TimelinePage'
@@ -32,7 +33,7 @@ export function AppShell() {
   // Keep screen awake during active sessions
   useWakeLock(sessionStatus === 'active')
 
-  // Return to map tab when a session ends so Start Session button is visible
+  // Return to map tab and clear direct-to when a session ends
   const prevStatus = useRef(sessionStatus)
   useEffect(() => {
     if (prevStatus.current === 'active' && sessionStatus === 'idle') {
@@ -40,6 +41,7 @@ export function AppShell() {
       setMoreView(null)
       setMoreOpen(false)
       setPanelOpen(false)
+      useDirectToStore.getState().clearTarget()
     }
     prevStatus.current = sessionStatus
   }, [sessionStatus])
