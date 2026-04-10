@@ -27,7 +27,7 @@ export function StampModal({ onSelect, onClose }: StampModalProps) {
         top: 0,
         left: 0,
         right: 0,
-        bottom: theme.navHeight,
+        bottom: theme.safeNavHeight,
         background: 'rgba(0,0,0,0.7)',
         zIndex: 400,
         display: 'flex',

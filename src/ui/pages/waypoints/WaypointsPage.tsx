@@ -124,7 +124,7 @@ export function WaypointsPage() {
             alignItems: 'flex-start',
             justifyContent: 'center',
             paddingTop: '60px',
-            paddingBottom: theme.navHeight,
+            paddingBottom: theme.safeNavHeight,
             overflowY: 'auto',
             zIndex: 300,
           }}

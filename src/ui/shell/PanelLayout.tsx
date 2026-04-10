@@ -21,8 +21,8 @@ const chevronBase: React.CSSProperties = {
 }
 
 export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTogglePanel }: PanelLayoutProps) {
-  const top = theme.stripHeight
-  const bottom = theme.navHeight
+  const top = theme.safeStripHeight
+  const bottom = theme.safeNavHeight
   const hasPanel = panelOpen && panelContent !== null
 
   // ── Phone ────────────────────────────────────────────────────────────────

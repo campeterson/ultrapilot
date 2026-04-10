@@ -30,6 +30,9 @@ export const theme = {
   tapTarget: '44px',
   navHeight: '60px',
   stripHeight: '52px',
+  // Safe-area-aware heights for use in inline styles
+  safeNavHeight: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+  safeStripHeight: 'calc(52px + env(safe-area-inset-top, 0px))',
 } as const
 
 export type Theme = typeof theme

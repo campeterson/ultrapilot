@@ -13,7 +13,7 @@ export function InstrumentStrip() {
         top: 0,
         left: 0,
         right: 0,
-        height: theme.stripHeight,
+        height: theme.safeStripHeight,
         background: theme.colors.stripBg,
         borderBottom: `1px solid ${theme.colors.darkBorder}`,
         display: 'flex',

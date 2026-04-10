@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import type { Map as LeafletMap, CircleMarker, Polyline } from 'leaflet'
+import type { Map as LeafletMap, Marker, Polyline, Circle } from 'leaflet'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
+import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
+import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
+
+// Direction line distance in NM
+const DIR_LINE_NM = 1.5
+// Distance ring radii in meters
+const RING_RADII_M = [926, 1852, 3704] // 0.5, 1, 2 nm
 
 function loadMapState() {
   try {
@@ -29,33 +36,43 @@ function newWpId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-// ─── Tap context menu ─────────────────────────────────────────────────────────
+function makeArrowIcon(headingDeg: number): L.DivIcon {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
+    <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`
+  return L.divIcon({
+    html: `<div style="transform:rotate(${headingDeg}deg);transform-origin:50% 50%;width:24px;height:32px;display:flex;align-items:center;justify-content:center;">${svg}</div>`,
+    className: '',
+    iconSize: [24, 32],
+    iconAnchor: [12, 16],
+  })
+}
 
 interface TapMenu {
   lat: number
   lon: number
-  // Pixel coords relative to map container for positioning the menu
   x: number
   y: number
 }
 
 export function MapPage() {
   const mapRef = useRef<LeafletMap | null>(null)
-  const posMarkerRef = useRef<CircleMarker | null>(null)
-  const originMarkerRef = useRef<CircleMarker | null>(null)
+  const posMarkerRef = useRef<Marker | null>(null)
+  const originMarkerRef = useRef<L.CircleMarker | null>(null)
   const liveTrackRef = useRef<Polyline | null>(null)
-  const waypointMarkersRef = useRef<Map<string, CircleMarker>>(new Map())
-  const historyLayersRef = useRef<(CircleMarker | Polyline)[]>([])
+  const dirLineRef = useRef<Polyline | null>(null)
+  const distRingsRef = useRef<Circle[]>([])
+  const waypointMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
+  const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
 
   const { position } = useGPSStore()
   const { session, historySessionId, trackBuffer } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
+  const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
 
-  // Tap menu state
   const [tapMenu, setTapMenu] = useState<TapMenu | null>(null)
-  // Waypoint name form (shown after tapping "Add Waypoint" in menu)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
   const [wpName, setWpName] = useState('')
 
@@ -82,7 +99,6 @@ export function MapPage() {
     map.on('moveend', () => saveMapState(map))
     map.on('dragstart', () => { autoFollowRef.current = false })
 
-    // Tap = click on map — show context menu. Distinguish from drag by checking movement.
     let pointerDownAt: { x: number; y: number } | null = null
 
     map.on('mousedown touchstart', (e) => {
@@ -126,58 +142,88 @@ export function MapPage() {
   // ── Load waypoints ──────────────────────────────────────────────────────────
   useEffect(() => { loadWaypoints() }, [loadWaypoints])
 
-  // ── Position marker ─────────────────────────────────────────────────────────
+  // ── Position arrow marker + direction line + distance rings ─────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !position) return
 
     const latlng: [number, number] = [position.lat, position.lon]
+    const heading = position.heading ?? 0
 
+    // Arrow marker
     if (!posMarkerRef.current) {
-      posMarkerRef.current = L.circleMarker(latlng, {
-        radius: 8,
-        color: '#fff',
-        weight: 2,
-        fillColor: theme.colors.red,
-        fillOpacity: 1,
+      posMarkerRef.current = L.marker(latlng, {
+        icon: makeArrowIcon(heading),
+        zIndexOffset: 100,
       }).addTo(map)
     } else {
       posMarkerRef.current.setLatLng(latlng)
+      posMarkerRef.current.setIcon(makeArrowIcon(heading))
     }
 
     if (autoFollowRef.current) {
       map.setView(latlng, map.getZoom())
     }
-  }, [position])
+
+    // Direction line
+    if (showDirectionLine && position.speed > 0.5) {
+      const dest = destinationPoint(position.lat, position.lon, heading, DIR_LINE_NM)
+      const lineCoords: [number, number][] = [latlng, dest]
+      if (!dirLineRef.current) {
+        dirLineRef.current = L.polyline(lineCoords, {
+          color: theme.colors.cream,
+          weight: 1.5,
+          opacity: 0.6,
+          dashArray: '4 4',
+        }).addTo(map)
+      } else {
+        dirLineRef.current.setLatLngs(lineCoords)
+      }
+    } else {
+      dirLineRef.current?.remove()
+      dirLineRef.current = null
+    }
+
+    // Distance rings
+    if (showDistanceRings) {
+      if (distRingsRef.current.length === 0) {
+        distRingsRef.current = RING_RADII_M.map(r =>
+          L.circle(latlng, {
+            radius: r,
+            color: theme.colors.dim,
+            weight: 1,
+            fillOpacity: 0,
+            opacity: 0.4,
+          }).addTo(map)
+        )
+      } else {
+        distRingsRef.current.forEach(ring => ring.setLatLng(latlng))
+      }
+    } else {
+      distRingsRef.current.forEach(r => r.remove())
+      distRingsRef.current = []
+    }
+  }, [position, showDirectionLine, showDistanceRings])
 
   // ── Origin marker ───────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-
     if (!session) {
-      // Clear origin marker when session ends
       originMarkerRef.current?.remove()
       originMarkerRef.current = null
       return
     }
-
     const latlng: [number, number] = [session.originLat, session.originLon]
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.circleMarker(latlng, {
-        radius: 6,
-        color: theme.colors.cream,
-        weight: 2,
-        fillOpacity: 0,
+        radius: 6, color: theme.colors.cream, weight: 2, fillOpacity: 0,
       }).addTo(map)
       originMarkerRef.current.bindTooltip('ORIGIN', { permanent: true, direction: 'top', className: 'origin-tooltip' })
     }
   }, [session])
 
-  // ── Live track polyline ─────────────────────────────────────────────────────
-  // Rebuilds from trackBuffer whenever a new point is buffered.
-  // On session start (new session object), also loads any persisted points from DB
-  // so the track is complete even after a flush.
+  // ── Live track ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -188,52 +234,40 @@ export function MapPage() {
       return
     }
 
-    // Combine DB-persisted points with in-memory buffer for a complete track
-    async function rebuildTrack() {
-      const persisted = await getTrackPoints(session!.id)
-      const bufPts = useSessionStore.getState().trackBuffer
-
-      const all = [
-        ...persisted.map(p => [p.lat, p.lon] as [number, number]),
-        ...bufPts.map(p => [p.lat, p.lon] as [number, number]),
+    let cancelled = false
+    getTrackPoints(session.id).then(pts => {
+      if (cancelled || !mapRef.current) return
+      const buf = useSessionStore.getState().trackBuffer
+      const all: [number, number][] = [
+        ...pts.map(p => [p.lat, p.lon] as [number, number]),
+        ...buf.map(p => [p.lat, p.lon] as [number, number]),
       ]
-
-      if (all.length < 2 || !mapRef.current) return
-
+      if (all.length < 2) return
       if (!liveTrackRef.current) {
         liveTrackRef.current = L.polyline(all, {
-          color: theme.colors.red,
-          weight: 2,
-          opacity: 0.8,
-          dashArray: '6 4',
+          color: theme.colors.red, weight: 2, opacity: 0.85, dashArray: '6 4',
         }).addTo(mapRef.current)
       } else {
         liveTrackRef.current.setLatLngs(all)
       }
-    }
-
-    rebuildTrack()
+    })
+    return () => { cancelled = true }
   }, [session?.id, trackBuffer])
 
   // ── Waypoint markers ────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-
     const existing = waypointMarkersRef.current
     const currentIds = new Set(waypoints.map(w => w.id))
-
     for (const [id, marker] of existing) {
       if (!currentIds.has(id)) { marker.remove(); existing.delete(id) }
     }
     for (const wp of waypoints) {
       if (!existing.has(wp.id)) {
         const marker = L.circleMarker([wp.lat, wp.lon], {
-          radius: 6,
-          color: theme.colors.blue,
-          weight: 2,
-          fillColor: theme.colors.blue,
-          fillOpacity: 0.3,
+          radius: 6, color: theme.colors.blue, weight: 2,
+          fillColor: theme.colors.blue, fillOpacity: 0.3,
         }).addTo(map)
         marker.bindTooltip(wp.name, { permanent: false, direction: 'top' })
         existing.set(wp.id, marker)
@@ -246,7 +280,6 @@ export function MapPage() {
     const map = mapRef.current
     for (const layer of historyLayersRef.current) layer.remove()
     historyLayersRef.current = []
-
     if (!map || !historySessionId || session) return
 
     let cancelled = false
@@ -256,37 +289,28 @@ export function MapPage() {
         getEvents(historySessionId!),
       ])
       if (cancelled || !mapRef.current) return
-
       const m = mapRef.current
-      const layers: (CircleMarker | Polyline)[] = []
-
+      const layers: (L.CircleMarker | Polyline)[] = []
       if (points.length > 1) {
         const coords: [number, number][] = points
           .filter((_, i) => i % 5 === 0 || i === points.length - 1)
           .map(p => [p.lat, p.lon])
         const line = L.polyline(coords, {
-          color: theme.colors.red,
-          weight: 2,
-          opacity: 0.7,
-          dashArray: '6 4',
+          color: theme.colors.red, weight: 2, opacity: 0.7, dashArray: '6 4',
         }).addTo(m)
         layers.push(line)
         m.fitBounds(line.getBounds(), { padding: [40, 40] })
       }
-
       for (const ev of events) {
         const color = EVENT_COLORS[ev.type]
-        const label = EVENT_LABELS[ev.type]
         const marker = L.circleMarker([ev.lat, ev.lon], {
           radius: 5, color, weight: 2, fillColor: color, fillOpacity: 0.8,
         }).addTo(m)
-        marker.bindTooltip(label, { direction: 'top' })
+        marker.bindTooltip(EVENT_LABELS[ev.type], { direction: 'top' })
         layers.push(marker)
       }
-
       historyLayersRef.current = layers
     }
-
     loadHistory()
     return () => { cancelled = true }
   }, [historySessionId, session])
@@ -317,15 +341,10 @@ export function MapPage() {
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: '8px',
+    width: '100%', padding: '10px 12px', borderRadius: '8px',
     border: `1px solid ${theme.colors.darkBorder}`,
-    background: 'rgba(255,255,255,0.05)',
-    color: theme.colors.cream,
-    fontFamily: theme.font.primary,
-    fontSize: theme.size.body,
-    boxSizing: 'border-box',
+    background: 'rgba(255,255,255,0.05)', color: theme.colors.cream,
+    fontFamily: theme.font.primary, fontSize: theme.size.body, boxSizing: 'border-box',
   }
 
   return (
@@ -333,18 +352,16 @@ export function MapPage() {
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
-        // Dismiss tap menu on click-outside (the map itself)
         onClick={() => setTapMenu(null)}
       />
       <MapControls onRecenter={handleRecenter} />
 
-      {/* ── Tap context menu ── */}
+      {/* Tap context menu */}
       {tapMenu && !wpForm && (
         <div
           onClick={e => e.stopPropagation()}
           style={{
             position: 'absolute',
-            // Position near the tap point, clamped so it doesn't go offscreen
             left: Math.min(tapMenu.x + 8, (containerRef.current?.clientWidth ?? 300) - 180),
             top: Math.max(tapMenu.y - 60, 8),
             background: theme.colors.darkCard,
@@ -379,7 +396,7 @@ export function MapPage() {
         </div>
       )}
 
-      {/* ── Waypoint name modal ── */}
+      {/* Waypoint name form */}
       {wpForm && (
         <div
           onClick={() => { setWpForm(null); setWpName('') }}
@@ -395,8 +412,7 @@ export function MapPage() {
             style={{
               background: theme.colors.darkCard,
               border: `1px solid ${theme.colors.darkBorder}`,
-              borderRadius: '16px',
-              padding: '24px',
+              borderRadius: '16px', padding: '24px',
               width: 'min(300px, calc(100vw - 48px))',
               fontFamily: theme.font.primary,
             }}
@@ -422,9 +438,7 @@ export function MapPage() {
                   fontFamily: theme.font.primary, fontSize: theme.size.body,
                   minHeight: theme.tapTarget,
                 }}
-              >
-                Cancel
-              </button>
+              >Cancel</button>
               <button
                 onClick={handleSaveWaypoint}
                 disabled={!wpName.trim()}
@@ -435,9 +449,7 @@ export function MapPage() {
                   fontFamily: theme.font.primary, fontSize: theme.size.body,
                   fontWeight: 700, minHeight: theme.tapTarget,
                 }}
-              >
-                Save
-              </button>
+              >Save</button>
             </div>
           </div>
         </div>

@@ -40,7 +40,7 @@ export function MorePicker({ visible, onSelect, onDismiss }: MorePickerProps) {
       ref={ref}
       style={{
         position: 'fixed',
-        bottom: `calc(${theme.navHeight} + 8px)`,
+        bottom: `calc(${theme.safeNavHeight} + 8px)`,
         right: '8px',
         background: theme.colors.darkCard,
         border: `1px solid ${theme.colors.darkBorder}`,

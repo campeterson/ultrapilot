@@ -3,6 +3,7 @@ import { useSessionStore } from '../../../state/session-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
 import { useTimelineStore } from '../../../state/timeline-store'
 import { useGPSStore } from '../../../state/gps-store'
+import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { toGPX, toJSON, downloadString, sessionFilename } from '../../../data/export'
 import { theme } from '../../theme'
@@ -90,9 +91,32 @@ function InstrumentConfigurator() {
   )
 }
 
+function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        width: '48px', height: '28px', borderRadius: '14px', border: 'none',
+        background: value ? theme.colors.red : theme.colors.darkCard,
+        cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+        outline: `1px solid ${theme.colors.darkBorder}`,
+        flexShrink: 0,
+      }}
+    >
+      <div style={{
+        position: 'absolute', top: '4px',
+        left: value ? '24px' : '4px',
+        width: '20px', height: '20px', borderRadius: '50%',
+        background: '#fff', transition: 'left 0.2s',
+      }} />
+    </button>
+  )
+}
+
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
+  const { showDirectionLine, showDistanceRings, toggle } = useMapSettingsStore()
   const [showInstrConfig, setShowInstrConfig] = useState(false)
 
   async function handleExportGPX() {
@@ -145,6 +169,14 @@ export function SettingsPage() {
         </>
       )}
 
+      <SectionHeader title="MAP DISPLAY" />
+      <Row label="Direction Line">
+        <Toggle value={showDirectionLine} onToggle={() => toggle('showDirectionLine')} />
+      </Row>
+      <Row label="Distance Rings (0.5 / 1 / 2 nm)">
+        <Toggle value={showDistanceRings} onToggle={() => toggle('showDistanceRings')} />
+      </Row>
+
       <SectionHeader title="INSTRUMENTS" />
       <Row label="Configure Strip">
         <button onClick={() => setShowInstrConfig(v => !v)} style={actionBtn}>
@@ -155,7 +187,7 @@ export function SettingsPage() {
 
       <SectionHeader title="ABOUT" />
       <Row label="Version">
-        <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>1.0.0</span>
+        <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{__APP_VERSION__}</span>
       </Row>
       <Row label="UltraPilot">
         <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>Aviator's Toolkit</span>

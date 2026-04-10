@@ -69,3 +69,15 @@ export function formatDeg(deg: number): string {
 export function formatNM(nm: number): string {
   return nm.toFixed(1)
 }
+
+/** Compute destination point given start, bearing (degrees), and distance (NM).
+ *  Returns [lat, lon] in decimal degrees. */
+export function destinationPoint(lat: number, lon: number, bearingDeg: number, distNM: number): [number, number] {
+  const d = distNM / EARTH_RADIUS_NM
+  const brng = bearingDeg * DEG_TO_RAD
+  const φ1 = lat * DEG_TO_RAD
+  const λ1 = lon * DEG_TO_RAD
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(d) + Math.cos(φ1) * Math.sin(d) * Math.cos(brng))
+  const λ2 = λ1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(φ1), Math.cos(d) - Math.sin(φ1) * Math.sin(φ2))
+  return [φ2 * RAD_TO_DEG, ((λ2 * RAD_TO_DEG) + 540) % 360 - 180]
+}

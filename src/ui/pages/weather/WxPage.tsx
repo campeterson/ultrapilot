@@ -137,26 +137,35 @@ function NearbyAirports() {
       )}
 
       {nearby.map(ap => (
-        <button
+        <div
           key={ap.id}
-          onClick={() => useWeatherStore.getState().fetchByStation(ap.id)}
           style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            width: '100%', padding: '10px 0',
-            minHeight: theme.tapTarget, background: 'none', border: 'none',
-            borderBottom: `1px solid ${theme.colors.darkBorder}`,
-            cursor: 'pointer', fontFamily: theme.font.primary,
+            padding: '10px 0', borderBottom: `1px solid ${theme.colors.darkBorder}`,
+            minHeight: theme.tapTarget, gap: '8px',
           }}
         >
-          <div style={{ textAlign: 'left' }}>
-            <span style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, fontFamily: theme.font.mono }}>{ap.id}</span>
-            <span style={{ fontSize: theme.size.small, color: theme.colors.dim, marginLeft: '8px' }}>{ap.name}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div>
+              <span style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, fontFamily: theme.font.mono }}>{ap.id}</span>
+              <span style={{ fontSize: theme.size.small, color: theme.colors.dim, marginLeft: '8px' }}>{ap.name}</span>
+            </div>
+            <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '2px' }}>
+              {ap.distNM.toFixed(1)} nm · {ap.bearingLabel}
+            </div>
           </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: theme.size.body, color: theme.colors.light, fontFamily: theme.font.mono }}>{ap.distNM.toFixed(1)} nm</div>
-            <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim }}>{ap.bearingLabel}</div>
-          </div>
-        </button>
+          <button
+            onClick={() => useWeatherStore.getState().fetchByStation(ap.id)}
+            style={{
+              padding: '6px 12px', borderRadius: '6px', border: `1px solid ${theme.colors.darkBorder}`,
+              background: theme.colors.darkCard, color: theme.colors.cream, cursor: 'pointer',
+              fontFamily: theme.font.mono, fontSize: theme.size.small,
+              minHeight: theme.tapTarget, flexShrink: 0, letterSpacing: '0.05em',
+            }}
+          >
+            METAR
+          </button>
+        </div>
       ))}
     </div>
   )

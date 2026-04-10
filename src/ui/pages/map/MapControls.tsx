@@ -165,7 +165,7 @@ function RecordingIndicator() {
           style={{
             position: 'fixed',
             top: 0, left: 0, right: 0,
-            bottom: theme.navHeight,
+            bottom: theme.safeNavHeight,
             background: 'rgba(0,0,0,0.6)',
             display: 'flex',
             alignItems: 'center',

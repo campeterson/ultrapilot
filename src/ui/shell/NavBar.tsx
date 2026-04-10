@@ -24,7 +24,7 @@ export function NavBar({ active, onSelect }: NavBarProps) {
         bottom: 0,
         left: 0,
         right: 0,
-        height: theme.navHeight,
+        height: theme.safeNavHeight,
         background: theme.colors.navBg,
         borderTop: `1px solid ${theme.colors.darkBorder}`,
         display: 'flex',
