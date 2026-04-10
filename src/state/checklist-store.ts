@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { listChecklists, putChecklist, deleteChecklist } from '../data/db'
 import { resetChecklist, toggleItem, isComplete, type ChecklistRunState } from '../data/logic/checklist-logic'
 import type { Checklist } from '../data/models'
+import { PPC_DEFAULT_CHECKLISTS } from '../data/defaults/ppc-checklists'
 
 interface ChecklistStore {
   checklists: Checklist[]
@@ -29,7 +30,11 @@ export const useChecklistStore = create<ChecklistStore>((set, get) => ({
 
   load: async () => {
     set({ loading: true })
-    const checklists = await listChecklists()
+    let checklists = await listChecklists()
+    if (checklists.length === 0) {
+      await Promise.all(PPC_DEFAULT_CHECKLISTS.map(putChecklist))
+      checklists = await listChecklists()
+    }
     set({ checklists, loading: false })
   },
 

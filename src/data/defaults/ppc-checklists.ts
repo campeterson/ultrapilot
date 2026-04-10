@@ -1,0 +1,173 @@
+import type { Checklist } from '../models'
+
+const NOW = new Date(0).toISOString() // fixed seed time so IDs stay stable
+
+function items(pairs: [string, string][]): Checklist['items'] {
+  return pairs.map(([challenge, response], i) => ({
+    id: `ppc-${i}`,
+    text: `${challenge} — ${response}`,
+    order: i,
+  }))
+}
+
+// Each chapter from the PPC Normal Checklist becomes its own checklist.
+// Items that were stamped events (engine start, etc.) are kept as checkable steps.
+export const PPC_DEFAULT_CHECKLISTS: Checklist[] = [
+  {
+    id: 'ppc-walkaround',
+    name: 'Aircraft Walk-Around',
+    category: 'preflight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Fuel', 'CHECK QUANTITY'],
+      ['Fuel Cap', 'SECURE'],
+      ['Lines & Filters', 'CHECK'],
+      ['Engine Mounts', 'SECURE'],
+      ['Oil Level', 'CHECK'],
+      ['Coolant', 'CHECK'],
+      ['Hoses & Clamps', 'CHECK'],
+      ['Drive Belt', 'CHECK'],
+      ['Prop Blades', 'CONDITION GOOD'],
+      ['Prop Guard', 'SECURE'],
+      ['Front Tire', 'CONDITION & PRESSURE'],
+      ['Main Tires', 'CONDITION & PRESSURE'],
+      ['Steering', 'FREE MOVEMENT'],
+      ['Throttle', 'FREE MOVEMENT'],
+      ['Nuts & Bolts', 'CHECK'],
+    ]),
+  },
+  {
+    id: 'ppc-cockpit',
+    name: 'Cockpit & Avionics',
+    category: 'preflight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Comms', 'PLUGGED IN'],
+      ['Wind Direction', 'ASSESSED'],
+      ['Devices', 'SECURED & PLUGGED IN'],
+      ['Altimeter', 'SET TO LOCAL PRESSURE'],
+    ]),
+  },
+  {
+    id: 'ppc-engine-warmup',
+    name: 'Engine Start & Warm-Up',
+    category: 'preflight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['All Switches', 'OFF'],
+      ['Throttle', 'OFF / IDLE'],
+      ['Master Switch', 'ON'],
+      ['Fuel Pump', 'ON'],
+      ['CLEAR PROP', 'AREA CLEAR'],
+      ['Engine Start', 'KEY TO START'],
+      ['Idle RPM', '1400–1800'],
+      ['Radio', 'ON'],
+      ['Strobes', 'ON'],
+      ['Warm-Up', '160°F / 70°C'],
+      ['Throttle', 'OFF / IDLE'],
+      ['Engine', 'OFF'],
+      ['All Switches', 'OFF'],
+    ]),
+  },
+  {
+    id: 'ppc-chute',
+    name: 'Chute Inspection & Layout',
+    category: 'preflight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Chute Condition', 'GOOD'],
+      ['Layout', 'FLAT & EVEN'],
+      ['Lines', 'UNTANGLED'],
+      ['Riser Connections', 'SECURE'],
+      ['Risers on Hooks', 'PROPERLY SET'],
+    ]),
+  },
+  {
+    id: 'ppc-before-takeoff',
+    name: 'Before Takeoff',
+    category: 'before_takeoff',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Cameras', 'RECORDING'],
+      ['Seat Belts', 'ON & SECURE'],
+      ['Helmet', 'ON & STRAPPED'],
+      ['Passenger Briefing', 'COMPLETE'],
+      ['Controls', 'FREE & CORRECT'],
+      ['Wind', 'ASSESSED'],
+      ['Departure Path', 'CLEAR'],
+    ]),
+  },
+  {
+    id: 'ppc-loc-check',
+    name: 'LOC Check (Before Power)',
+    category: 'before_takeoff',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['L — LINES', 'CLEAR, UNTANGLED, NO TWISTS'],
+      ['O — OVERHEAD', 'WING CENTERED DIRECTLY ABOVE'],
+      ['C — CELLS', 'ALL OPEN, FULLY INFLATED, NO COLLAPSES'],
+    ]),
+  },
+  {
+    id: 'ppc-inflight',
+    name: 'In-Flight Checks',
+    category: 'in_flight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Coolant Temp', 'GREEN'],
+      ['Oil Temp', 'GREEN'],
+      ['Oil Pressure', 'GREEN'],
+      ['RPM', 'NORMAL RANGE'],
+      ['Fuel Level', 'CHECK'],
+      ['Wind / Turbulence', 'NOTE CONDITIONS'],
+    ]),
+  },
+  {
+    id: 'ppc-landing',
+    name: 'Landing',
+    category: 'before_landing',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Radio — Downwind', 'ANNOUNCED'],
+      ['Radio — Base', 'ANNOUNCED'],
+      ['Radio — Final', 'ANNOUNCED'],
+      ['Glide Slope', 'ESTABLISHED'],
+      ['Flare 25ft AGL', 'UP TO 1/3'],
+      ['Touchdown', 'LANDED'],
+    ]),
+  },
+  {
+    id: 'ppc-shutdown',
+    name: 'Shutdown',
+    category: 'post_flight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Taxi Clear', 'CLEAR OF RUNWAY'],
+      ['Throttle', 'IDLE'],
+      ['Engine', 'OFF'],
+      ['Steering Lines', 'BRING CHUTE DOWN'],
+      ['All Switches', 'OFF'],
+    ]),
+  },
+  {
+    id: 'ppc-packup',
+    name: 'Wing Pack-Up',
+    category: 'post_flight',
+    createdAt: NOW,
+    updatedAt: NOW,
+    items: items([
+      ['Wing Packed', 'SECURE'],
+      ['Lines Stowed', 'SECURE'],
+      ['Aircraft Secured', 'CONFIRMED'],
+    ]),
+  },
+]

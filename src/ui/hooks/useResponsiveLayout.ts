@@ -2,22 +2,34 @@ import { useState, useEffect } from 'react'
 
 export type LayoutMode = 'phone' | 'tablet-portrait' | 'tablet-landscape'
 
-function getMode(width: number): LayoutMode {
-  if (width >= 1024) return 'tablet-landscape'
-  if (width >= 768) return 'tablet-portrait'
-  return 'phone'
+/** Phones are identified by their short dimension being under 600px.
+ *  This catches phones in both portrait and landscape without misidentifying
+ *  tablets as phones just because they're narrow. */
+function getMode(width: number, height: number): LayoutMode {
+  const shortSide = Math.min(width, height)
+  if (shortSide < 600) return 'phone'
+  return width > height ? 'tablet-landscape' : 'tablet-portrait'
 }
 
 export function useResponsiveLayout(): LayoutMode {
-  const [mode, setMode] = useState<LayoutMode>(() => getMode(window.innerWidth))
+  const [mode, setMode] = useState<LayoutMode>(() =>
+    getMode(window.innerWidth, window.innerHeight)
+  )
 
   useEffect(() => {
-    const observer = new ResizeObserver(entries => {
-      const width = entries[0]?.contentRect.width ?? window.innerWidth
-      setMode(getMode(width))
-    })
-    observer.observe(document.documentElement)
-    return () => observer.disconnect()
+    const update = () => setMode(getMode(window.innerWidth, window.innerHeight))
+
+    // ResizeObserver catches window resize and orientation changes
+    const ro = new ResizeObserver(update)
+    ro.observe(document.documentElement)
+
+    // Also listen to orientationchange for faster response on mobile
+    window.addEventListener('orientationchange', update)
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('orientationchange', update)
+    }
   }, [])
 
   return mode

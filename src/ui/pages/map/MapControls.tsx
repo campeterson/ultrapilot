@@ -106,14 +106,12 @@ function RecordingIndicator() {
   const { session, endCurrentSession, clearTrackBuffer } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
   const { addStamp } = useTimelineStore()
-  const [confirming, setConfirming] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
 
   async function handleEnd() {
     if (!session) return
-    // Flush any buffered track points first
     const buf = clearTrackBuffer()
     if (buf.length > 0) await bulkAddTrackPoints(buf)
-
     const pos = useGPSStore.getState().position
     await endCurrentSession(maxAGLft, 0)
     await addStamp({
@@ -127,76 +125,106 @@ function RecordingIndicator() {
       speed: pos?.speed ?? 0,
       note: null,
     })
-    setConfirming(false)
-  }
-
-  if (confirming) {
-    return (
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        right: '12px',
-        background: theme.colors.darkCard,
-        border: `1px solid ${theme.colors.darkBorder}`,
-        borderRadius: '12px',
-        padding: '10px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        zIndex: 50,
-        backdropFilter: 'blur(6px)',
-      }}>
-        <span style={{ fontSize: theme.size.small, color: theme.colors.light, fontFamily: theme.font.primary }}>End session?</span>
-        <button
-          onClick={handleEnd}
-          style={{
-            padding: '6px 12px', borderRadius: '6px', border: 'none',
-            background: theme.colors.red, color: '#fff', cursor: 'pointer',
-            fontFamily: theme.font.primary, fontSize: theme.size.small,
-            minHeight: '32px',
-          }}
-        >
-          End
-        </button>
-        <button
-          onClick={() => setConfirming(false)}
-          style={{
-            padding: '6px 10px', borderRadius: '6px',
-            border: `1px solid ${theme.colors.darkBorder}`,
-            background: 'none', color: theme.colors.dim, cursor: 'pointer',
-            fontFamily: theme.font.primary, fontSize: theme.size.small,
-            minHeight: '32px',
-          }}
-        >
-          ✕
-        </button>
-      </div>
-    )
+    setModalOpen(false)
   }
 
   return (
-    <button
-      onClick={() => setConfirming(true)}
-      style={{
-        position: 'absolute',
-        bottom: '16px',
-        right: '12px',
-        background: 'rgba(14,14,20,0.88)',
-        border: `1px solid ${theme.colors.darkBorder}`,
-        borderRadius: '20px',
-        padding: '6px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        zIndex: 50,
-        backdropFilter: 'blur(6px)',
-        cursor: 'pointer',
-        minHeight: theme.tapTarget,
-      }}
-    >
-      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: theme.colors.green, display: 'inline-block' }} />
-      <span style={{ fontSize: theme.size.small, color: theme.colors.light, fontFamily: theme.font.primary }}>REC</span>
-    </button>
+    <>
+      <button
+        onClick={() => setModalOpen(true)}
+        style={{
+          position: 'absolute',
+          bottom: '16px',
+          right: '12px',
+          background: 'rgba(14,14,20,0.88)',
+          border: `1px solid ${theme.colors.darkBorder}`,
+          borderRadius: '20px',
+          padding: '6px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          zIndex: 50,
+          backdropFilter: 'blur(6px)',
+          cursor: 'pointer',
+          minHeight: theme.tapTarget,
+        }}
+      >
+        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: theme.colors.green, display: 'inline-block' }} />
+        <span style={{ fontSize: theme.size.small, color: theme.colors.light, fontFamily: theme.font.primary }}>REC</span>
+      </button>
+
+      {modalOpen && (
+        <div
+          onClick={() => setModalOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0,
+            bottom: theme.navHeight,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 200,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.colors.darkCard,
+              border: `1px solid ${theme.colors.darkBorder}`,
+              borderRadius: '16px',
+              padding: '28px 24px',
+              width: '280px',
+              fontFamily: theme.font.primary,
+            }}
+          >
+            <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '8px' }}>
+              End Session?
+            </div>
+            <div style={{ fontSize: theme.size.body, color: theme.colors.dim, marginBottom: '24px', lineHeight: 1.5 }}>
+              GPS tracking will stop and the session will be saved.
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.colors.darkBorder}`,
+                  background: 'none',
+                  color: theme.colors.light,
+                  cursor: 'pointer',
+                  fontFamily: theme.font.primary,
+                  fontSize: theme.size.body,
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEnd}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: theme.colors.red,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontFamily: theme.font.primary,
+                  fontSize: theme.size.body,
+                  fontWeight: 700,
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                End Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

@@ -120,7 +120,7 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
       </div>
       {hasPanel && (
         <div style={{
-          width: '310px',
+          width: '33.33%',
           flexShrink: 0,
           overflow: 'auto',
           background: theme.colors.dark,
