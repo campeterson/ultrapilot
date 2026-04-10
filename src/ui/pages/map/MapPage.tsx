@@ -12,17 +12,12 @@ import type { Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 
-interface MapState {
-  center: [number, number]
-  zoom: number
-}
-
-function loadMapState(): MapState {
+function loadMapState() {
   try {
     const raw = localStorage.getItem(MAP_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return JSON.parse(raw) as { center: [number, number]; zoom: number }
   } catch {}
-  return { center: [38.9, -94.6], zoom: 11 }
+  return { center: [38.9, -94.6] as [number, number], zoom: 11 }
 }
 
 function saveMapState(map: LeafletMap) {
@@ -34,24 +29,37 @@ function newWpId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+// ─── Tap context menu ─────────────────────────────────────────────────────────
+
+interface TapMenu {
+  lat: number
+  lon: number
+  // Pixel coords relative to map container for positioning the menu
+  x: number
+  y: number
+}
+
 export function MapPage() {
   const mapRef = useRef<LeafletMap | null>(null)
   const posMarkerRef = useRef<CircleMarker | null>(null)
   const originMarkerRef = useRef<CircleMarker | null>(null)
+  const liveTrackRef = useRef<Polyline | null>(null)
   const waypointMarkersRef = useRef<Map<string, CircleMarker>>(new Map())
   const historyLayersRef = useRef<(CircleMarker | Polyline)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
 
   const { position } = useGPSStore()
-  const { session, historySessionId } = useSessionStore()
+  const { session, historySessionId, trackBuffer } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
 
-  // Long-press state
-  const [longPressPos, setLongPressPos] = useState<{ lat: number; lon: number } | null>(null)
+  // Tap menu state
+  const [tapMenu, setTapMenu] = useState<TapMenu | null>(null)
+  // Waypoint name form (shown after tapping "Add Waypoint" in menu)
+  const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
   const [wpName, setWpName] = useState('')
 
-  // Initialize map
+  // ── Init map ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
@@ -74,28 +82,34 @@ export function MapPage() {
     map.on('moveend', () => saveMapState(map))
     map.on('dragstart', () => { autoFollowRef.current = false })
 
-    // Long-press detection
-    let pressTimer: ReturnType<typeof setTimeout> | null = null
-    let pressLatLng: L.LatLng | null = null
+    // Tap = click on map — show context menu. Distinguish from drag by checking movement.
+    let pointerDownAt: { x: number; y: number } | null = null
 
-    function startPress(e: L.LeafletMouseEvent) {
-      cancelPress()
-      pressLatLng = e.latlng
-      pressTimer = setTimeout(() => {
-        if (pressLatLng) {
-          setLongPressPos({ lat: pressLatLng.lat, lon: pressLatLng.lng })
-          setWpName('')
-        }
-        pressTimer = null
-      }, 600)
-    }
+    map.on('mousedown touchstart', (e) => {
+      const orig = (e as L.LeafletMouseEvent).originalEvent as MouseEvent | TouchEvent
+      const touch = 'touches' in orig ? orig.touches[0] : orig as MouseEvent
+      pointerDownAt = { x: touch.clientX, y: touch.clientY }
+    })
 
-    function cancelPress() {
-      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
-    }
+    map.on('click', (e) => {
+      const me = e as L.LeafletMouseEvent
+      if (!pointerDownAt) return
+      const orig = me.originalEvent as MouseEvent | TouchEvent
+      const touch = 'changedTouches' in orig ? orig.changedTouches[0] : orig as MouseEvent
+      const dx = touch.clientX - pointerDownAt.x
+      const dy = touch.clientY - pointerDownAt.y
+      pointerDownAt = null
+      if (Math.sqrt(dx * dx + dy * dy) > 8) return
 
-    map.on('mousedown', startPress)
-    map.on('dragstart mouseup contextmenu', cancelPress)
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      if (!containerRect) return
+      setTapMenu({
+        lat: me.latlng.lat,
+        lon: me.latlng.lng,
+        x: touch.clientX - containerRect.left,
+        y: touch.clientY - containerRect.top,
+      })
+    })
 
     mapRef.current = map
 
@@ -103,17 +117,16 @@ export function MapPage() {
     ro.observe(containerRef.current!)
 
     return () => {
-      cancelPress()
       ro.disconnect()
       map.remove()
       mapRef.current = null
     }
   }, [])
 
-  // Load waypoints on mount
+  // ── Load waypoints ──────────────────────────────────────────────────────────
   useEffect(() => { loadWaypoints() }, [loadWaypoints])
 
-  // Position marker
+  // ── Position marker ─────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !position) return
@@ -137,13 +150,19 @@ export function MapPage() {
     }
   }, [position])
 
-  // Origin marker
+  // ── Origin marker ───────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !session) return
+    if (!map) return
+
+    if (!session) {
+      // Clear origin marker when session ends
+      originMarkerRef.current?.remove()
+      originMarkerRef.current = null
+      return
+    }
 
     const latlng: [number, number] = [session.originLat, session.originLon]
-
     if (!originMarkerRef.current) {
       originMarkerRef.current = L.circleMarker(latlng, {
         radius: 6,
@@ -155,7 +174,48 @@ export function MapPage() {
     }
   }, [session])
 
-  // Waypoint markers — sync with store
+  // ── Live track polyline ─────────────────────────────────────────────────────
+  // Rebuilds from trackBuffer whenever a new point is buffered.
+  // On session start (new session object), also loads any persisted points from DB
+  // so the track is complete even after a flush.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (!session) {
+      liveTrackRef.current?.remove()
+      liveTrackRef.current = null
+      return
+    }
+
+    // Combine DB-persisted points with in-memory buffer for a complete track
+    async function rebuildTrack() {
+      const persisted = await getTrackPoints(session!.id)
+      const bufPts = useSessionStore.getState().trackBuffer
+
+      const all = [
+        ...persisted.map(p => [p.lat, p.lon] as [number, number]),
+        ...bufPts.map(p => [p.lat, p.lon] as [number, number]),
+      ]
+
+      if (all.length < 2 || !mapRef.current) return
+
+      if (!liveTrackRef.current) {
+        liveTrackRef.current = L.polyline(all, {
+          color: theme.colors.red,
+          weight: 2,
+          opacity: 0.8,
+          dashArray: '6 4',
+        }).addTo(mapRef.current)
+      } else {
+        liveTrackRef.current.setLatLngs(all)
+      }
+    }
+
+    rebuildTrack()
+  }, [session?.id, trackBuffer])
+
+  // ── Waypoint markers ────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -163,15 +223,9 @@ export function MapPage() {
     const existing = waypointMarkersRef.current
     const currentIds = new Set(waypoints.map(w => w.id))
 
-    // Remove markers for deleted waypoints
     for (const [id, marker] of existing) {
-      if (!currentIds.has(id)) {
-        marker.remove()
-        existing.delete(id)
-      }
+      if (!currentIds.has(id)) { marker.remove(); existing.delete(id) }
     }
-
-    // Add markers for new waypoints
     for (const wp of waypoints) {
       if (!existing.has(wp.id)) {
         const marker = L.circleMarker([wp.lat, wp.lon], {
@@ -187,10 +241,9 @@ export function MapPage() {
     }
   }, [waypoints])
 
-  // History session overlay — track line + event markers
+  // ── History session overlay ─────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
-    // Remove any existing history layers
     for (const layer of historyLayersRef.current) layer.remove()
     historyLayersRef.current = []
 
@@ -207,7 +260,6 @@ export function MapPage() {
       const m = mapRef.current
       const layers: (CircleMarker | Polyline)[] = []
 
-      // Track line — downsample to every 5th point for performance
       if (points.length > 1) {
         const coords: [number, number][] = points
           .filter((_, i) => i % 5 === 0 || i === points.length - 1)
@@ -219,21 +271,14 @@ export function MapPage() {
           dashArray: '6 4',
         }).addTo(m)
         layers.push(line)
-
-        // Fit map to track bounds
         m.fitBounds(line.getBounds(), { padding: [40, 40] })
       }
 
-      // Event markers
       for (const ev of events) {
         const color = EVENT_COLORS[ev.type]
         const label = EVENT_LABELS[ev.type]
         const marker = L.circleMarker([ev.lat, ev.lon], {
-          radius: 5,
-          color,
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 0.8,
+          radius: 5, color, weight: 2, fillColor: color, fillOpacity: 0.8,
         }).addTo(m)
         marker.bindTooltip(label, { direction: 'top' })
         layers.push(marker)
@@ -246,6 +291,8 @@ export function MapPage() {
     return () => { cancelled = true }
   }, [historySessionId, session])
 
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
   function handleRecenter() {
     const map = mapRef.current
     const pos = useGPSStore.getState().position
@@ -255,17 +302,18 @@ export function MapPage() {
   }
 
   async function handleSaveWaypoint() {
-    if (!longPressPos || !wpName.trim()) return
+    if (!wpForm || !wpName.trim()) return
     const w: Waypoint = {
       id: newWpId(),
       name: wpName.trim(),
-      lat: longPressPos.lat,
-      lon: longPressPos.lon,
+      lat: wpForm.lat,
+      lon: wpForm.lon,
       note: null,
       createdAt: new Date().toISOString(),
     }
     await saveWaypoint(w)
-    setLongPressPos(null)
+    setWpForm(null)
+    setWpName('')
   }
 
   const inputStyle: React.CSSProperties = {
@@ -285,21 +333,61 @@ export function MapPage() {
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
+        // Dismiss tap menu on click-outside (the map itself)
+        onClick={() => setTapMenu(null)}
       />
       <MapControls onRecenter={handleRecenter} />
 
-      {/* Long-press waypoint modal */}
-      {longPressPos && (
+      {/* ── Tap context menu ── */}
+      {tapMenu && !wpForm && (
         <div
-          onClick={() => setLongPressPos(null)}
+          onClick={e => e.stopPropagation()}
           style={{
             position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            // Position near the tap point, clamped so it doesn't go offscreen
+            left: Math.min(tapMenu.x + 8, (containerRef.current?.clientWidth ?? 300) - 180),
+            top: Math.max(tapMenu.y - 60, 8),
+            background: theme.colors.darkCard,
+            border: `1px solid ${theme.colors.darkBorder}`,
+            borderRadius: '10px',
+            overflow: 'hidden',
             zIndex: 100,
+            minWidth: '160px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          }}
+        >
+          <div style={{ padding: '8px 12px 4px', fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, letterSpacing: '0.04em' }}>
+            {tapMenu.lat.toFixed(5)}, {tapMenu.lon.toFixed(5)}
+          </div>
+          <button
+            onClick={() => {
+              setWpForm({ lat: tapMenu.lat, lon: tapMenu.lon })
+              setWpName('')
+              setTapMenu(null)
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              width: '100%', padding: '12px 16px',
+              background: 'none', border: 'none',
+              color: theme.colors.cream, cursor: 'pointer',
+              fontFamily: theme.font.primary, fontSize: theme.size.body,
+              minHeight: theme.tapTarget, textAlign: 'left',
+            }}
+          >
+            <span>⌖</span> Add Waypoint
+          </button>
+        </div>
+      )}
+
+      {/* ── Waypoint name modal ── */}
+      {wpForm && (
+        <div
+          onClick={() => { setWpForm(null); setWpName('') }}
+          style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 110,
           }}
         >
           <div
@@ -315,19 +403,18 @@ export function MapPage() {
           >
             <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, marginBottom: '4px' }}>Add Waypoint</div>
             <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, marginBottom: '16px' }}>
-              {longPressPos.lat.toFixed(5)}, {longPressPos.lon.toFixed(5)}
+              {wpForm.lat.toFixed(5)}, {wpForm.lon.toFixed(5)}
             </div>
             <input
               style={inputStyle}
               value={wpName}
               onChange={e => setWpName(e.target.value)}
               placeholder="Waypoint name"
-              autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleSaveWaypoint() }}
             />
             <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
               <button
-                onClick={() => setLongPressPos(null)}
+                onClick={() => { setWpForm(null); setWpName('') }}
                 style={{
                   flex: 1, padding: '12px', borderRadius: '8px',
                   border: `1px solid ${theme.colors.darkBorder}`,
@@ -342,8 +429,7 @@ export function MapPage() {
                 onClick={handleSaveWaypoint}
                 disabled={!wpName.trim()}
                 style={{
-                  flex: 1, padding: '12px', borderRadius: '8px',
-                  border: 'none',
+                  flex: 1, padding: '12px', borderRadius: '8px', border: 'none',
                   background: wpName.trim() ? theme.colors.red : theme.colors.darkBorder,
                   color: '#fff', cursor: wpName.trim() ? 'pointer' : 'default',
                   fontFamily: theme.font.primary, fontSize: theme.size.body,
