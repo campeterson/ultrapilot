@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { decodeMETAR, type MetarDecoded } from '../data/logic/metar-logic'
 
+const METAR_FN = '/.netlify/functions/metar'
+
 interface WeatherStore {
   stationId: string
   metar: MetarDecoded | null
@@ -8,8 +10,17 @@ interface WeatherStore {
   fetching: boolean
   error: string | null
 
-  setStation: (id: string) => void
-  fetchMETAR: (stationId: string) => Promise<void>
+  fetchByStation: (id: string) => Promise<void>
+  fetchNearest: (lat: number, lon: number) => Promise<void>
+}
+
+async function callMetarFn(params: Record<string, string>): Promise<{ metar: string; station: string; distance_miles?: number }> {
+  const qs = new URLSearchParams(params).toString()
+  const res = await fetch(`${METAR_FN}?${qs}`, { signal: AbortSignal.timeout(10_000) })
+  const data = await res.json() as { error?: string; metar?: string; station?: string; distance_miles?: number }
+  if (!res.ok || data.error) throw new Error(data.error ?? `HTTP ${res.status}`)
+  if (!data.metar || !data.station) throw new Error('No METAR data returned')
+  return { metar: data.metar, station: data.station, distance_miles: data.distance_miles }
 }
 
 export const useWeatherStore = create<WeatherStore>((set) => ({
@@ -19,18 +30,21 @@ export const useWeatherStore = create<WeatherStore>((set) => ({
   fetching: false,
   error: null,
 
-  setStation: (id) => set({ stationId: id.toUpperCase() }),
-
-  fetchMETAR: async (stationId) => {
+  fetchByStation: async (id) => {
     set({ fetching: true, error: null })
     try {
-      const url = `https://aviationweather.gov/api/data/metar?ids=${stationId.toUpperCase()}&format=json`
-      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { rawOb?: string }[]
-      if (!data.length || !data[0].rawOb) throw new Error('No METAR data')
-      const decoded = decodeMETAR(data[0].rawOb)
-      set({ metar: decoded, fetchedAt: Date.now(), fetching: false, stationId: stationId.toUpperCase() })
+      const { metar, station } = await callMetarFn({ id })
+      set({ metar: decodeMETAR(metar), stationId: station, fetchedAt: Date.now(), fetching: false })
+    } catch (err) {
+      set({ fetching: false, error: err instanceof Error ? err.message : 'Fetch failed' })
+    }
+  },
+
+  fetchNearest: async (lat, lon) => {
+    set({ fetching: true, error: null })
+    try {
+      const { metar, station } = await callMetarFn({ lat: lat.toFixed(4), lon: lon.toFixed(4) })
+      set({ metar: decodeMETAR(metar), stationId: station, fetchedAt: Date.now(), fetching: false })
     } catch (err) {
       set({ fetching: false, error: err instanceof Error ? err.message : 'Fetch failed' })
     }

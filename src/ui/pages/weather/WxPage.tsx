@@ -5,7 +5,8 @@ import { useGPSStore } from '../../../state/gps-store'
 import { theme } from '../../theme'
 
 function MetarCard() {
-  const { metar, fetchedAt, fetching, error, stationId, fetchMETAR } = useWeatherStore()
+  const { metar, fetchedAt, fetching, error, stationId, fetchByStation, fetchNearest } = useWeatherStore()
+  const { position } = useGPSStore()
   const [input, setInput] = useState(stationId)
 
   const ageMin = fetchedAt ? Math.round((Date.now() - fetchedAt) / 60_000) : null
@@ -27,7 +28,7 @@ function MetarCard() {
           }}
         />
         <button
-          onClick={() => input && fetchMETAR(input)}
+          onClick={() => input && fetchByStation(input)}
           disabled={fetching || !input}
           style={{
             padding: '10px 16px', borderRadius: '8px', border: 'none',
@@ -39,6 +40,22 @@ function MetarCard() {
           {fetching ? '…' : 'Get'}
         </button>
       </div>
+
+      {/* Nearest station button */}
+      {position && (
+        <button
+          onClick={() => fetchNearest(position.lat, position.lon)}
+          disabled={fetching}
+          style={{
+            width: '100%', padding: '10px', borderRadius: '8px', marginBottom: '10px',
+            border: `1px solid ${theme.colors.darkBorder}`, background: theme.colors.darkCard,
+            color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
+            fontSize: theme.size.small, minHeight: theme.tapTarget, opacity: fetching ? 0.6 : 1,
+          }}
+        >
+          ◎ Nearest station to current position
+        </button>
+      )}
 
       {error && (
         <div style={{ color: theme.colors.amber, fontSize: theme.size.small, marginBottom: '8px' }}>
@@ -120,15 +137,18 @@ function NearbyAirports() {
       )}
 
       {nearby.map(ap => (
-        <div
+        <button
           key={ap.id}
+          onClick={() => useWeatherStore.getState().fetchByStation(ap.id)}
           style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '10px 0', borderBottom: `1px solid ${theme.colors.darkBorder}`,
-            minHeight: theme.tapTarget,
+            width: '100%', padding: '10px 0',
+            minHeight: theme.tapTarget, background: 'none', border: 'none',
+            borderBottom: `1px solid ${theme.colors.darkBorder}`,
+            cursor: 'pointer', fontFamily: theme.font.primary,
           }}
         >
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <span style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, fontFamily: theme.font.mono }}>{ap.id}</span>
             <span style={{ fontSize: theme.size.small, color: theme.colors.dim, marginLeft: '8px' }}>{ap.name}</span>
           </div>
@@ -136,7 +156,7 @@ function NearbyAirports() {
             <div style={{ fontSize: theme.size.body, color: theme.colors.light, fontFamily: theme.font.mono }}>{ap.distNM.toFixed(1)} nm</div>
             <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim }}>{ap.bearingLabel}</div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   )
