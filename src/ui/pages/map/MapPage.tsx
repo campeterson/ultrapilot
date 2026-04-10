@@ -129,7 +129,7 @@ export function MapPage() {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '100%', isolation: 'isolate' }}
       />
       <MapControls onRecenter={handleRecenter} />
     </div>
