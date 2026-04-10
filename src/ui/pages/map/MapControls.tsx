@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
+import { useInstrumentStore } from '../../../state/instrument-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
+import { bulkAddTrackPoints } from '../../../data/db'
 import { computeAGLft } from '../../../data/logic/gps-logic'
 import { StampModal } from './StampModal'
 
@@ -35,37 +37,24 @@ export function MapControls({ onRecenter }: MapControlsProps) {
     const pos = useGPSStore.getState().position
     if (!session || !pos) return
     const aglFt = computeAGLft(pos.altMSL, session.originAltMSL)
-    const stamp = buildStamp(
+    await addStamp(buildStamp(
       session.id,
       type,
       pos.lat,
       pos.lon,
       pos.altMSL,
-      aglFt / 3.28084,  // back to meters
+      aglFt / 3.28084,
       pos.speed,
       note
-    )
-    await addStamp(stamp)
+    ))
     setStampOpen(false)
   }
 
   return (
     <>
-      {/* Bottom-left floating controls */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '16px',
-          left: '12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          zIndex: 50,
-        }}
-      >
-        <button style={btnBase} onClick={onRecenter} title="Re-center on position">
-          ▲
-        </button>
+      {/* Bottom-left: recenter */}
+      <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50 }}>
+        <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
       </div>
 
       {/* STAMP button — center bottom */}
@@ -100,15 +89,12 @@ export function MapControls({ onRecenter }: MapControlsProps) {
       )}
 
       {/* Start session button when no session */}
-      {!session && (
-        <StartSessionButton />
-      )}
+      {!session && <StartSessionButton />}
 
-      {/* Recording indicator */}
-      {session && sessionStatus === 'active' && (
-        <RecordingIndicator />
-      )}
+      {/* REC indicator — tappable to end session */}
+      {session && sessionStatus === 'active' && <RecordingIndicator />}
 
+      {/* Stamp modal — rendered at body level via portal-like fixed positioning */}
       {stampOpen && (
         <StampModal onSelect={handleStamp} onClose={() => setStampOpen(false)} />
       )}
@@ -117,8 +103,80 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 }
 
 function RecordingIndicator() {
+  const { session, endCurrentSession, clearTrackBuffer } = useSessionStore()
+  const { maxAGLft } = useInstrumentStore()
+  const { addStamp } = useTimelineStore()
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleEnd() {
+    if (!session) return
+    // Flush any buffered track points first
+    const buf = clearTrackBuffer()
+    if (buf.length > 0) await bulkAddTrackPoints(buf)
+
+    const pos = useGPSStore.getState().position
+    await endCurrentSession(maxAGLft, 0)
+    await addStamp({
+      sessionId: session.id,
+      ts: Date.now(),
+      type: 'session_end',
+      lat: pos?.lat ?? session.originLat,
+      lon: pos?.lon ?? session.originLon,
+      altMSL: pos?.altMSL ?? session.originAltMSL,
+      altAGL: 0,
+      speed: pos?.speed ?? 0,
+      note: null,
+    })
+    setConfirming(false)
+  }
+
+  if (confirming) {
+    return (
+      <div style={{
+        position: 'absolute',
+        bottom: '16px',
+        right: '12px',
+        background: theme.colors.darkCard,
+        border: `1px solid ${theme.colors.darkBorder}`,
+        borderRadius: '12px',
+        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        zIndex: 50,
+        backdropFilter: 'blur(6px)',
+      }}>
+        <span style={{ fontSize: theme.size.small, color: theme.colors.light, fontFamily: theme.font.primary }}>End session?</span>
+        <button
+          onClick={handleEnd}
+          style={{
+            padding: '6px 12px', borderRadius: '6px', border: 'none',
+            background: theme.colors.red, color: '#fff', cursor: 'pointer',
+            fontFamily: theme.font.primary, fontSize: theme.size.small,
+            minHeight: '32px',
+          }}
+        >
+          End
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          style={{
+            padding: '6px 10px', borderRadius: '6px',
+            border: `1px solid ${theme.colors.darkBorder}`,
+            background: 'none', color: theme.colors.dim, cursor: 'pointer',
+            fontFamily: theme.font.primary, fontSize: theme.size.small,
+            minHeight: '32px',
+          }}
+        >
+          ✕
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div
+    <button
+      onClick={() => setConfirming(true)}
       style={{
         position: 'absolute',
         bottom: '16px',
@@ -132,11 +190,13 @@ function RecordingIndicator() {
         gap: '6px',
         zIndex: 50,
         backdropFilter: 'blur(6px)',
+        cursor: 'pointer',
+        minHeight: theme.tapTarget,
       }}
     >
       <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: theme.colors.green, display: 'inline-block' }} />
       <span style={{ fontSize: theme.size.small, color: theme.colors.light, fontFamily: theme.font.primary }}>REC</span>
-    </div>
+    </button>
   )
 }
 
@@ -151,7 +211,6 @@ function StartSessionButton() {
       return
     }
     const s = await startSession(pos.lat, pos.lon, pos.altMSL)
-    // Auto-stamp session start
     await addStamp({
       sessionId: s.id,
       ts: Date.now(),

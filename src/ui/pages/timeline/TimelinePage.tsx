@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useSessionStore } from '../../../state/session-store'
-import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
+import { useTimelineStore } from '../../../state/timeline-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
-import { useWeatherStore } from '../../../state/weather-store'
-import { useGPSStore } from '../../../state/gps-store'
 import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../../data/logic/stamp-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { theme } from '../../theme'
@@ -62,81 +60,28 @@ function EventRow({ event }: { event: StampEvent }) {
   const detail = buildEventDetail(event)
 
   return (
-    <div style={{ display: 'flex', gap: '12px', padding: '12px 16px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
-      {/* Timeline dot + line */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px' }}>
-        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0, marginTop: '3px' }} />
-        <div style={{ flex: 1, width: '1px', background: theme.colors.darkBorder, marginTop: '4px' }} />
+    <div style={{ display: 'flex', gap: '10px', padding: '10px 16px', borderBottom: `1px solid ${theme.colors.darkBorder}`, alignItems: 'flex-start' }}>
+      {/* Time column — prominent, left-aligned */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        <span style={{
+          fontFamily: theme.font.mono,
+          fontSize: theme.size.body,
+          color: theme.colors.cream,
+          fontWeight: 700,
+          whiteSpace: 'nowrap',
+        }}>
+          {formatTime(event.ts)}
+        </span>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <div style={{ flex: 1, width: '1px', minHeight: '12px', background: theme.colors.darkBorder }} />
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '2px' }}>
-          <span style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700 }}>{label}</span>
-          <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{formatTime(event.ts)}</span>
-        </div>
+      {/* Event name + detail */}
+      <div style={{ flex: 1, minWidth: 0, paddingTop: '1px' }}>
+        <div style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700, marginBottom: '2px' }}>{label}</div>
         <div style={{ fontSize: theme.size.small, color: theme.colors.dim, wordBreak: 'break-word' }}>{detail}</div>
       </div>
     </div>
-  )
-}
-
-function GetWxButton() {
-  const [fetching, setFetching] = useState(false)
-  const { session } = useSessionStore()
-  const { addStamp } = useTimelineStore()
-  const { fetchNearest } = useWeatherStore()
-
-  async function handleGetWx() {
-    if (!session) return
-    setFetching(true)
-    try {
-      const pos = useGPSStore.getState().position
-      if (pos) {
-        await fetchNearest(pos.lat, pos.lon)
-      } else {
-        // No GPS — can't auto-fetch, bail
-        setFetching(false)
-        return
-      }
-
-      const { metar, stationId } = useWeatherStore.getState()
-      if (!metar) { setFetching(false); return }
-
-      const note = `${stationId} ${metar.category} · ${metar.wind} · ${metar.visibility} · ${metar.ceiling}`
-
-      await addStamp(buildStamp(
-        session.id,
-        'weather',
-        pos?.lat ?? session.originLat,
-        pos?.lon ?? session.originLon,
-        pos?.altMSL ?? session.originAltMSL,
-        0,
-        pos?.speed ?? 0,
-        note
-      ))
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  return (
-    <button
-      onClick={handleGetWx}
-      disabled={fetching}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-        width: '100%', padding: '11px 16px',
-        background: 'none', border: 'none',
-        borderBottom: `1px solid ${theme.colors.darkBorder}`,
-        color: fetching ? theme.colors.dim : theme.colors.blue,
-        cursor: fetching ? 'default' : 'pointer',
-        fontFamily: theme.font.primary, fontSize: theme.size.small,
-        minHeight: theme.tapTarget,
-      }}
-    >
-      {fetching ? '…fetching weather' : '⛅ Stamp current weather'}
-    </button>
   )
 }
 
@@ -160,7 +105,6 @@ export function TimelinePage() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       <SummaryCards events={events} maxAGLft={maxAGLft} sessionStart={new Date(session.startTime).getTime()} />
-      <GetWxButton />
       <div>
         {events.length === 0 ? (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>

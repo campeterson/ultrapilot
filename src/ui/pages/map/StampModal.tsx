@@ -24,7 +24,10 @@ export function StampModal({ onSelect, onClose }: StampModalProps) {
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: theme.navHeight,
         background: 'rgba(0,0,0,0.7)',
         zIndex: 400,
         display: 'flex',

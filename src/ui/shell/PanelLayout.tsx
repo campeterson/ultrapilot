@@ -5,61 +5,87 @@ import type { LayoutMode } from '../hooks/useResponsiveLayout'
 interface PanelLayoutProps {
   layout: LayoutMode
   mapContent: ReactNode
-  panelContent: ReactNode | null  // null = no panel open
+  panelContent: ReactNode | null
   onTogglePanel?: () => void
   panelOpen: boolean
 }
 
-export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTogglePanel }: PanelLayoutProps) {
-  const topOffset = theme.stripHeight
-  const bottomOffset = theme.navHeight
+const chevronBase: React.CSSProperties = {
+  background: theme.colors.darkCard,
+  border: `1px solid ${theme.colors.darkBorder}`,
+  color: theme.colors.light,
+  cursor: 'pointer',
+  fontFamily: theme.font.primary,
+  position: 'absolute',
+  zIndex: 50,
+}
 
+export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTogglePanel }: PanelLayoutProps) {
+  const top = theme.stripHeight
+  const bottom = theme.navHeight
+  const hasPanel = panelOpen && panelContent !== null
+
+  // ── Phone ────────────────────────────────────────────────────────────────
+  // Map stays mounted beneath; panel overlays it when open.
   if (layout === 'phone') {
     return (
-      <div style={{ position: 'fixed', top: topOffset, bottom: bottomOffset, left: 0, right: 0 }}>
-        {panelOpen && panelContent ? (
-          <div style={{ height: '100%', overflow: 'auto', background: theme.colors.dark }}>
+      <div style={{ position: 'fixed', top, bottom, left: 0, right: 0 }}>
+        {/* Map always mounted so Leaflet isn't destroyed on tab switch */}
+        <div style={{ position: 'absolute', inset: 0 }}>
+          {mapContent}
+        </div>
+        {hasPanel && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            overflow: 'auto',
+            background: theme.colors.dark,
+            zIndex: 10,
+          }}>
             {panelContent}
           </div>
-        ) : (
-          mapContent
         )}
       </div>
     )
   }
 
+  // ── Tablet Portrait ───────────────────────────────────────────────────────
+  // Map always in top portion; flex-basis drives the 52/48 split.
   if (layout === 'tablet-portrait') {
-    const mapH = panelOpen ? '52%' : '100%'
-    const panelH = '48%'
     return (
-      <div style={{ position: 'fixed', top: topOffset, bottom: bottomOffset, left: 0, right: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: mapH, position: 'relative', transition: 'height 0.25s ease' }}>
+      <div style={{
+        position: 'fixed', top, bottom, left: 0, right: 0,
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{
+          flex: hasPanel ? '0 0 52%' : '1 1 100%',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'flex-basis 0.2s ease',
+        }}>
           {mapContent}
-          {/* Chevron toggle */}
           <button
             onClick={onTogglePanel}
             style={{
-              position: 'absolute',
+              ...chevronBase,
               bottom: 0,
               left: '50%',
               transform: 'translateX(-50%)',
-              background: theme.colors.darkCard,
-              border: `1px solid ${theme.colors.darkBorder}`,
               borderRadius: '8px 8px 0 0',
-              color: theme.colors.light,
-              padding: '4px 20px',
-              cursor: 'pointer',
-              zIndex: 50,
-              fontFamily: theme.font.primary,
+              padding: '4px 24px',
               minWidth: '80px',
               minHeight: '28px',
             }}
           >
-            {panelOpen ? '˄' : '˅'}
+            {hasPanel ? '˄' : '˅'}
           </button>
         </div>
-        {panelOpen && panelContent && (
-          <div style={{ height: panelH, overflow: 'auto', background: theme.colors.dark, borderTop: `1px solid ${theme.colors.darkBorder}` }}>
+        {hasPanel && (
+          <div style={{
+            flex: '0 0 48%',
+            overflow: 'auto',
+            background: theme.colors.dark,
+            borderTop: `1px solid ${theme.colors.darkBorder}`,
+          }}>
             {panelContent}
           </div>
         )}
@@ -67,37 +93,39 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
     )
   }
 
-  // tablet-landscape
-  const panelWidth = '310px'
+  // ── Tablet Landscape ──────────────────────────────────────────────────────
+  // Map always on left; panel slides in from right.
   return (
-    <div style={{ position: 'fixed', top: topOffset, bottom: bottomOffset, left: 0, right: 0, display: 'flex' }}>
-      <div style={{ flex: 1, position: 'relative' }}>
+    <div style={{
+      position: 'fixed', top, bottom, left: 0, right: 0,
+      display: 'flex',
+    }}>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {mapContent}
-        {/* Chevron toggle */}
         <button
           onClick={onTogglePanel}
           style={{
-            position: 'absolute',
+            ...chevronBase,
             top: '50%',
             right: 0,
             transform: 'translateY(-50%)',
-            background: theme.colors.darkCard,
-            border: `1px solid ${theme.colors.darkBorder}`,
             borderRadius: '8px 0 0 8px',
-            color: theme.colors.light,
             padding: '16px 6px',
-            cursor: 'pointer',
-            zIndex: 50,
-            fontFamily: theme.font.primary,
             minWidth: '24px',
             minHeight: '60px',
           }}
         >
-          {panelOpen ? '›' : '‹'}
+          {hasPanel ? '›' : '‹'}
         </button>
       </div>
-      {panelOpen && panelContent && (
-        <div style={{ width: panelWidth, overflow: 'auto', background: theme.colors.dark, borderLeft: `1px solid ${theme.colors.darkBorder}` }}>
+      {hasPanel && (
+        <div style={{
+          width: '310px',
+          flexShrink: 0,
+          overflow: 'auto',
+          background: theme.colors.dark,
+          borderLeft: `1px solid ${theme.colors.darkBorder}`,
+        }}>
           {panelContent}
         </div>
       )}

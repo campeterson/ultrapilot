@@ -62,7 +62,13 @@ export function MapPage() {
     map.on('dragstart', () => { autoFollowRef.current = false })
 
     mapRef.current = map
+
+    // Invalidate size whenever the container resizes (panel open/close, orientation change)
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(containerRef.current)
+
     return () => {
+      ro.disconnect()
       map.remove()
       mapRef.current = null
     }
