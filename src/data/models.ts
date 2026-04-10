@@ -36,6 +36,7 @@ export type StampEventType =
   | 'engine_shutdown'
   | 'checklist_complete'
   | 'wing_layout'
+  | 'weather'
   | 'custom'
 
 export interface StampEvent {

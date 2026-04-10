@@ -1,7 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSessionStore } from '../../../state/session-store'
-import { useTimelineStore } from '../../../state/timeline-store'
+import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
+import { useWeatherStore } from '../../../state/weather-store'
+import { useGPSStore } from '../../../state/gps-store'
 import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../../data/logic/stamp-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { theme } from '../../theme'
@@ -73,9 +75,68 @@ function EventRow({ event }: { event: StampEvent }) {
           <span style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700 }}>{label}</span>
           <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{formatTime(event.ts)}</span>
         </div>
-        <div style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{detail}</div>
+        <div style={{ fontSize: theme.size.small, color: theme.colors.dim, wordBreak: 'break-word' }}>{detail}</div>
       </div>
     </div>
+  )
+}
+
+function GetWxButton() {
+  const [fetching, setFetching] = useState(false)
+  const { session } = useSessionStore()
+  const { addStamp } = useTimelineStore()
+  const { fetchNearest } = useWeatherStore()
+
+  async function handleGetWx() {
+    if (!session) return
+    setFetching(true)
+    try {
+      const pos = useGPSStore.getState().position
+      if (pos) {
+        await fetchNearest(pos.lat, pos.lon)
+      } else {
+        // No GPS — can't auto-fetch, bail
+        setFetching(false)
+        return
+      }
+
+      const { metar, stationId } = useWeatherStore.getState()
+      if (!metar) { setFetching(false); return }
+
+      const note = `${stationId} ${metar.category} · ${metar.wind} · ${metar.visibility} · ${metar.ceiling}`
+
+      await addStamp(buildStamp(
+        session.id,
+        'weather',
+        pos?.lat ?? session.originLat,
+        pos?.lon ?? session.originLon,
+        pos?.altMSL ?? session.originAltMSL,
+        0,
+        pos?.speed ?? 0,
+        note
+      ))
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleGetWx}
+      disabled={fetching}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+        width: '100%', padding: '11px 16px',
+        background: 'none', border: 'none',
+        borderBottom: `1px solid ${theme.colors.darkBorder}`,
+        color: fetching ? theme.colors.dim : theme.colors.blue,
+        cursor: fetching ? 'default' : 'pointer',
+        fontFamily: theme.font.primary, fontSize: theme.size.small,
+        minHeight: theme.tapTarget,
+      }}
+    >
+      {fetching ? '…fetching weather' : '⛅ Stamp current weather'}
+    </button>
   )
 }
 
@@ -99,6 +160,7 @@ export function TimelinePage() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       <SummaryCards events={events} maxAGLft={maxAGLft} sessionStart={new Date(session.startTime).getTime()} />
+      <GetWxButton />
       <div>
         {events.length === 0 ? (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>

@@ -16,11 +16,3 @@ createRoot(root).render(
   </StrictMode>
 )
 
-// Register service worker
-if ('serviceWorker' in navigator) {
-  import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({ immediate: true })
-  }).catch(() => {
-    // PWA registration not available in dev
-  })
-}

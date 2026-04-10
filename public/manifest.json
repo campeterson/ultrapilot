@@ -1,0 +1,18 @@
+{
+  "name": "UltraPilot",
+  "short_name": "UltraPilot",
+  "description": "Cockpit companion for ultralight and PPC pilots",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#141418",
+  "background_color": "#141418",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

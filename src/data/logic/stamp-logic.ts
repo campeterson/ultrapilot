@@ -10,6 +10,7 @@ export const EVENT_COLORS: Record<StampEventType, string> = {
   engine_shutdown: '#e67e22',
   checklist_complete: '#27ae60',
   wing_layout: '#ccd',
+  weather: '#3498db',
   custom: '#ccd',
 }
 
@@ -23,6 +24,7 @@ export const EVENT_LABELS: Record<StampEventType, string> = {
   engine_shutdown: 'Engine Shutdown',
   checklist_complete: 'Checklist Complete',
   wing_layout: 'Wing Layout',
+  weather: 'Weather',
   custom: 'Custom Event',
 }
 
@@ -63,6 +65,8 @@ export function buildEventDetail(event: StampEvent, completionCount?: number): s
       return completionCount !== undefined
         ? `Checklist completed (${completionCount} items)`
         : 'Checklist completed'
+    case 'weather':
+      return event.note ?? '—'
     default:
       return `${event.lat.toFixed(4)}°, ${event.lon.toFixed(4)}°${event.note ? `  ·  ${event.note}` : ''}`
   }
