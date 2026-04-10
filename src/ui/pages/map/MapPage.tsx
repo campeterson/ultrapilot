@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import type { Map as LeafletMap, CircleMarker } from 'leaflet'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
+import { useWaypointStore } from '../../../state/waypoint-store'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
+import type { Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 
@@ -26,15 +28,25 @@ function saveMapState(map: LeafletMap) {
   localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify({ center: [c.lat, c.lng], zoom: map.getZoom() }))
 }
 
+function newWpId() {
+  return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
 export function MapPage() {
   const mapRef = useRef<LeafletMap | null>(null)
   const posMarkerRef = useRef<CircleMarker | null>(null)
   const originMarkerRef = useRef<CircleMarker | null>(null)
+  const waypointMarkersRef = useRef<Map<string, CircleMarker>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
 
   const { position } = useGPSStore()
   const { session } = useSessionStore()
+  const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
+
+  // Long-press state
+  const [longPressPos, setLongPressPos] = useState<{ lat: number; lon: number } | null>(null)
+  const [wpName, setWpName] = useState('')
 
   // Initialize map
   useEffect(() => {
@@ -54,25 +66,49 @@ export function MapPage() {
       attribution: '© OpenStreetMap contributors',
     }).addTo(map)
 
-    // Small attribution in corner
     L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map)
 
-    // Save position on move
     map.on('moveend', () => saveMapState(map))
     map.on('dragstart', () => { autoFollowRef.current = false })
 
+    // Long-press detection
+    let pressTimer: ReturnType<typeof setTimeout> | null = null
+    let pressLatLng: L.LatLng | null = null
+
+    function startPress(e: L.LeafletMouseEvent) {
+      cancelPress()
+      pressLatLng = e.latlng
+      pressTimer = setTimeout(() => {
+        if (pressLatLng) {
+          setLongPressPos({ lat: pressLatLng.lat, lon: pressLatLng.lng })
+          setWpName('')
+        }
+        pressTimer = null
+      }, 600)
+    }
+
+    function cancelPress() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
+    }
+
+    map.on('mousedown', startPress)
+    map.on('dragstart mouseup contextmenu', cancelPress)
+
     mapRef.current = map
 
-    // Invalidate size whenever the container resizes (panel open/close, orientation change)
     const ro = new ResizeObserver(() => map.invalidateSize())
-    ro.observe(containerRef.current)
+    ro.observe(containerRef.current!)
 
     return () => {
+      cancelPress()
       ro.disconnect()
       map.remove()
       mapRef.current = null
     }
   }, [])
+
+  // Load waypoints on mount
+  useEffect(() => { loadWaypoints() }, [loadWaypoints])
 
   // Position marker
   useEffect(() => {
@@ -116,12 +152,37 @@ export function MapPage() {
     }
   }, [session])
 
-  // Track line — rebuild from session track points
-  // (track points come from DB; for live use we use GPS positions buffered in store)
+  // Waypoint markers — sync with store
   useEffect(() => {
-    // Track rendering handled by separate TrackLayer logic
-    // For now, the position marker shows current location
-  }, [])
+    const map = mapRef.current
+    if (!map) return
+
+    const existing = waypointMarkersRef.current
+    const currentIds = new Set(waypoints.map(w => w.id))
+
+    // Remove markers for deleted waypoints
+    for (const [id, marker] of existing) {
+      if (!currentIds.has(id)) {
+        marker.remove()
+        existing.delete(id)
+      }
+    }
+
+    // Add markers for new waypoints
+    for (const wp of waypoints) {
+      if (!existing.has(wp.id)) {
+        const marker = L.circleMarker([wp.lat, wp.lon], {
+          radius: 6,
+          color: theme.colors.blue,
+          weight: 2,
+          fillColor: theme.colors.blue,
+          fillOpacity: 0.3,
+        }).addTo(map)
+        marker.bindTooltip(wp.name, { permanent: false, direction: 'top' })
+        existing.set(wp.id, marker)
+      }
+    }
+  }, [waypoints])
 
   function handleRecenter() {
     const map = mapRef.current
@@ -131,6 +192,32 @@ export function MapPage() {
     map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 13))
   }
 
+  async function handleSaveWaypoint() {
+    if (!longPressPos || !wpName.trim()) return
+    const w: Waypoint = {
+      id: newWpId(),
+      name: wpName.trim(),
+      lat: longPressPos.lat,
+      lon: longPressPos.lon,
+      note: null,
+      createdAt: new Date().toISOString(),
+    }
+    await saveWaypoint(w)
+    setLongPressPos(null)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: `1px solid ${theme.colors.darkBorder}`,
+    background: 'rgba(255,255,255,0.05)',
+    color: theme.colors.cream,
+    fontFamily: theme.font.primary,
+    fontSize: theme.size.body,
+    boxSizing: 'border-box',
+  }
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div
@@ -138,6 +225,75 @@ export function MapPage() {
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
       />
       <MapControls onRecenter={handleRecenter} />
+
+      {/* Long-press waypoint modal */}
+      {longPressPos && (
+        <div
+          onClick={() => setLongPressPos(null)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.colors.darkCard,
+              border: `1px solid ${theme.colors.darkBorder}`,
+              borderRadius: '16px',
+              padding: '24px',
+              width: 'min(300px, calc(100vw - 48px))',
+              fontFamily: theme.font.primary,
+            }}
+          >
+            <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, marginBottom: '4px' }}>Add Waypoint</div>
+            <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, marginBottom: '16px' }}>
+              {longPressPos.lat.toFixed(5)}, {longPressPos.lon.toFixed(5)}
+            </div>
+            <input
+              style={inputStyle}
+              value={wpName}
+              onChange={e => setWpName(e.target.value)}
+              placeholder="Waypoint name"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveWaypoint() }}
+            />
+            <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+              <button
+                onClick={() => setLongPressPos(null)}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '8px',
+                  border: `1px solid ${theme.colors.darkBorder}`,
+                  background: 'none', color: theme.colors.light, cursor: 'pointer',
+                  fontFamily: theme.font.primary, fontSize: theme.size.body,
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveWaypoint}
+                disabled={!wpName.trim()}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '8px',
+                  border: 'none',
+                  background: wpName.trim() ? theme.colors.red : theme.colors.darkBorder,
+                  color: '#fff', cursor: wpName.trim() ? 'pointer' : 'default',
+                  fontFamily: theme.font.primary, fontSize: theme.size.body,
+                  fontWeight: 700, minHeight: theme.tapTarget,
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { MapPage } from '../pages/map/MapPage'
 import { TimelinePage } from '../pages/timeline/TimelinePage'
 import { ChecklistsPage } from '../pages/checklists/ChecklistsPage'
 import { WxPage } from '../pages/weather/WxPage'
+import { WaypointsPage } from '../pages/waypoints/WaypointsPage'
 import { InstrumentsPage } from '../pages/instruments/InstrumentsPage'
 import { SettingsPage } from '../pages/settings/SettingsPage'
 
@@ -65,6 +66,7 @@ export function AppShell() {
       case 'timeline': return <TimelinePage />
       case 'checklists': return <ChecklistsPage />
       case 'wx': return <WxPage />
+      case 'waypoints': return <WaypointsPage />
       default: return null
     }
   }

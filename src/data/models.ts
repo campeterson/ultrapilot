@@ -77,6 +77,17 @@ export interface Checklist {
   updatedAt: string  // ISO
 }
 
+// ─── Waypoints ───────────────────────────────────────────────────────────────
+
+export interface Waypoint {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  note: string | null
+  createdAt: string  // ISO
+}
+
 // ─── Airports ─────────────────────────────────────────────────────────────────
 
 export interface Airport {
