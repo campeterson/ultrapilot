@@ -5,10 +5,26 @@ import { useInstrumentStore } from '../../../state/instrument-store'
 import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../../data/logic/stamp-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { theme } from '../../theme'
-import type { StampEvent } from '../../../data/models'
+import type { StampEvent, StampEventType } from '../../../data/models'
+
+const EVENT_ICONS: Record<StampEventType, string> = {
+  session_start:      '▶',
+  session_end:        '■',
+  takeoff:            '↑',
+  landing:            '↓',
+  engine_start:       '⊕',
+  engine_shutdown:    '⊗',
+  checklist_complete: '✓',
+  wing_layout:        '⌒',
+  weather:            '☁',
+  waypoint:           '⌖',
+  preflight:          '◈',
+  maneuver:           '↺',
+  custom:             '★',
+}
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatElapsed(ms: number): string {
@@ -58,28 +74,58 @@ function EventRow({ event }: { event: StampEvent }) {
   const color = EVENT_COLORS[event.type]
   const label = EVENT_LABELS[event.type]
   const detail = buildEventDetail(event)
+  const icon = EVENT_ICONS[event.type]
 
   return (
-    <div style={{ display: 'flex', gap: '10px', padding: '10px 16px', borderBottom: `1px solid ${theme.colors.darkBorder}`, alignItems: 'flex-start' }}>
-      {/* Time column — prominent, left-aligned */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-        <span style={{
-          fontFamily: theme.font.mono,
-          fontSize: theme.size.body,
-          color: theme.colors.cream,
-          fontWeight: 700,
-          whiteSpace: 'nowrap',
-        }}>
-          {formatTime(event.ts)}
-        </span>
-        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <div style={{ flex: 1, width: '1px', minHeight: '12px', background: theme.colors.darkBorder }} />
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '10px 16px',
+      borderBottom: `1px solid ${theme.colors.darkBorder}`,
+      minHeight: '44px',
+    }}>
+      {/* Time — left of dot, vertically centered */}
+      <span style={{
+        fontFamily: theme.font.mono,
+        fontSize: theme.size.small,
+        color: theme.colors.dim,
+        minWidth: '38px',
+        textAlign: 'right',
+        flexShrink: 0,
+        lineHeight: 1,
+      }}>
+        {formatTime(event.ts)}
+      </span>
+
+      {/* Colored icon circle */}
+      <div style={{
+        width: '22px',
+        height: '22px',
+        borderRadius: '50%',
+        background: color,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        fontSize: '11px',
+        color: '#fff',
+        fontFamily: theme.font.mono,
+        lineHeight: 1,
+      }}>
+        {icon}
       </div>
 
       {/* Event name + detail */}
-      <div style={{ flex: 1, minWidth: 0, paddingTop: '1px' }}>
-        <div style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700, marginBottom: '2px' }}>{label}</div>
-        <div style={{ fontSize: theme.size.small, color: theme.colors.dim, wordBreak: 'break-word' }}>{detail}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700, lineHeight: 1.2 }}>
+          {label}
+        </div>
+        {detail && (
+          <div style={{ fontSize: theme.size.small, color: theme.colors.dim, lineHeight: 1.3, wordBreak: 'break-word' }}>
+            {detail}
+          </div>
+        )}
       </div>
     </div>
   )

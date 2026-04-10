@@ -79,6 +79,52 @@ export function deriveInstruments(
   }
 }
 
+// Color constants — must stay in sync with theme.ts
+const CREAM  = '#FDF6E3'
+const GREEN  = '#27ae60'
+const AMBER  = '#e67e22'
+const RED    = '#C0392B'
+
+/** Return a color string for an instrument value based on aviation-standard ranges.
+ *  Returns cream (normal) for instruments with no meaningful range coloring. */
+export function getInstrumentColor(id: InstrumentId, values: InstrumentValues): string {
+  switch (id) {
+    case 'agl': {
+      const v = values.agl
+      if (v < 50)  return RED
+      if (v < 150) return AMBER
+      return CREAM
+    }
+    case 'vs': {
+      const v = values.vs
+      if (v < -1200) return RED
+      if (v < -500)  return AMBER
+      if (v > 200)   return GREEN
+      return CREAM
+    }
+    case 'gs': {
+      const v = values.gs
+      if (v > 45) return RED
+      if (v > 30) return AMBER
+      return CREAM
+    }
+    case 'xtk': {
+      if (values.xtk === null) return CREAM
+      const v = Math.abs(values.xtk)
+      if (v > 0.3) return RED
+      if (v > 0.1) return AMBER
+      return CREAM
+    }
+    case 'dte': {
+      if (values.dte === null) return CREAM
+      if (values.dte < 0.1) return GREEN  // nearly arrived
+      return CREAM
+    }
+    default:
+      return CREAM
+  }
+}
+
 /** Format an instrument value for display */
 export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues): string {
   switch (id) {

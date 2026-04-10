@@ -3,6 +3,7 @@ import { useGPSStore } from '../../state/gps-store'
 import { useSessionStore } from '../../state/session-store'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { useDirectToStore } from '../../state/direct-to-store'
+import { useMapSettingsStore } from '../../state/map-settings-store'
 import { bulkAddTrackPoints } from '../../data/db'
 import { verticalSpeedFpm } from '../../data/logic/gps-logic'
 import { deriveInstruments } from '../../data/logic/instrument-logic'
@@ -71,8 +72,9 @@ export function useGPS() {
           setValues(values)
           updateMaxAGL(values.agl)
 
-          // Buffer track points at TRACK_INTERVAL_MS
-          if (pos.ts - lastTrackTs.current >= TRACK_INTERVAL_MS) {
+          // Buffer track points at TRACK_INTERVAL_MS (if recording enabled)
+          const { recordTrack } = useMapSettingsStore.getState()
+          if (recordTrack && pos.ts - lastTrackTs.current >= TRACK_INTERVAL_MS) {
             pushTrackPoint({
               ts: pos.ts,
               lat: pos.lat,

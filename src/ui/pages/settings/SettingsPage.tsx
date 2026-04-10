@@ -9,7 +9,7 @@ import { toGPX, toJSON, downloadString, sessionFilename } from '../../../data/ex
 import { theme } from '../../theme'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 
-const ALL_INSTRUMENTS: InstrumentId[] = ['gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'etime', 'sess', 'maxalt']
+const ALL_INSTRUMENTS: InstrumentId[] = ['gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'etime', 'sess', 'maxalt', 'dtk', 'dte', 'xtk', 'ete']
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -116,7 +116,7 @@ function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
-  const { showDirectionLine, showDistanceRings, toggle } = useMapSettingsStore()
+  const { showDirectionLine, showDistanceRings, recordTrack, toggle } = useMapSettingsStore()
   const [showInstrConfig, setShowInstrConfig] = useState(false)
 
   async function handleExportGPX() {
@@ -168,6 +168,11 @@ export function SettingsPage() {
           </Row>
         </>
       )}
+
+      <SectionHeader title="RECORDING" />
+      <Row label="Record GPS Track">
+        <Toggle value={recordTrack} onToggle={() => toggle('recordTrack')} />
+      </Row>
 
       <SectionHeader title="MAP DISPLAY" />
       <Row label="Direction Line">

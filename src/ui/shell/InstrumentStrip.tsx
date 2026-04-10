@@ -1,6 +1,6 @@
 import { useInstrumentStore } from '../../state/instrument-store'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS } from '../../data/models'
-import { formatInstrumentValue } from '../../data/logic/instrument-logic'
+import { formatInstrumentValue, getInstrumentColor } from '../../data/logic/instrument-logic'
 import { theme } from '../theme'
 
 export function InstrumentStrip() {
@@ -27,6 +27,7 @@ export function InstrumentStrip() {
         const label = INSTRUMENT_LABELS[id]
         const unit = INSTRUMENT_UNITS[id]
         const displayValue = values ? formatInstrumentValue(id, values) : '—'
+        const valueColor = values ? getInstrumentColor(id, values) : theme.colors.cream
 
         return (
           <div
@@ -65,7 +66,7 @@ export function InstrumentStrip() {
               <span
                 style={{
                   fontSize: theme.size.instrumentValue,
-                  color: theme.colors.cream,
+                  color: valueColor,
                   fontFamily: theme.font.mono,
                   fontWeight: 700,
                   lineHeight: 1,

@@ -9,7 +9,7 @@ import { useDirectToStore } from '../../../state/direct-to-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
-import { destinationPoint } from '../../../data/logic/gps-logic'
+import { destinationPoint, bearing } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
@@ -216,7 +216,13 @@ export function MapPage() {
     if (!map || !position) return
 
     const latlng: [number, number] = [position.lat, position.lon]
-    const heading = position.heading ?? 0
+
+    // Compute heading from last 2 track points when moving, fall back to GPS heading
+    const recent = useGPSStore.getState().recentPositions
+    const heading = (recent.length >= 2 && position.speed > 1)
+      ? bearing(recent[recent.length - 2].lat, recent[recent.length - 2].lon,
+                recent[recent.length - 1].lat, recent[recent.length - 1].lon)
+      : (position.heading ?? 0)
 
     if (!posMarkerRef.current) {
       posMarkerRef.current = L.marker(latlng, {
@@ -233,8 +239,10 @@ export function MapPage() {
     }
 
     if (showDirectionLine && position.speed > 0.5) {
+      // Start line slightly ahead of the aircraft so it projects from the arrow tip
+      const lineStart = destinationPoint(position.lat, position.lon, heading, 0.02)
       const dest = destinationPoint(position.lat, position.lon, heading, DIR_LINE_NM)
-      const lineCoords: [number, number][] = [latlng, dest]
+      const lineCoords: [number, number][] = [lineStart, dest]
       if (!dirLineRef.current) {
         dirLineRef.current = L.polyline(lineCoords, {
           color: theme.colors.cream, weight: 1.5, opacity: 0.6, dashArray: '4 4',
@@ -461,9 +469,13 @@ export function MapPage() {
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
-        onClick={dismissAll}
       />
       <MapControls onRecenter={handleRecenter} />
+
+      {/* Light-dismiss overlay — sits above map, below menus; prevents container onClick race */}
+      {(tapMenu || selectedAirport) && !wpForm && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 99 }} onClick={dismissAll} />
+      )}
 
       {/* Tap context menu */}
       {tapMenu && !wpForm && !selectedAirport && (
