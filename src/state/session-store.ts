@@ -12,6 +12,10 @@ interface SessionStore {
   sessions: Session[]
   loadingSessions: boolean
 
+  // History map overlay — the past session currently shown on the map
+  historySessionId: string | null
+  setHistorySession: (id: string | null) => void
+
   // Actions
   startSession: (lat: number, lon: number, altMSLm: number) => Promise<Session>
   endCurrentSession: (maxAGLft: number, totalDistNM: number) => Promise<void>
@@ -29,6 +33,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionStatus: 'idle',
   sessions: [],
   loadingSessions: false,
+  historySessionId: null,
+  setHistorySession: (id) => set({ historySessionId: id }),
   trackBuffer: [],
 
   startSession: async (lat, lon, altMSLm) => {

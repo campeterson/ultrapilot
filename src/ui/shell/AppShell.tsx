@@ -13,6 +13,7 @@ import { TimelinePage } from '../pages/timeline/TimelinePage'
 import { ChecklistsPage } from '../pages/checklists/ChecklistsPage'
 import { WxPage } from '../pages/weather/WxPage'
 import { WaypointsPage } from '../pages/waypoints/WaypointsPage'
+import { SessionsPage } from '../pages/sessions/SessionsPage'
 import { InstrumentsPage } from '../pages/instruments/InstrumentsPage'
 import { SettingsPage } from '../pages/settings/SettingsPage'
 
@@ -72,6 +73,7 @@ export function AppShell() {
 
   function getPanelContent() {
     if (moreView === 'instruments') return <InstrumentsPage />
+    if (moreView === 'sessions') return <SessionsPage />
     if (moreView === 'settings') return <SettingsPage />
 
     switch (activeTab) {

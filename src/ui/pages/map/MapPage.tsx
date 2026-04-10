@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import type { Map as LeafletMap, CircleMarker } from 'leaflet'
+import type { Map as LeafletMap, CircleMarker, Polyline } from 'leaflet'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
+import { getTrackPoints, getEvents } from '../../../data/db'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
+import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
@@ -37,11 +39,12 @@ export function MapPage() {
   const posMarkerRef = useRef<CircleMarker | null>(null)
   const originMarkerRef = useRef<CircleMarker | null>(null)
   const waypointMarkersRef = useRef<Map<string, CircleMarker>>(new Map())
+  const historyLayersRef = useRef<(CircleMarker | Polyline)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
 
   const { position } = useGPSStore()
-  const { session } = useSessionStore()
+  const { session, historySessionId } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
 
   // Long-press state
@@ -183,6 +186,65 @@ export function MapPage() {
       }
     }
   }, [waypoints])
+
+  // History session overlay — track line + event markers
+  useEffect(() => {
+    const map = mapRef.current
+    // Remove any existing history layers
+    for (const layer of historyLayersRef.current) layer.remove()
+    historyLayersRef.current = []
+
+    if (!map || !historySessionId || session) return
+
+    let cancelled = false
+    async function loadHistory() {
+      const [points, events] = await Promise.all([
+        getTrackPoints(historySessionId!),
+        getEvents(historySessionId!),
+      ])
+      if (cancelled || !mapRef.current) return
+
+      const m = mapRef.current
+      const layers: (CircleMarker | Polyline)[] = []
+
+      // Track line — downsample to every 5th point for performance
+      if (points.length > 1) {
+        const coords: [number, number][] = points
+          .filter((_, i) => i % 5 === 0 || i === points.length - 1)
+          .map(p => [p.lat, p.lon])
+        const line = L.polyline(coords, {
+          color: theme.colors.red,
+          weight: 2,
+          opacity: 0.7,
+          dashArray: '6 4',
+        }).addTo(m)
+        layers.push(line)
+
+        // Fit map to track bounds
+        m.fitBounds(line.getBounds(), { padding: [40, 40] })
+      }
+
+      // Event markers
+      for (const ev of events) {
+        const color = EVENT_COLORS[ev.type]
+        const label = EVENT_LABELS[ev.type]
+        const marker = L.circleMarker([ev.lat, ev.lon], {
+          radius: 5,
+          color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.8,
+        }).addTo(m)
+        marker.bindTooltip(label, { direction: 'top' })
+        layers.push(marker)
+      }
+
+      historyLayersRef.current = layers
+    }
+
+    loadHistory()
+    return () => { cancelled = true }
+  }, [historySessionId, session])
 
   function handleRecenter() {
     const map = mapRef.current
