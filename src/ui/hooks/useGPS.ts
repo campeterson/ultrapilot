@@ -15,7 +15,7 @@ export function useGPS() {
   const flushTimerRef = useRef<number | null>(null)
 
   const { setPosition, setStatus } = useGPSStore()
-  const { session, sessionStatus, pushTrackPoint, clearTrackBuffer } = useSessionStore()
+  const { pushTrackPoint, clearTrackBuffer } = useSessionStore()
   const { setValues, updateMaxAGL } = useInstrumentStore()
 
   const lastTrackTs = useRef<number>(0)
@@ -42,15 +42,17 @@ export function useGPS() {
 
         setPosition(pos)
 
+        // Always read session state fresh — avoid stale closure
+        const { session: currentSession, sessionStatus: currentStatus } = useSessionStore.getState()
+
         // Update instruments if session is active
-        if (session && sessionStatus === 'active') {
+        if (currentSession && currentStatus === 'active') {
           const recent = useGPSStore.getState().recentPositions
           const vsFpm = verticalSpeedFpm(
             recent.map(p => ({ altMSL: p.altMSL, ts: p.ts }))
           )
 
           const { maxAGLft } = useInstrumentStore.getState()
-          const { session: currentSession } = useSessionStore.getState()
           if (!currentSession) return
 
           const values = deriveInstruments(

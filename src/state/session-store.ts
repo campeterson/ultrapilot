@@ -19,6 +19,7 @@ interface SessionStore {
   // Actions
   startSession: (lat: number, lon: number, altMSLm: number) => Promise<Session>
   endCurrentSession: (maxAGLft: number, totalDistNM: number) => Promise<void>
+  resetOrigin: (lat: number, lon: number, altMSLm: number) => Promise<void>
   loadHistory: () => Promise<void>
   deleteSessionById: (id: string) => Promise<void>
 
@@ -43,6 +44,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     localStorage.setItem('ultrapilot_lastSession', s.id)
     set({ session: s, sessionStatus: 'active' })
     return s
+  },
+
+  resetOrigin: async (lat, lon, altMSLm) => {
+    const { session } = get()
+    if (!session) return
+    const updated = { ...session, originLat: lat, originLon: lon, originAltMSL: altMSLm }
+    await putSession(updated)
+    set({ session: updated })
   },
 
   endCurrentSession: async (maxAGLft, totalDistNM) => {

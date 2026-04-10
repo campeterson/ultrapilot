@@ -68,7 +68,7 @@ export function MapPage() {
   const autoFollowRef = useRef(true)
 
   const { position } = useGPSStore()
-  const { session, historySessionId, trackBuffer } = useSessionStore()
+  const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
 
@@ -220,8 +220,10 @@ export function MapPage() {
         radius: 6, color: theme.colors.cream, weight: 2, fillOpacity: 0,
       }).addTo(map)
       originMarkerRef.current.bindTooltip('ORIGIN', { permanent: true, direction: 'top', className: 'origin-tooltip' })
+    } else {
+      originMarkerRef.current.setLatLng(latlng)
     }
-  }, [session])
+  }, [session?.id, session?.originLat, session?.originLon])
 
   // ── Live track ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -386,6 +388,7 @@ export function MapPage() {
               display: 'flex', alignItems: 'center', gap: '10px',
               width: '100%', padding: '12px 16px',
               background: 'none', border: 'none',
+              borderBottom: session ? `1px solid ${theme.colors.darkBorder}` : 'none',
               color: theme.colors.cream, cursor: 'pointer',
               fontFamily: theme.font.primary, fontSize: theme.size.body,
               minHeight: theme.tapTarget, textAlign: 'left',
@@ -393,6 +396,27 @@ export function MapPage() {
           >
             <span>⌖</span> Add Waypoint
           </button>
+          {session && (
+            <button
+              onClick={async () => {
+                originMarkerRef.current?.remove()
+                originMarkerRef.current = null
+                const altMSLm = useGPSStore.getState().position?.altMSL ?? 0
+                await resetOrigin(tapMenu.lat, tapMenu.lon, altMSLm)
+                setTapMenu(null)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                width: '100%', padding: '12px 16px',
+                background: 'none', border: 'none',
+                color: theme.colors.amber, cursor: 'pointer',
+                fontFamily: theme.font.primary, fontSize: theme.size.body,
+                minHeight: theme.tapTarget, textAlign: 'left',
+              }}
+            >
+              <span>◎</span> Reset Origin Here
+            </button>
+          )}
         </div>
       )}
 
