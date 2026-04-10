@@ -6,7 +6,7 @@ import { useInstrumentStore } from '../../../state/instrument-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { bulkAddTrackPoints } from '../../../data/db'
-import { computeAGLft } from '../../../data/logic/gps-logic'
+import { computeAGLft, bearing as getBearing, haversineNM } from '../../../data/logic/gps-logic'
 import { StampModal } from './StampModal'
 
 interface MapControlsProps {
@@ -27,6 +27,39 @@ const btnBase: React.CSSProperties = {
   fontSize: '18px',
   backdropFilter: 'blur(6px)',
   fontFamily: theme.font.primary,
+}
+
+function DirectToIndicator() {
+  const { target: directTo } = useDirectToStore()
+  const { position } = useGPSStore()
+
+  if (!directTo || !position) return null
+
+  const brg = getBearing(position.lat, position.lon, directTo.lat, directTo.lon)
+  const dist = haversineNM(position.lat, position.lon, directTo.lat, directTo.lon)
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(14, 14, 20, 0.88)',
+      border: `1px solid rgba(224,64,251,0.35)`,
+      borderRadius: '10px',
+      padding: '8px 10px',
+      backdropFilter: 'blur(6px)',
+      gap: '2px',
+      minWidth: '48px',
+    }}>
+      <div style={{ transform: `rotate(${brg}deg)`, width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -9 12 18" width="18" height="18">
+          <polygon points="0,-8 4,5 0,2 -4,5" fill={theme.colors.magenta} />
+        </svg>
+      </div>
+      <div style={{ fontSize: '14px', fontWeight: 700, color: theme.colors.magenta, fontFamily: theme.font.mono, lineHeight: 1 }}>
+        {dist.toFixed(1)}
+      </div>
+      <div style={{ fontSize: '9px', color: theme.colors.dim, lineHeight: 1, letterSpacing: '0.04em' }}>nm</div>
+    </div>
+  )
 }
 
 export function MapControls({ onRecenter }: MapControlsProps) {
@@ -54,8 +87,9 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 
   return (
     <>
-      {/* Bottom-left: recenter + cancel D→ */}
-      <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50 }}>
+      {/* Bottom-left: D→ indicator + recenter + cancel D→ */}
+      <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
+        <DirectToIndicator />
         <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
         {directTo && (
           <button
