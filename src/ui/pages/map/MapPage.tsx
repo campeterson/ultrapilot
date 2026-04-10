@@ -6,19 +6,20 @@ import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
+import { useAirportStore } from '../../../state/airport-store'
+import { useWeatherStore } from '../../../state/weather-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
-import type { Waypoint } from '../../../data/models'
+import type { Airport, Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
-
-// Direction line distance in NM
 const DIR_LINE_NM = 1.5
-// Distance ring radii in meters
 const RING_RADII_M = [926, 1852, 3704] // 0.5, 1, 2 nm
+const AIRPORT_MIN_ZOOM = 8
+const AIRPORT_CYAN = theme.colors.cyan
 
 function loadMapState() {
   try {
@@ -68,6 +69,12 @@ interface TapMenu {
   y: number
 }
 
+interface AirportSelection {
+  airport: Airport
+  x: number
+  y: number
+}
+
 export function MapPage() {
   const mapRef = useRef<LeafletMap | null>(null)
   const posMarkerRef = useRef<Marker | null>(null)
@@ -78,18 +85,22 @@ export function MapPage() {
   const directToMarkerRef = useRef<Marker | null>(null)
   const distRingsRef = useRef<Circle[]>([])
   const waypointMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
+  const airportMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
   const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
+  const updateAirportsRef = useRef<(() => void) | null>(null)
 
   const { position } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
+  const { loadDatabase: loadAirports } = useAirportStore()
 
   const [tapMenu, setTapMenu] = useState<TapMenu | null>(null)
-  const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
+  const [selectedAirport, setSelectedAirport] = useState<AirportSelection | null>(null)
+  const [wpForm, setWpForm] = useState<{ lat: number; lon: number; name?: string } | null>(null)
   const [wpName, setWpName] = useState('')
 
   // ── Init map ────────────────────────────────────────────────────────────────
@@ -112,7 +123,40 @@ export function MapPage() {
 
     L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map)
 
-    map.on('moveend', () => saveMapState(map))
+    function updateAirportMarkers() {
+      const { allAirports, loaded } = useAirportStore.getState()
+      if (!loaded || allAirports.length === 0) return
+      const zoom = map.getZoom()
+      if (zoom < AIRPORT_MIN_ZOOM) {
+        for (const [, m] of airportMarkersRef.current) m.remove()
+        airportMarkersRef.current.clear()
+        return
+      }
+      const bounds = map.getBounds()
+      const visible = allAirports.filter(ap => bounds.contains([ap.lat, ap.lon]))
+      const visibleIds = new Set(visible.map(ap => ap.id))
+      for (const [id, m] of airportMarkersRef.current) {
+        if (!visibleIds.has(id)) { m.remove(); airportMarkersRef.current.delete(id) }
+      }
+      for (const ap of visible) {
+        if (airportMarkersRef.current.has(ap.id)) continue
+        const m = L.circleMarker([ap.lat, ap.lon], {
+          radius: 5, color: AIRPORT_CYAN, weight: 2, fillColor: '#fff', fillOpacity: 0.9,
+        }).addTo(map)
+        m.bindTooltip(ap.id, { permanent: true, direction: 'top', className: 'airport-label' })
+        m.on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+          const pt = map.latLngToContainerPoint([ap.lat, ap.lon])
+          setSelectedAirport({ airport: ap, x: pt.x, y: pt.y })
+        })
+        airportMarkersRef.current.set(ap.id, m)
+      }
+    }
+
+    updateAirportsRef.current = updateAirportMarkers
+
+    map.on('moveend', () => { saveMapState(map); updateAirportMarkers() })
+    map.on('zoomend', () => updateAirportMarkers())
     map.on('dragstart', () => { autoFollowRef.current = false })
 
     let pointerDownAt: { x: number; y: number } | null = null
@@ -141,6 +185,7 @@ export function MapPage() {
         x: touch.clientX - containerRect.left,
         y: touch.clientY - containerRect.top,
       })
+      setSelectedAirport(null)
     })
 
     mapRef.current = map
@@ -150,10 +195,17 @@ export function MapPage() {
 
     return () => {
       ro.disconnect()
+      for (const [, m] of airportMarkersRef.current) m.remove()
+      airportMarkersRef.current.clear()
       map.remove()
       mapRef.current = null
     }
   }, [])
+
+  // ── Load airports + render on initial load ──────────────────────────────────
+  useEffect(() => {
+    loadAirports().then(() => updateAirportsRef.current?.())
+  }, [loadAirports])
 
   // ── Load waypoints ──────────────────────────────────────────────────────────
   useEffect(() => { loadWaypoints() }, [loadWaypoints])
@@ -166,7 +218,6 @@ export function MapPage() {
     const latlng: [number, number] = [position.lat, position.lon]
     const heading = position.heading ?? 0
 
-    // Arrow marker
     if (!posMarkerRef.current) {
       posMarkerRef.current = L.marker(latlng, {
         icon: makeArrowIcon(heading),
@@ -181,16 +232,12 @@ export function MapPage() {
       map.setView(latlng, map.getZoom())
     }
 
-    // Direction line
     if (showDirectionLine && position.speed > 0.5) {
       const dest = destinationPoint(position.lat, position.lon, heading, DIR_LINE_NM)
       const lineCoords: [number, number][] = [latlng, dest]
       if (!dirLineRef.current) {
         dirLineRef.current = L.polyline(lineCoords, {
-          color: theme.colors.cream,
-          weight: 1.5,
-          opacity: 0.6,
-          dashArray: '4 4',
+          color: theme.colors.cream, weight: 1.5, opacity: 0.6, dashArray: '4 4',
         }).addTo(map)
       } else {
         dirLineRef.current.setLatLngs(lineCoords)
@@ -200,16 +247,11 @@ export function MapPage() {
       dirLineRef.current = null
     }
 
-    // Distance rings
     if (showDistanceRings) {
       if (distRingsRef.current.length === 0) {
         distRingsRef.current = RING_RADII_M.map(r =>
           L.circle(latlng, {
-            radius: r,
-            color: theme.colors.dim,
-            weight: 1,
-            fillOpacity: 0,
-            opacity: 0.4,
+            radius: r, color: theme.colors.dim, weight: 1, fillOpacity: 0, opacity: 0.4,
           }).addTo(map)
         )
       } else {
@@ -239,10 +281,7 @@ export function MapPage() {
 
     if (!directToLineRef.current) {
       directToLineRef.current = L.polyline([from, to], {
-        color: theme.colors.magenta,
-        weight: 2,
-        opacity: 0.85,
-        dashArray: '8 4',
+        color: theme.colors.magenta, weight: 2, opacity: 0.85, dashArray: '8 4',
       }).addTo(map)
     } else {
       directToLineRef.current.setLatLngs([from, to])
@@ -253,7 +292,9 @@ export function MapPage() {
         icon: makeDirectToIcon(),
         zIndexOffset: 90,
       }).addTo(map)
-      directToMarkerRef.current.bindTooltip(`D→ ${directTo.name}`, { permanent: true, direction: 'top', className: 'origin-tooltip' })
+      directToMarkerRef.current.bindTooltip(`D→ ${directTo.name}`, {
+        permanent: true, direction: 'top', className: 'origin-tooltip',
+      })
     } else {
       directToMarkerRef.current.setLatLng(to)
     }
@@ -283,13 +324,11 @@ export function MapPage() {
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-
     if (!session) {
       liveTrackRef.current?.remove()
       liveTrackRef.current = null
       return
     }
-
     let cancelled = false
     getTrackPoints(session.id).then(pts => {
       if (cancelled || !mapRef.current) return
@@ -396,6 +435,11 @@ export function MapPage() {
     setWpName('')
   }
 
+  function dismissAll() {
+    setTapMenu(null)
+    setSelectedAirport(null)
+  }
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 12px', borderRadius: '8px',
     border: `1px solid ${theme.colors.darkBorder}`,
@@ -403,17 +447,26 @@ export function MapPage() {
     fontFamily: theme.font.primary, fontSize: theme.size.body, boxSizing: 'border-box',
   }
 
+  const menuBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '10px',
+    width: '100%', padding: '12px 16px',
+    background: 'none', border: 'none',
+    borderBottom: `1px solid ${theme.colors.darkBorder}`,
+    cursor: 'pointer', fontFamily: theme.font.primary,
+    fontSize: theme.size.body, minHeight: theme.tapTarget, textAlign: 'left',
+  }
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
-        onClick={() => setTapMenu(null)}
+        onClick={dismissAll}
       />
       <MapControls onRecenter={handleRecenter} />
 
       {/* Tap context menu */}
-      {tapMenu && !wpForm && (
+      {tapMenu && !wpForm && !selectedAirport && (
         <div
           onClick={e => e.stopPropagation()}
           style={{
@@ -438,15 +491,7 @@ export function MapPage() {
               setWpName('')
               setTapMenu(null)
             }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              width: '100%', padding: '12px 16px',
-              background: 'none', border: 'none',
-              borderBottom: `1px solid ${theme.colors.darkBorder}`,
-              color: theme.colors.cream, cursor: 'pointer',
-              fontFamily: theme.font.primary, fontSize: theme.size.body,
-              minHeight: theme.tapTarget, textAlign: 'left',
-            }}
+            style={{ ...menuBtnStyle, color: theme.colors.cream }}
           >
             <span>⌖</span> Add Waypoint
           </button>
@@ -455,23 +500,14 @@ export function MapPage() {
               onClick={() => {
                 const pos = useGPSStore.getState().position
                 setDirectTo({
-                  lat: tapMenu.lat,
-                  lon: tapMenu.lon,
+                  lat: tapMenu.lat, lon: tapMenu.lon,
                   name: `${tapMenu.lat.toFixed(4)}, ${tapMenu.lon.toFixed(4)}`,
                   fromLat: pos?.lat ?? tapMenu.lat,
                   fromLon: pos?.lon ?? tapMenu.lon,
                 })
                 setTapMenu(null)
               }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                width: '100%', padding: '12px 16px',
-                background: 'none', border: 'none',
-                borderBottom: `1px solid ${theme.colors.darkBorder}`,
-                color: theme.colors.magenta, cursor: 'pointer',
-                fontFamily: theme.font.primary, fontSize: theme.size.body,
-                minHeight: theme.tapTarget, textAlign: 'left',
-              }}
+              style={{ ...menuBtnStyle, color: theme.colors.magenta }}
             >
               <span>◇</span> Direct To
             </button>
@@ -485,18 +521,83 @@ export function MapPage() {
                 await resetOrigin(tapMenu.lat, tapMenu.lon, altMSLm)
                 setTapMenu(null)
               }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                width: '100%', padding: '12px 16px',
-                background: 'none', border: 'none',
-                color: theme.colors.amber, cursor: 'pointer',
-                fontFamily: theme.font.primary, fontSize: theme.size.body,
-                minHeight: theme.tapTarget, textAlign: 'left',
-              }}
+              style={{ ...menuBtnStyle, color: theme.colors.amber, borderBottom: 'none' }}
             >
               <span>◎</span> Reset Origin Here
             </button>
           )}
+        </div>
+      )}
+
+      {/* Airport popup */}
+      {selectedAirport && !wpForm && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            left: Math.min(selectedAirport.x + 8, (containerRef.current?.clientWidth ?? 300) - 220),
+            top: Math.max(selectedAirport.y - 160, 8),
+            background: theme.colors.darkCard,
+            border: `1px solid ${theme.colors.cyan}44`,
+            borderRadius: '10px',
+            overflow: 'hidden',
+            zIndex: 100,
+            minWidth: '200px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          }}
+        >
+          {/* Airport header */}
+          <div style={{ padding: '10px 14px 8px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: theme.colors.cyan, fontFamily: theme.font.mono }}>
+                {selectedAirport.airport.id}
+              </span>
+              <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono }}>
+                {selectedAirport.airport.elev} ft MSL
+              </span>
+            </div>
+            <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginTop: '2px', lineHeight: 1.3 }}>
+              {selectedAirport.airport.name}
+            </div>
+          </div>
+          {/* Actions */}
+          {session && (
+            <button
+              onClick={() => {
+                const pos = useGPSStore.getState().position
+                setDirectTo({
+                  lat: selectedAirport.airport.lat,
+                  lon: selectedAirport.airport.lon,
+                  name: selectedAirport.airport.id,
+                  fromLat: pos?.lat ?? selectedAirport.airport.lat,
+                  fromLon: pos?.lon ?? selectedAirport.airport.lon,
+                })
+                setSelectedAirport(null)
+              }}
+              style={{ ...menuBtnStyle, color: theme.colors.magenta }}
+            >
+              <span>◇</span> Direct To
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setWpForm({ lat: selectedAirport.airport.lat, lon: selectedAirport.airport.lon })
+              setWpName(selectedAirport.airport.id)
+              setSelectedAirport(null)
+            }}
+            style={{ ...menuBtnStyle, color: theme.colors.cream }}
+          >
+            <span>⌖</span> Add Waypoint
+          </button>
+          <button
+            onClick={() => {
+              useWeatherStore.getState().fetchByStation(selectedAirport.airport.id)
+              setSelectedAirport(null)
+            }}
+            style={{ ...menuBtnStyle, color: theme.colors.blue, borderBottom: 'none' }}
+          >
+            <span>☁</span> Fetch METAR
+          </button>
         </div>
       )}
 

@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useWeatherStore } from '../../../state/weather-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { theme } from '../../theme'
+import { useState } from 'react'
 
 function MetarCard() {
-  const { metar, fetchedAt, fetching, error, stationId, fetchByStation, fetchNearest } = useWeatherStore()
-  const { position } = useGPSStore()
+  const { metar, fetchedAt, fetching, error, stationId, fetchByStation } = useWeatherStore()
   const [input, setInput] = useState(stationId)
 
   const ageMin = fetchedAt ? Math.round((Date.now() - fetchedAt) / 60_000) : null
@@ -40,22 +40,6 @@ function MetarCard() {
           {fetching ? '…' : 'Get'}
         </button>
       </div>
-
-      {/* Nearest station button */}
-      {position && (
-        <button
-          onClick={() => fetchNearest(position.lat, position.lon)}
-          disabled={fetching}
-          style={{
-            width: '100%', padding: '10px', borderRadius: '8px', marginBottom: '10px',
-            border: `1px solid ${theme.colors.darkBorder}`, background: theme.colors.darkCard,
-            color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
-            fontSize: theme.size.small, minHeight: theme.tapTarget, opacity: fetching ? 0.6 : 1,
-          }}
-        >
-          ◎ Nearest station to current position
-        </button>
-      )}
 
       {error && (
         <div style={{ color: theme.colors.amber, fontSize: theme.size.small, marginBottom: '8px' }}>
@@ -106,33 +90,31 @@ function NearbyAirports() {
   const { nearby, loadDatabase, refreshNearby, loading } = useAirportStore()
   const { position } = useGPSStore()
 
-  function handleRefresh() {
+  // Auto-load on mount
+  useEffect(() => {
     const pos = useGPSStore.getState().position
-    if (!pos) return
-    loadDatabase().then(() => refreshNearby(pos.lat, pos.lon))
-  }
+    loadDatabase().then(() => {
+      if (pos) refreshNearby(pos.lat, pos.lon)
+    })
+  }, [loadDatabase, refreshNearby])
+
+  // Re-refresh when position changes
+  useEffect(() => {
+    if (!position) return
+    const { loaded } = useAirportStore.getState()
+    if (loaded) refreshNearby(position.lat, position.lon)
+  }, [position, refreshNearby])
 
   return (
     <div style={{ padding: '12px 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <span style={{ fontSize: theme.size.small, color: theme.colors.dim, letterSpacing: '0.06em' }}>NEARBY AIRPORTS</span>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          style={{
-            padding: '6px 12px', borderRadius: '6px', border: `1px solid ${theme.colors.darkBorder}`,
-            background: 'none', color: theme.colors.light, cursor: 'pointer',
-            fontFamily: theme.font.primary, fontSize: theme.size.small,
-            minHeight: '32px',
-          }}
-        >
-          {loading ? '…' : 'Refresh'}
-        </button>
+        {loading && <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim }}>Loading…</span>}
       </div>
 
-      {nearby.length === 0 && (
+      {!loading && nearby.length === 0 && (
         <div style={{ color: theme.colors.dim, fontSize: theme.size.body, textAlign: 'center', padding: '16px 0' }}>
-          {position ? 'Tap Refresh to find airports' : 'Waiting for GPS…'}
+          {position ? 'No airports found nearby' : 'Waiting for GPS…'}
         </div>
       )}
 
@@ -147,7 +129,7 @@ function NearbyAirports() {
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div>
-              <span style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, fontFamily: theme.font.mono }}>{ap.id}</span>
+              <span style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cyan, fontFamily: theme.font.mono }}>{ap.id}</span>
               <span style={{ fontSize: theme.size.small, color: theme.colors.dim, marginLeft: '8px' }}>{ap.name}</span>
             </div>
             <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '2px' }}>
