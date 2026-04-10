@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavBar, type NavTab } from './NavBar'
 import { MorePicker, type MoreView } from './MorePicker'
 import { InstrumentStrip } from './InstrumentStrip'
@@ -7,6 +7,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
 import { useSessionStore } from '../../state/session-store'
+import { trackEvent } from '../../lib/analytics'
 import { MapPage } from '../pages/map/MapPage'
 import { TimelinePage } from '../pages/timeline/TimelinePage'
 import { ChecklistsPage } from '../pages/checklists/ChecklistsPage'
@@ -30,6 +31,18 @@ export function AppShell() {
   // Keep screen awake during active sessions
   useWakeLock(sessionStatus === 'active')
 
+  // Return to map tab when a session ends so Start Session button is visible
+  const prevStatus = useRef(sessionStatus)
+  useEffect(() => {
+    if (prevStatus.current === 'active' && sessionStatus === 'idle') {
+      setActiveTab('map')
+      setMoreView(null)
+      setMoreOpen(false)
+      setPanelOpen(false)
+    }
+    prevStatus.current = sessionStatus
+  }, [sessionStatus])
+
   function handleTabSelect(tab: NavTab) {
     if (tab === 'more') {
       setMoreOpen(v => !v)
@@ -39,13 +52,11 @@ export function AppShell() {
     setMoreView(null)
 
     if (tab === 'map') {
-      // Map tab always collapses panel
       setPanelOpen(false)
       setActiveTab('map')
     } else {
       setActiveTab(tab)
-      // On phone, switching to a non-map tab shows the panel content fullscreen
-      // On tablet, open the panel if not already open
+      trackEvent(`panel_${tab}`)
       if (layout !== 'phone') {
         setPanelOpen(true)
       }
@@ -55,6 +66,7 @@ export function AppShell() {
   function handleMoreSelect(view: MoreView) {
     setMoreOpen(false)
     setMoreView(view)
+    trackEvent(`panel_${view}`)
     if (layout !== 'phone') setPanelOpen(true)
   }
 

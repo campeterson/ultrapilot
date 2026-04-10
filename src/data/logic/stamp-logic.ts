@@ -11,6 +11,9 @@ export const EVENT_COLORS: Record<StampEventType, string> = {
   checklist_complete: '#27ae60',
   wing_layout: '#ccd',
   weather: '#3498db',
+  waypoint: '#9b59b6',
+  preflight: '#e67e22',
+  maneuver: '#27ae60',
   custom: '#ccd',
 }
 
@@ -25,16 +28,21 @@ export const EVENT_LABELS: Record<StampEventType, string> = {
   checklist_complete: 'Checklist Complete',
   wing_layout: 'Wing Layout',
   weather: 'Weather',
+  waypoint: 'Waypoint',
+  preflight: 'Preflight',
+  maneuver: 'Maneuver',
   custom: 'Custom Event',
 }
 
 /** Stamp types available to the user via the STAMP picker */
 export const USER_STAMP_TYPES: StampEventType[] = [
+  'preflight',
   'wing_layout',
   'engine_start',
   'engine_shutdown',
   'takeoff',
   'landing',
+  'maneuver',
   'custom',
 ]
 
@@ -62,6 +70,7 @@ export function buildEventDetail(event: StampEvent, completionCount?: number): s
       return `Cycle: ${cycle}`
     }
     case 'checklist_complete':
+      if (event.note) return event.note
       return completionCount !== undefined
         ? `Checklist completed (${completionCount} items)`
         : 'Checklist completed'

@@ -45,7 +45,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const ended = endSession(session, maxAGLft, totalDistNM)
     await putSession(ended)
     localStorage.removeItem('ultrapilot_lastSession')
-    set({ session: ended, sessionStatus: 'ended' })
+    set({ session: null, sessionStatus: 'idle' })
   },
 
   loadHistory: async () => {

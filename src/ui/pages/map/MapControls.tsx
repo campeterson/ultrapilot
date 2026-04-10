@@ -110,21 +110,27 @@ function RecordingIndicator() {
 
   async function handleEnd() {
     if (!session) return
+    // Capture everything before async work — session will be null after endCurrentSession
+    const sessionId = session.id
+    const pos = useGPSStore.getState().position
+    const originLat = session.originLat
+    const originLon = session.originLon
+    const originAlt = session.originAltMSL
+
     const buf = clearTrackBuffer()
     if (buf.length > 0) await bulkAddTrackPoints(buf)
-    const pos = useGPSStore.getState().position
-    await endCurrentSession(maxAGLft, 0)
     await addStamp({
-      sessionId: session.id,
+      sessionId,
       ts: Date.now(),
       type: 'session_end',
-      lat: pos?.lat ?? session.originLat,
-      lon: pos?.lon ?? session.originLon,
-      altMSL: pos?.altMSL ?? session.originAltMSL,
+      lat: pos?.lat ?? originLat,
+      lon: pos?.lon ?? originLon,
+      altMSL: pos?.altMSL ?? originAlt,
       altAGL: 0,
       speed: pos?.speed ?? 0,
       note: null,
     })
+    await endCurrentSession(maxAGLft, 0)
     setModalOpen(false)
   }
 

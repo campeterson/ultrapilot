@@ -37,6 +37,9 @@ export type StampEventType =
   | 'checklist_complete'
   | 'wing_layout'
   | 'weather'
+  | 'waypoint'
+  | 'preflight'
+  | 'maneuver'
   | 'custom'
 
 export interface StampEvent {

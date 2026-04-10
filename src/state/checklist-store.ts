@@ -3,6 +3,9 @@ import { listChecklists, putChecklist, deleteChecklist } from '../data/db'
 import { resetChecklist, toggleItem, isComplete, type ChecklistRunState } from '../data/logic/checklist-logic'
 import type { Checklist } from '../data/models'
 import { PPC_DEFAULT_CHECKLISTS } from '../data/defaults/ppc-checklists'
+import { useSessionStore } from './session-store'
+import { useGPSStore } from './gps-store'
+import { useTimelineStore } from './timeline-store'
 
 interface ChecklistStore {
   checklists: Checklist[]
@@ -59,9 +62,30 @@ export const useChecklistStore = create<ChecklistStore>((set, get) => ({
   },
 
   toggleChecklistItem: (itemId) => {
-    const { runState } = get()
+    const { runState, activeChecklistId, checklists } = get()
     if (!runState) return
-    set({ runState: toggleItem(runState, itemId) })
+    const newRunState = toggleItem(runState, itemId)
+    set({ runState: newRunState })
+
+    // Stamp timeline when the last item is checked off
+    const cl = checklists.find(c => c.id === activeChecklistId)
+    if (cl && isComplete(newRunState, cl)) {
+      const { session } = useSessionStore.getState()
+      if (session) {
+        const pos = useGPSStore.getState().position
+        useTimelineStore.getState().addStamp({
+          sessionId: session.id,
+          ts: Date.now(),
+          type: 'checklist_complete',
+          lat: pos?.lat ?? session.originLat,
+          lon: pos?.lon ?? session.originLon,
+          altMSL: pos?.altMSL ?? session.originAltMSL,
+          altAGL: 0,
+          speed: pos?.speed ?? 0,
+          note: cl.name,
+        })
+      }
+    }
   },
 
   isChecklistComplete: () => {

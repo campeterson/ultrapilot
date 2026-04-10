@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
 import { useWaypointStore } from '../../../state/waypoint-store'
+import { useGPSStore } from '../../../state/gps-store'
 import type { Waypoint } from '../../../data/models'
 
 function newId() {
@@ -18,6 +19,7 @@ const EMPTY_FORM: FormState = { name: '', lat: '', lon: '', note: '' }
 
 export function WaypointsPage() {
   const { waypoints, loading, load, save, remove } = useWaypointStore()
+  const { position } = useGPSStore()
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
@@ -116,12 +118,14 @@ export function WaypointsPage() {
           onClick={() => setFormOpen(false)}
           style={{
             position: 'fixed',
-            top: 0, left: 0, right: 0,
-            bottom: theme.navHeight,
+            top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.65)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
+            paddingTop: '60px',
+            paddingBottom: theme.navHeight,
+            overflowY: 'auto',
             zIndex: 300,
           }}
         >
@@ -134,6 +138,7 @@ export function WaypointsPage() {
               padding: '24px',
               width: 'min(320px, calc(100vw - 32px))',
               fontFamily: theme.font.primary,
+              flexShrink: 0,
             }}
           >
             <div style={{ fontSize: '16px', fontWeight: 700, color: theme.colors.cream, marginBottom: '20px' }}>New Waypoint</div>
@@ -146,9 +151,27 @@ export function WaypointsPage() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Landing field"
-                  autoFocus
                 />
               </div>
+              {position && (
+                <button
+                  onClick={() => setForm(f => ({ ...f, lat: position.lat.toFixed(6), lon: position.lon.toFixed(6) }))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${theme.colors.darkBorder}`,
+                    background: 'rgba(255,255,255,0.05)',
+                    color: theme.colors.light,
+                    cursor: 'pointer',
+                    fontFamily: theme.font.primary,
+                    fontSize: theme.size.small,
+                    textAlign: 'left',
+                    minHeight: theme.tapTarget,
+                  }}
+                >
+                  ⌖ Use current location — {position.lat.toFixed(5)}, {position.lon.toFixed(5)}
+                </button>
+              )}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Latitude (decimal)</label>

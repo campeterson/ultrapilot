@@ -3,6 +3,7 @@ import { decodeMETAR, type MetarDecoded } from '../data/logic/metar-logic'
 import { useSessionStore } from './session-store'
 import { useTimelineStore } from './timeline-store'
 import { useGPSStore } from './gps-store'
+import { trackEvent } from '../lib/analytics'
 
 const METAR_FN = '/.netlify/functions/metar'
 
@@ -59,6 +60,7 @@ export const useWeatherStore = create<WeatherStore>((set) => ({
       const decoded = decodeMETAR(metar)
       set({ metar: decoded, stationId: station, fetchedAt: Date.now(), fetching: false })
       stampWeather(decoded, station)
+      trackEvent('metar_fetch')
     } catch (err) {
       set({ fetching: false, error: err instanceof Error ? err.message : 'Fetch failed' })
     }
@@ -71,6 +73,7 @@ export const useWeatherStore = create<WeatherStore>((set) => ({
       const decoded = decodeMETAR(metar)
       set({ metar: decoded, stationId: station, fetchedAt: Date.now(), fetching: false })
       stampWeather(decoded, station)
+      trackEvent('metar_fetch')
     } catch (err) {
       set({ fetching: false, error: err instanceof Error ? err.message : 'Fetch failed' })
     }
