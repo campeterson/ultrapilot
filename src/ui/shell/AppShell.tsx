@@ -97,7 +97,7 @@ export function AppShell() {
 
       <PanelLayout
         layout={layout}
-        mapContent={<MapPage />}
+        mapContent={<MapPage showControls={layout !== 'phone' || (activeTab === 'map' && moreView === null)} />}
         panelContent={panelContent}
         panelOpen={effectivePanelOpen}
         onTogglePanel={() => setPanelOpen(v => !v)}

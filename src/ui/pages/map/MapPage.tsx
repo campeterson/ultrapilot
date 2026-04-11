@@ -75,7 +75,7 @@ interface AirportSelection {
   y: number
 }
 
-export function MapPage() {
+export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const mapRef = useRef<LeafletMap | null>(null)
   const posMarkerRef = useRef<Marker | null>(null)
   const originMarkerRef = useRef<L.CircleMarker | null>(null)
@@ -470,7 +470,7 @@ export function MapPage() {
         ref={containerRef}
         style={{ width: '100%', height: '100%', isolation: 'isolate' }}
       />
-      <MapControls onRecenter={handleRecenter} />
+      {showControls && <MapControls onRecenter={handleRecenter} />}
 
       {/* Light-dismiss overlay — sits above map, below menus; prevents container onClick race */}
       {(tapMenu || selectedAirport) && !wpForm && (
@@ -500,7 +500,7 @@ export function MapPage() {
           <button
             onClick={() => {
               setWpForm({ lat: tapMenu.lat, lon: tapMenu.lon })
-              setWpName('')
+              setWpName(`Waypoint ${waypoints.length + 1}`)
               setTapMenu(null)
             }}
             style={{ ...menuBtnStyle, color: theme.colors.cream }}

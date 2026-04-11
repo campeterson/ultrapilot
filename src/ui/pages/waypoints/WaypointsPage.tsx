@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useGPSStore } from '../../../state/gps-store'
+import { useSessionStore } from '../../../state/session-store'
+import { useDirectToStore } from '../../../state/direct-to-store'
 import type { Waypoint } from '../../../data/models'
 
 function newId() {
@@ -20,14 +22,17 @@ const EMPTY_FORM: FormState = { name: '', lat: '', lon: '', note: '' }
 export function WaypointsPage() {
   const { waypoints, loading, load, save, remove } = useWaypointStore()
   const { position } = useGPSStore()
+  const { session } = useSessionStore()
+  const { setTarget: setDirectTo } = useDirectToStore()
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
+  const [detailWp, setDetailWp] = useState<Waypoint | null>(null)
 
   useEffect(() => { load() }, [load])
 
   function openNew() {
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM, name: `Waypoint ${waypoints.length + 1}` })
     setError(null)
     setFormOpen(true)
   }
@@ -108,9 +113,104 @@ export function WaypointsPage() {
           </div>
         )}
         {waypoints.map(wp => (
-          <WaypointRow key={wp.id} waypoint={wp} onDelete={() => remove(wp.id)} />
+          <WaypointRow key={wp.id} waypoint={wp} onTap={() => setDetailWp(wp)} />
         ))}
       </div>
+
+      {/* Waypoint detail modal */}
+      {detailWp && (
+        <div
+          onClick={() => setDetailWp(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px 16px',
+            zIndex: 300,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.colors.darkCard,
+              border: `1px solid ${theme.colors.darkBorder}`,
+              borderRadius: '16px',
+              padding: '24px',
+              width: 'min(320px, calc(100vw - 32px))',
+              fontFamily: theme.font.primary,
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream }}>{detailWp.name}</div>
+                <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '4px' }}>
+                  {detailWp.lat.toFixed(5)}, {detailWp.lon.toFixed(5)}
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailWp(null)}
+                style={{
+                  background: 'none', border: 'none', color: theme.colors.dim,
+                  cursor: 'pointer', fontSize: '20px', padding: '0 0 0 12px',
+                  minHeight: theme.tapTarget, flexShrink: 0,
+                }}
+              >✕</button>
+            </div>
+
+            {detailWp.note && (
+              <div style={{
+                fontSize: theme.size.body, color: theme.colors.light,
+                background: 'rgba(255,255,255,0.04)', borderRadius: '8px',
+                padding: '10px 12px', marginBottom: '16px',
+              }}>
+                {detailWp.note}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {session && (
+                <button
+                  onClick={() => {
+                    setDirectTo({
+                      lat: detailWp.lat,
+                      lon: detailWp.lon,
+                      name: detailWp.name,
+                      fromLat: position?.lat ?? detailWp.lat,
+                      fromLon: position?.lon ?? detailWp.lon,
+                    })
+                    setDetailWp(null)
+                  }}
+                  style={{
+                    padding: '12px', borderRadius: '8px', border: 'none',
+                    background: theme.colors.red, color: '#fff', cursor: 'pointer',
+                    fontFamily: theme.font.primary, fontSize: theme.size.body,
+                    fontWeight: 700, minHeight: theme.tapTarget,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  ◇ Direct To
+                </button>
+              )}
+              <button
+                onClick={() => { remove(detailWp.id); setDetailWp(null) }}
+                style={{
+                  padding: '12px', borderRadius: '8px',
+                  border: `1px solid ${theme.colors.darkBorder}`,
+                  background: 'none', color: theme.colors.dim, cursor: 'pointer',
+                  fontFamily: theme.font.primary, fontSize: theme.size.body,
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                Delete Waypoint
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New waypoint modal */}
       {formOpen && (
@@ -246,17 +346,28 @@ export function WaypointsPage() {
   )
 }
 
-function WaypointRow({ waypoint, onDelete }: { waypoint: Waypoint; onDelete: () => void }) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
+function WaypointRow({ waypoint, onTap }: { waypoint: Waypoint; onTap: () => void }) {
   return (
-    <div style={{
-      padding: '12px 16px',
-      borderBottom: `1px solid ${theme.colors.darkBorder}`,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-    }}>
+    <button
+      onClick={onTap}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        width: '100%',
+        padding: '12px 16px',
+        borderBottom: `1px solid ${theme.colors.darkBorder}`,
+        background: 'none',
+        border: 'none',
+        borderBottomWidth: '1px',
+        borderBottomStyle: 'solid',
+        borderBottomColor: theme.colors.darkBorder,
+        cursor: 'pointer',
+        textAlign: 'left',
+        minHeight: theme.tapTarget,
+        fontFamily: theme.font.primary,
+      }}
+    >
       <span style={{ fontSize: '18px', color: theme.colors.dim, flexShrink: 0 }}>⌖</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, marginBottom: '2px' }}>{waypoint.name}</div>
@@ -267,40 +378,7 @@ function WaypointRow({ waypoint, onDelete }: { waypoint: Waypoint; onDelete: () 
           <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginTop: '2px' }}>{waypoint.note}</div>
         )}
       </div>
-      {confirmDelete ? (
-        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-          <button
-            onClick={onDelete}
-            style={{
-              padding: '6px 10px', borderRadius: '6px', border: 'none',
-              background: theme.colors.red, color: '#fff', cursor: 'pointer',
-              fontSize: theme.size.small, fontFamily: theme.font.primary,
-              minHeight: '36px',
-            }}
-          >Del</button>
-          <button
-            onClick={() => setConfirmDelete(false)}
-            style={{
-              padding: '6px 10px', borderRadius: '6px',
-              border: `1px solid ${theme.colors.darkBorder}`,
-              background: 'none', color: theme.colors.dim, cursor: 'pointer',
-              fontSize: theme.size.small, fontFamily: theme.font.primary,
-              minHeight: '36px',
-            }}
-          >✕</button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setConfirmDelete(true)}
-          style={{
-            padding: '6px 10px', borderRadius: '6px',
-            border: `1px solid ${theme.colors.darkBorder}`,
-            background: 'none', color: theme.colors.dim, cursor: 'pointer',
-            fontSize: theme.size.small, fontFamily: theme.font.primary,
-            minHeight: '36px', flexShrink: 0,
-          }}
-        >✕</button>
-      )}
-    </div>
+      <span style={{ fontSize: theme.size.small, color: theme.colors.dim, flexShrink: 0 }}>›</span>
+    </button>
   )
 }
