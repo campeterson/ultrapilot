@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../data/models'
 import { theme } from '../theme'
 
@@ -19,7 +20,7 @@ interface InstrumentPickerModalProps {
 export function InstrumentPickerModal({ current, includeNull, onSelect, onClose }: InstrumentPickerModalProps) {
   const options: Array<InstrumentId | null> = includeNull ? OVERLAY_INSTRUMENTS : ALL_INSTRUMENTS
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
       style={{
@@ -76,6 +77,7 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
           Cancel
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

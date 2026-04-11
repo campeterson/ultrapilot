@@ -5,7 +5,36 @@ import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { sortedItems, progressOf } from '../../../data/logic/checklist-logic'
 import { theme } from '../../theme'
-import type { Checklist } from '../../../data/models'
+import type { Checklist, ChecklistCategory } from '../../../data/models'
+
+const CATEGORY_ORDER: ChecklistCategory[] = [
+  'preflight',
+  'before_takeoff',
+  'in_flight',
+  'before_landing',
+  'post_flight',
+  'custom',
+]
+
+const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
+  preflight: 'Preflight',
+  before_takeoff: 'Before Takeoff',
+  in_flight: 'In Flight',
+  before_landing: 'Before Landing',
+  post_flight: 'Post Flight',
+  custom: 'Custom',
+}
+
+function groupByCategory(checklists: Checklist[]): { category: ChecklistCategory; items: Checklist[] }[] {
+  const map = new Map<ChecklistCategory, Checklist[]>()
+  for (const cl of checklists) {
+    if (!map.has(cl.category)) map.set(cl.category, [])
+    map.get(cl.category)!.push(cl)
+  }
+  return CATEGORY_ORDER
+    .filter(cat => map.has(cat))
+    .map(cat => ({ category: cat, items: map.get(cat)!.sort((a, b) => a.name.localeCompare(b.name)) }))
+}
 
 function ChecklistRow({ checklist, onOpen }: { checklist: Checklist; onOpen: () => void }) {
   const { runState, activeChecklistId } = useChecklistStore()
@@ -166,17 +195,43 @@ export function ChecklistsPage() {
     return <ChecklistRunner checklist={activeChecklist} />
   }
 
+  const groups = groupByCategory(checklists)
+
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: theme.colors.dark, fontFamily: theme.font.primary }}>
-      {checklists.length === 0 ? (
-        <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>
-          No checklists yet. Add them in Settings.
-        </div>
-      ) : (
-        checklists.map(cl => (
-          <ChecklistRow key={cl.id} checklist={cl} onOpen={() => openRunner(cl.id)} />
-        ))
-      )}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
+      {/* Header */}
+      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, flexShrink: 0 }}>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Checklists</span>
+      </div>
+
+      {/* List */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {checklists.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>
+            No checklists yet. Add them in Settings.
+          </div>
+        ) : (
+          groups.map(({ category, items }) => (
+            <div key={category}>
+              <div style={{
+                padding: '8px 16px 6px',
+                fontSize: theme.size.small,
+                fontWeight: 700,
+                color: theme.colors.dim,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                borderBottom: `1px solid ${theme.colors.darkBorder}`,
+                background: 'rgba(255,255,255,0.02)',
+              }}>
+                {CATEGORY_LABELS[category]}
+              </div>
+              {items.map(cl => (
+                <ChecklistRow key={cl.id} checklist={cl} onOpen={() => openRunner(cl.id)} />
+              ))}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
