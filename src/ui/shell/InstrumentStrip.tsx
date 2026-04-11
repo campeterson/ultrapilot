@@ -24,6 +24,15 @@ export function InstrumentStrip() {
   const visibleStrip = strip.slice(0, maxVisible)
 
   return (
+    <>
+      {pickerIndex !== null && (
+        <InstrumentPickerModal
+          current={strip[pickerIndex] ?? null}
+          includeNull={false}
+          onSelect={handlePick}
+          onClose={() => setPickerIndex(null)}
+        />
+      )}
     <div
       style={{
         position: 'fixed',
@@ -40,14 +49,6 @@ export function InstrumentStrip() {
         paddingTop: 'env(safe-area-inset-top)',
       }}
     >
-      {pickerIndex !== null && (
-        <InstrumentPickerModal
-          current={strip[pickerIndex] ?? null}
-          includeNull={false}
-          onSelect={handlePick}
-          onClose={() => setPickerIndex(null)}
-        />
-      )}
       {visibleStrip.map((id, idx) => {
         const label = INSTRUMENT_LABELS[id]
         const unit = INSTRUMENT_UNITS[id]
@@ -114,5 +115,6 @@ export function InstrumentStrip() {
         )
       })}
     </div>
+    </>
   )
 }

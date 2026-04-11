@@ -8,7 +8,7 @@ import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { bulkAddTrackPoints } from '../../../data/db'
-import { computeAGLft, bearing as getBearing, haversineNM } from '../../../data/logic/gps-logic'
+import { computeAGLft, bearing as getBearing, haversineNM, formatNM } from '../../../data/logic/gps-logic'
 import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
@@ -94,7 +94,9 @@ function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; pos
             <ArrowSVG color={valueColor} size={32} />
           </div>
           <div style={{ fontSize: theme.size.small, fontFamily: theme.font.mono, color: theme.colors.dim, lineHeight: 1 }}>
-            {hasValue ? `${Math.round(bearingDeg)}°` : '---'}
+            {id === 'brg_arrow'
+              ? (values ? `${formatNM(values.dist)} nm` : '---')
+              : (hasValue ? `${Math.round(bearingDeg)}°` : '---')}
           </div>
         </div>
       ) : (
