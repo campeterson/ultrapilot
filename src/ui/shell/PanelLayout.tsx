@@ -8,6 +8,7 @@ interface PanelLayoutProps {
   panelContent: ReactNode | null
   onTogglePanel?: () => void
   panelOpen: boolean
+  topOffset?: string
 }
 
 const chevronBase: React.CSSProperties = {
@@ -20,8 +21,8 @@ const chevronBase: React.CSSProperties = {
   zIndex: 50,
 }
 
-export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTogglePanel }: PanelLayoutProps) {
-  const top = theme.safeStripHeight
+export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTogglePanel, topOffset }: PanelLayoutProps) {
+  const top = topOffset ?? theme.safeStripHeight
   const bottom = theme.safeNavHeight
   const hasPanel = panelOpen && panelContent !== null
 

@@ -1,10 +1,15 @@
 import { useInstrumentStore } from '../../state/instrument-store'
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS } from '../../data/models'
 import { formatInstrumentValue, getInstrumentColor } from '../../data/logic/instrument-logic'
 import { theme } from '../theme'
 
 export function InstrumentStrip() {
   const { strip, values } = useInstrumentStore()
+  const layout = useResponsiveLayout()
+
+  // Phone only has room for 4; tablet/desktop shows all 6
+  const visibleStrip = layout === 'phone' ? strip.slice(0, 4) : strip
 
   return (
     <div
@@ -23,7 +28,7 @@ export function InstrumentStrip() {
         paddingTop: 'env(safe-area-inset-top)',
       }}
     >
-      {strip.map((id, idx) => {
+      {visibleStrip.map((id, idx) => {
         const label = INSTRUMENT_LABELS[id]
         const unit = INSTRUMENT_UNITS[id]
         const displayValue = values ? formatInstrumentValue(id, values) : '—'
@@ -38,7 +43,7 @@ export function InstrumentStrip() {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRight: idx < strip.length - 1 ? `1px solid ${theme.colors.darkBorder}` : 'none',
+              borderRight: idx < visibleStrip.length - 1 ? `1px solid ${theme.colors.darkBorder}` : 'none',
               padding: '0 4px',
               minWidth: 0,
             }}
@@ -50,19 +55,13 @@ export function InstrumentStrip() {
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 lineHeight: 1,
-                marginBottom: '2px',
+                marginBottom: '3px',
                 whiteSpace: 'nowrap',
               }}
             >
               {label}
             </span>
-            <span
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: '2px',
-              }}
-            >
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span
                 style={{
                   fontSize: theme.size.instrumentValue,

@@ -8,6 +8,8 @@ import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
 import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
+import { useMapSettingsStore } from '../../state/map-settings-store'
+import { theme } from '../theme'
 import { trackEvent } from '../../lib/analytics'
 import { MapPage } from '../pages/map/MapPage'
 import { TimelinePage } from '../pages/timeline/TimelinePage'
@@ -26,6 +28,7 @@ export function AppShell() {
 
   const layout = useResponsiveLayout()
   const { sessionStatus } = useSessionStore()
+  const { showInstrumentStrip } = useMapSettingsStore()
 
   // Start GPS on mount
   useGPS()
@@ -91,9 +94,13 @@ export function AppShell() {
   const isPanelTab = activeTab !== 'map' || moreView !== null
   const effectivePanelOpen = layout === 'phone' ? isPanelTab : panelOpen
 
+  const topOffset = showInstrumentStrip
+    ? theme.safeStripHeight
+    : 'env(safe-area-inset-top, 0px)'
+
   return (
     <>
-      <InstrumentStrip />
+      {showInstrumentStrip && <InstrumentStrip />}
 
       <PanelLayout
         layout={layout}
@@ -101,6 +108,7 @@ export function AppShell() {
         panelContent={panelContent}
         panelOpen={effectivePanelOpen}
         onTogglePanel={() => setPanelOpen(v => !v)}
+        topOffset={topOffset}
       />
 
       <NavBar

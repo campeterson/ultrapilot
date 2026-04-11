@@ -43,7 +43,7 @@ export function NavBar({ active, onSelect }: NavBarProps) {
               flex: 1,
               background: 'none',
               border: 'none',
-              color: isActive ? theme.colors.red : theme.colors.dim,
+              color: isActive ? theme.colors.red : theme.colors.light,
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',

@@ -7,6 +7,8 @@ import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { bulkAddTrackPoints } from '../../../data/db'
 import { computeAGLft, bearing as getBearing, haversineNM } from '../../../data/logic/gps-logic'
+import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
+import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
 
 interface MapControlsProps {
@@ -27,6 +29,60 @@ const btnBase: React.CSSProperties = {
   fontSize: '18px',
   backdropFilter: 'blur(6px)',
   fontFamily: theme.font.primary,
+}
+
+function MapOverlayInstrument({ id, side }: { id: InstrumentId; side: 'left' | 'right' }) {
+  const { values } = useInstrumentStore()
+  const label = INSTRUMENT_LABELS[id]
+  const unit = INSTRUMENT_UNITS[id]
+  const displayValue = values ? formatInstrumentValue(id, values) : '—'
+  const valueColor = values ? getInstrumentColor(id, values) : theme.colors.cream
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '12px',
+      [side]: '12px',
+      background: 'rgba(14, 14, 20, 0.88)',
+      border: `1px solid ${theme.colors.darkBorder}`,
+      borderRadius: '12px',
+      padding: '10px 16px',
+      backdropFilter: 'blur(6px)',
+      textAlign: 'center',
+      zIndex: 50,
+      minWidth: '80px',
+    }}>
+      <div style={{
+        fontSize: theme.size.tiny,
+        color: theme.colors.dim,
+        letterSpacing: '0.07em',
+        textTransform: 'uppercase',
+        marginBottom: '4px',
+        lineHeight: 1,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: '32px',
+        color: valueColor,
+        fontFamily: theme.font.mono,
+        fontWeight: 700,
+        lineHeight: 1,
+      }}>
+        {displayValue}
+      </div>
+      {unit && (
+        <div style={{
+          fontSize: theme.size.tiny,
+          color: theme.colors.dim,
+          marginTop: '4px',
+          lineHeight: 1,
+        }}>
+          {unit}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function DirectToIndicator() {
@@ -67,6 +123,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
   const { session, sessionStatus } = useSessionStore()
   const { addStamp } = useTimelineStore()
   const { target: directTo, clearTarget } = useDirectToStore()
+  const { mapLeft, mapRight } = useInstrumentStore()
 
   async function handleStamp(type: import('../../../data/models').StampEventType, note: string | null) {
     const pos = useGPSStore.getState().position
@@ -87,6 +144,12 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 
   return (
     <>
+      {/* Top-left map overlay instrument */}
+      {mapLeft && <MapOverlayInstrument id={mapLeft} side="left" />}
+
+      {/* Top-right map overlay instrument */}
+      {mapRight && <MapOverlayInstrument id={mapRight} side="right" />}
+
       {/* Bottom-left: D→ indicator + recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
         <DirectToIndicator />
