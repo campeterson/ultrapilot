@@ -50,6 +50,16 @@ function makeArrowIcon(headingDeg: number): L.DivIcon {
   })
 }
 
+function makeWaypointIcon(): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;"><div style="width:12px;height:12px;border-radius:50%;background:${theme.colors.blue};opacity:0.85;border:2px solid ${theme.colors.blue};box-sizing:border-box;"></div></div>`,
+    className: '',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    tooltipAnchor: [0, -22],
+  })
+}
+
 function makeDirectToIcon(): L.DivIcon {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 20 20" width="20" height="20">
     <polygon points="0,-8 8,0 0,8 -8,0" fill="none" stroke="${theme.colors.magenta}" stroke-width="2.5" stroke-linejoin="round"/>
@@ -76,7 +86,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const directToLineRef = useRef<Polyline | null>(null)
   const directToMarkerRef = useRef<Marker | null>(null)
   const distRingsRef = useRef<Circle[]>([])
-  const waypointMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
+  const waypointMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const airportMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
   const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -359,9 +369,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     }
     for (const wp of waypoints) {
       if (!existing.has(wp.id)) {
-        const marker = L.circleMarker([wp.lat, wp.lon], {
-          radius: 6, color: theme.colors.blue, weight: 2,
-          fillColor: theme.colors.blue, fillOpacity: 0.3,
+        const marker = L.marker([wp.lat, wp.lon], {
+          icon: makeWaypointIcon(),
+          zIndexOffset: 80,
         }).addTo(map)
         marker.bindTooltip(wp.name, { permanent: false, direction: 'top' })
         marker.on('click', (e) => {

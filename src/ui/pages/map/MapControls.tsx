@@ -3,13 +3,16 @@ import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
+import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { bulkAddTrackPoints } from '../../../data/db'
 import { computeAGLft, bearing as getBearing, haversineNM } from '../../../data/logic/gps-logic'
 import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
+import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 
 interface MapControlsProps {
   onRecenter: () => void
@@ -58,7 +61,7 @@ function ArrowSVG({ color, size = 36 }: { color: string; size?: number }) {
   )
 }
 
-function MapOverlayInstrument({ id, position }: { id: InstrumentId; position: OverlayPosition }) {
+function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; position: OverlayPosition; onClick?: () => void }) {
   const { values } = useInstrumentStore()
   const label = INSTRUMENT_LABELS[id]
   const unit = INSTRUMENT_UNITS[id]
@@ -70,7 +73,10 @@ function MapOverlayInstrument({ id, position }: { id: InstrumentId; position: Ov
   const hasValue = id === 'dtk_arrow' ? values?.dtk !== null : true
 
   return (
-    <div style={{ ...POSITION_STYLE[position], ...overlayCard }}>
+    <div
+      onClick={onClick}
+      style={{ ...POSITION_STYLE[position], ...overlayCard, cursor: onClick ? 'pointer' : undefined }}
+    >
       <div style={{
         fontSize: theme.size.tiny,
         color: theme.colors.dim,
@@ -146,10 +152,24 @@ function DirectToIndicator() {
 
 export function MapControls({ onRecenter }: MapControlsProps) {
   const [stampOpen, setStampOpen] = useState(false)
+  const [overlayPicker, setOverlayPicker] = useState<'left' | 'right' | 'bottom' | null>(null)
   const { session, sessionStatus } = useSessionStore()
   const { addStamp } = useTimelineStore()
   const { target: directTo, clearTarget } = useDirectToStore()
-  const { mapLeft, mapRight, mapBottom } = useInstrumentStore()
+  const { mapLeft, mapRight, mapBottom, setMapLeft, setMapRight, setMapBottom } = useInstrumentStore()
+  const { showMapOverlays } = useMapSettingsStore()
+  const layout = useResponsiveLayout()
+
+  // On tablet-portrait, the chevron toggle sits at bottom-center of the map area.
+  // Push STAMP up to clear it.
+  const stampBottom = layout === 'tablet-portrait' ? '72px' : '16px'
+
+  function handleOverlayPick(id: InstrumentId | null) {
+    if (overlayPicker === 'left')   setMapLeft(id)
+    if (overlayPicker === 'right')  setMapRight(id)
+    if (overlayPicker === 'bottom') setMapBottom(id)
+    setOverlayPicker(null)
+  }
 
   async function handleStamp(type: import('../../../data/models').StampEventType, note: string | null) {
     const pos = useGPSStore.getState().position
@@ -161,14 +181,10 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 
   return (
     <>
-      {/* Top-left overlay */}
-      {mapLeft && <MapOverlayInstrument id={mapLeft} position="top-left" />}
-
-      {/* Top-right overlay */}
-      {mapRight && <MapOverlayInstrument id={mapRight} position="top-right" />}
-
-      {/* Bottom-right overlay (sits above REC indicator) */}
-      {mapBottom && <MapOverlayInstrument id={mapBottom} position="bottom-right" />}
+      {/* Map overlay instruments — shown when enabled in Settings */}
+      {showMapOverlays && mapLeft && <MapOverlayInstrument id={mapLeft} position="top-left" onClick={() => setOverlayPicker('left')} />}
+      {showMapOverlays && mapRight && <MapOverlayInstrument id={mapRight} position="top-right" onClick={() => setOverlayPicker('right')} />}
+      {showMapOverlays && mapBottom && <MapOverlayInstrument id={mapBottom} position="bottom-right" onClick={() => setOverlayPicker('bottom')} />}
 
       {/* Bottom-left: D→ indicator + recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
@@ -195,13 +211,13 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         )}
       </div>
 
-      {/* STAMP button — center bottom */}
+      {/* STAMP button — center bottom (pushed up on tablet-portrait to clear chevron) */}
       {session && sessionStatus === 'active' && (
         <button
           onClick={() => setStampOpen(true)}
           style={{
             position: 'absolute',
-            bottom: '16px',
+            bottom: stampBottom,
             left: '50%',
             transform: 'translateX(-50%)',
             width: '64px',
@@ -231,6 +247,15 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 
       {stampOpen && (
         <StampModal onSelect={handleStamp} onClose={() => setStampOpen(false)} />
+      )}
+
+      {overlayPicker !== null && (
+        <InstrumentPickerModal
+          current={overlayPicker === 'left' ? mapLeft : overlayPicker === 'right' ? mapRight : mapBottom}
+          includeNull={true}
+          onSelect={handleOverlayPick}
+          onClose={() => setOverlayPicker(null)}
+        />
       )}
     </>
   )

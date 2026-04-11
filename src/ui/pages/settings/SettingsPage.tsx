@@ -9,17 +9,8 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { toGPX, toJSON, downloadString, sessionFilename } from '../../../data/export'
 import { theme } from '../../theme'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
-
-const ALL_INSTRUMENTS: InstrumentId[] = [
-  'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'brg_arrow',
-  'etime', 'sess', 'maxalt', 'dtk', 'dtk_arrow', 'dte', 'xtk', 'ete',
-]
-
-const OVERLAY_INSTRUMENTS: Array<InstrumentId | null> = [
-  null,
-  'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'brg_arrow',
-  'etime', 'sess', 'maxalt', 'dtk', 'dtk_arrow', 'dte', 'xtk', 'ete',
-]
+// INSTRUMENT_LABELS used in InstrumentConfigurator below
+import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -57,79 +48,6 @@ function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
         background: '#fff', transition: 'left 0.2s',
       }} />
     </button>
-  )
-}
-
-// ── Instrument Picker Modal ────────────────────────────────────────────────────
-
-interface InstrumentPickerModalProps {
-  current: InstrumentId | null
-  includeNull: boolean   // overlays allow "Off"; strip slots don't
-  onSelect: (id: InstrumentId | null) => void
-  onClose: () => void
-}
-
-function InstrumentPickerModal({ current, includeNull, onSelect, onClose }: InstrumentPickerModalProps) {
-  const options: Array<InstrumentId | null> = includeNull ? OVERLAY_INSTRUMENTS : ALL_INSTRUMENTS
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 300,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: theme.colors.darkCard,
-          border: `1px solid ${theme.colors.darkBorder}`,
-          borderRadius: '16px', padding: '20px', width: '300px',
-          maxHeight: '70vh', overflowY: 'auto',
-          fontFamily: theme.font.primary,
-        }}
-      >
-        <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '16px' }}>
-          Choose Instrument
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          {options.map((id, i) => {
-            const label = id ? INSTRUMENT_LABELS[id] : 'Off'
-            const isActive = id === current
-            return (
-              <button
-                key={id ?? `null-${i}`}
-                onClick={() => { onSelect(id); onClose() }}
-                style={{
-                  padding: '12px 10px', borderRadius: '8px',
-                  border: `2px solid ${isActive ? theme.colors.red : theme.colors.darkBorder}`,
-                  background: isActive ? theme.colors.redDim : theme.colors.dark,
-                  color: isActive ? theme.colors.cream : theme.colors.light,
-                  cursor: 'pointer', fontFamily: theme.font.primary,
-                  fontSize: theme.size.small, textAlign: 'center',
-                  minHeight: theme.tapTarget,
-                }}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
-        <button
-          onClick={onClose}
-          style={{
-            width: '100%', marginTop: '14px', padding: '12px', borderRadius: '8px',
-            border: `1px solid ${theme.colors.darkBorder}`, background: 'none',
-            color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
-            fontSize: theme.size.body, minHeight: theme.tapTarget,
-          }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -382,7 +300,7 @@ function InstrumentConfigurator() {
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
-  const { showDirectionLine, showDistanceRings, recordTrack, showInstrumentStrip, toggle } = useMapSettingsStore()
+  const { showDirectionLine, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
   const [showInstrConfig, setShowInstrConfig] = useState(false)
 
   async function handleExportGPX() {
@@ -449,8 +367,11 @@ export function SettingsPage() {
       </Row>
 
       <SectionHeader title="INSTRUMENTS" />
-      <Row label="Instrument Strip">
+      <Row label="Top Strip">
         <Toggle value={showInstrumentStrip} onToggle={() => toggle('showInstrumentStrip')} />
+      </Row>
+      <Row label="Map Overlays">
+        <Toggle value={showMapOverlays} onToggle={() => toggle('showMapOverlays')} />
       </Row>
       <Row label="Configure Strip &amp; Overlays">
         <button onClick={() => setShowInstrConfig(v => !v)} style={actionBtn}>
