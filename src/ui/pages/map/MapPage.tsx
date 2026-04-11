@@ -75,6 +75,12 @@ interface AirportSelection {
   y: number
 }
 
+interface WaypointSelection {
+  waypoint: Waypoint
+  x: number
+  y: number
+}
+
 export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const mapRef = useRef<LeafletMap | null>(null)
   const posMarkerRef = useRef<Marker | null>(null)
@@ -100,6 +106,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   const [tapMenu, setTapMenu] = useState<TapMenu | null>(null)
   const [selectedAirport, setSelectedAirport] = useState<AirportSelection | null>(null)
+  const [selectedWaypoint, setSelectedWaypoint] = useState<WaypointSelection | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number; name?: string } | null>(null)
   const [wpName, setWpName] = useState('')
 
@@ -373,6 +380,15 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
           fillColor: theme.colors.blue, fillOpacity: 0.3,
         }).addTo(map)
         marker.bindTooltip(wp.name, { permanent: false, direction: 'top' })
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+          const current = useWaypointStore.getState().waypoints.find(w => w.id === wp.id)
+          if (!current) return
+          const pt = map.latLngToContainerPoint([current.lat, current.lon])
+          setSelectedWaypoint({ waypoint: current, x: pt.x, y: pt.y })
+          setSelectedAirport(null)
+          setTapMenu(null)
+        })
         existing.set(wp.id, marker)
       }
     }
@@ -446,6 +462,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   function dismissAll() {
     setTapMenu(null)
     setSelectedAirport(null)
+    setSelectedWaypoint(null)
   }
 
   const inputStyle: React.CSSProperties = {
@@ -473,7 +490,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       {showControls && <MapControls onRecenter={handleRecenter} />}
 
       {/* Light-dismiss overlay — sits above map, below menus; prevents container onClick race */}
-      {(tapMenu || selectedAirport) && !wpForm && (
+      {(tapMenu || selectedAirport || selectedWaypoint) && !wpForm && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 99 }} onClick={dismissAll} />
       )}
 
@@ -537,6 +554,62 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
             >
               <span>◎</span> Reset Origin Here
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Waypoint popup */}
+      {selectedWaypoint && !wpForm && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            left: Math.min(selectedWaypoint.x + 8, (containerRef.current?.clientWidth ?? 300) - 220),
+            top: Math.max(selectedWaypoint.y - 140, 8),
+            background: theme.colors.darkCard,
+            border: `1px solid ${theme.colors.blue}44`,
+            borderRadius: '10px',
+            overflow: 'hidden',
+            zIndex: 100,
+            minWidth: '200px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div style={{ padding: '10px 14px 8px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>
+              {selectedWaypoint.waypoint.name}
+            </div>
+            <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '3px' }}>
+              {selectedWaypoint.waypoint.lat.toFixed(5)}, {selectedWaypoint.waypoint.lon.toFixed(5)}
+            </div>
+            {selectedWaypoint.waypoint.note && (
+              <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginTop: '4px' }}>
+                {selectedWaypoint.waypoint.note}
+              </div>
+            )}
+          </div>
+          {session && (
+            <button
+              onClick={() => {
+                const pos = useGPSStore.getState().position
+                setDirectTo({
+                  lat: selectedWaypoint.waypoint.lat,
+                  lon: selectedWaypoint.waypoint.lon,
+                  name: selectedWaypoint.waypoint.name,
+                  fromLat: pos?.lat ?? selectedWaypoint.waypoint.lat,
+                  fromLon: pos?.lon ?? selectedWaypoint.waypoint.lon,
+                })
+                setSelectedWaypoint(null)
+              }}
+              style={{ ...menuBtnStyle, color: theme.colors.magenta, borderBottom: 'none' }}
+            >
+              <span>◇</span> Direct To
+            </button>
+          )}
+          {!session && (
+            <div style={{ padding: '10px 14px', fontSize: theme.size.small, color: theme.colors.dim }}>
+              Start a session to use Direct To
+            </div>
           )}
         </div>
       )}
