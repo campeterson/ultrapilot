@@ -5,11 +5,12 @@ import { formatInstrumentValue, getInstrumentColor } from '../../data/logic/inst
 import { theme } from '../theme'
 
 export function InstrumentStrip() {
-  const { strip, values } = useInstrumentStore()
+  const { strip, values, stripCount } = useInstrumentStore()
   const layout = useResponsiveLayout()
 
-  // Phone only has room for 4; tablet/desktop shows all 6
-  const visibleStrip = layout === 'phone' ? strip.slice(0, 4) : strip
+  // Phone caps at 4 regardless of user preference; tablet respects stripCount
+  const maxVisible = layout === 'phone' ? Math.min(stripCount, 4) : stripCount
+  const visibleStrip = strip.slice(0, maxVisible)
 
   return (
     <div

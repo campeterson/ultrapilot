@@ -10,8 +10,16 @@ import { toGPX, toJSON, downloadString, sessionFilename } from '../../../data/ex
 import { theme } from '../../theme'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 
-const ALL_INSTRUMENTS: InstrumentId[] = ['gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'etime', 'sess', 'maxalt', 'dtk', 'dte', 'xtk', 'ete']
-const OVERLAY_OPTIONS: Array<InstrumentId | null> = [null, 'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'etime', 'sess', 'maxalt', 'dtk', 'dte', 'xtk', 'ete']
+const ALL_INSTRUMENTS: InstrumentId[] = [
+  'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'brg_arrow',
+  'etime', 'sess', 'maxalt', 'dtk', 'dtk_arrow', 'dte', 'xtk', 'ete',
+]
+
+const OVERLAY_INSTRUMENTS: Array<InstrumentId | null> = [
+  null,
+  'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'brg_arrow',
+  'etime', 'sess', 'maxalt', 'dtk', 'dtk_arrow', 'dte', 'xtk', 'ete',
+]
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -52,120 +60,321 @@ function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
   )
 }
 
-/** Cycle through overlay options on each tap */
-function OverlayCycleButton({ value, onSelect }: { value: InstrumentId | null; onSelect: (id: InstrumentId | null) => void }) {
-  function cycle() {
-    const idx = OVERLAY_OPTIONS.indexOf(value)
-    onSelect(OVERLAY_OPTIONS[(idx + 1) % OVERLAY_OPTIONS.length] ?? null)
-  }
+// ── Instrument Picker Modal ────────────────────────────────────────────────────
+
+interface InstrumentPickerModalProps {
+  current: InstrumentId | null
+  includeNull: boolean   // overlays allow "Off"; strip slots don't
+  onSelect: (id: InstrumentId | null) => void
+  onClose: () => void
+}
+
+function InstrumentPickerModal({ current, includeNull, onSelect, onClose }: InstrumentPickerModalProps) {
+  const options: Array<InstrumentId | null> = includeNull ? OVERLAY_INSTRUMENTS : ALL_INSTRUMENTS
 
   return (
-    <button
-      onClick={cycle}
+    <div
+      onClick={onClose}
       style={{
-        padding: '8px 14px', borderRadius: '8px',
-        border: `1px solid ${value ? theme.colors.red : theme.colors.darkBorder}`,
-        background: value ? theme.colors.redDim : theme.colors.darkCard,
-        color: value ? theme.colors.cream : theme.colors.dim,
-        cursor: 'pointer', fontFamily: theme.font.primary,
-        fontSize: theme.size.small, minHeight: '36px',
-        whiteSpace: 'nowrap',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 300,
       }}
     >
-      {value ? INSTRUMENT_LABELS[value] : 'Off'}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: theme.colors.darkCard,
+          border: `1px solid ${theme.colors.darkBorder}`,
+          borderRadius: '16px', padding: '20px', width: '300px',
+          maxHeight: '70vh', overflowY: 'auto',
+          fontFamily: theme.font.primary,
+        }}
+      >
+        <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '16px' }}>
+          Choose Instrument
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          {options.map((id, i) => {
+            const label = id ? INSTRUMENT_LABELS[id] : 'Off'
+            const isActive = id === current
+            return (
+              <button
+                key={id ?? `null-${i}`}
+                onClick={() => { onSelect(id); onClose() }}
+                style={{
+                  padding: '12px 10px', borderRadius: '8px',
+                  border: `2px solid ${isActive ? theme.colors.red : theme.colors.darkBorder}`,
+                  background: isActive ? theme.colors.redDim : theme.colors.dark,
+                  color: isActive ? theme.colors.cream : theme.colors.light,
+                  cursor: 'pointer', fontFamily: theme.font.primary,
+                  fontSize: theme.size.small, textAlign: 'center',
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', marginTop: '14px', padding: '12px', borderRadius: '8px',
+            border: `1px solid ${theme.colors.darkBorder}`, background: 'none',
+            color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
+            fontSize: theme.size.body, minHeight: theme.tapTarget,
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Slot Button ────────────────────────────────────────────────────────────────
+
+function SlotButton({
+  index,
+  id,
+  hiddenOnMobile,
+  onTap,
+}: {
+  index: number
+  id: InstrumentId
+  hiddenOnMobile: boolean
+  onTap: () => void
+}) {
+  return (
+    <button
+      onClick={onTap}
+      style={{
+        padding: '10px 12px', borderRadius: '8px',
+        border: `2px solid ${hiddenOnMobile ? theme.colors.amber : theme.colors.red}`,
+        background: hiddenOnMobile ? 'rgba(230,126,34,0.12)' : theme.colors.redDim,
+        color: theme.colors.cream, cursor: 'pointer',
+        fontFamily: theme.font.primary, fontSize: theme.size.small,
+        textAlign: 'left', display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', minHeight: theme.tapTarget, width: '100%',
+      }}
+    >
+      <span style={{ color: theme.colors.dim, marginRight: '6px', fontFamily: theme.font.mono, fontSize: '11px' }}>#{index + 1}</span>
+      <span style={{ flex: 1, textAlign: 'left' }}>{INSTRUMENT_LABELS[id]}</span>
+      {hiddenOnMobile && (
+        <span style={{
+          background: theme.colors.amber, color: '#fff',
+          padding: '2px 6px', borderRadius: '4px',
+          fontSize: '10px', fontWeight: 700, marginLeft: '6px',
+        }}>hidden</span>
+      )}
     </button>
   )
 }
 
+function EmptySlot({ index, onTap }: { index: number; onTap: () => void }) {
+  return (
+    <button
+      onClick={onTap}
+      style={{
+        padding: '10px 12px', borderRadius: '8px',
+        border: `2px dashed ${theme.colors.darkBorder}`,
+        background: 'transparent', color: theme.colors.dim,
+        cursor: 'pointer', fontFamily: theme.font.primary,
+        fontSize: theme.size.small, textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: '6px',
+        minHeight: theme.tapTarget, width: '100%',
+      }}
+    >
+      <span style={{ color: theme.colors.dim, fontFamily: theme.font.mono, fontSize: '11px' }}>#{index + 1}</span>
+      <span style={{ color: theme.colors.dim }}>+ Add</span>
+    </button>
+  )
+}
+
+// ── Overlay Slot Button ────────────────────────────────────────────────────────
+
+function OverlaySlot({
+  label,
+  id,
+  onTap,
+}: {
+  label: string
+  id: InstrumentId | null
+  onTap: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+      <span style={{ fontSize: theme.size.small, color: theme.colors.light, flex: 1 }}>{label}</span>
+      <button
+        onClick={onTap}
+        style={{
+          padding: '8px 14px', borderRadius: '8px',
+          border: `1px solid ${id ? theme.colors.red : theme.colors.darkBorder}`,
+          background: id ? theme.colors.redDim : theme.colors.darkCard,
+          color: id ? theme.colors.cream : theme.colors.dim,
+          cursor: 'pointer', fontFamily: theme.font.primary,
+          fontSize: theme.size.small, minHeight: '36px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {id ? INSTRUMENT_LABELS[id] : 'Off'}
+      </button>
+    </div>
+  )
+}
+
+// ── Instrument Configurator ────────────────────────────────────────────────────
+
 function InstrumentConfigurator() {
-  const { strip, setStrip, mapLeft, mapRight, setMapLeft, setMapRight } = useInstrumentStore()
-  const [selected, setSelected] = useState<InstrumentId[]>(strip)
+  const {
+    strip, setStrip,
+    mapLeft, mapRight, mapBottom,
+    setMapLeft, setMapRight, setMapBottom,
+    stripCount, setStripCount,
+  } = useInstrumentStore()
   const layout = useResponsiveLayout()
   const isPhone = layout === 'phone'
 
-  function toggle(id: InstrumentId) {
-    setSelected(prev => {
-      if (prev.includes(id)) return prev.filter(i => i !== id)
-      if (prev.length >= 6) return prev
-      return [...prev, id]
-    })
+  // Local strip state (committed on slot removal/add)
+  const [localStrip, setLocalStrip] = useState<InstrumentId[]>(strip)
+
+  // Picker state
+  const [pickerSlot, setPickerSlot] = useState<number | null>(null)       // strip slot index
+  const [pickerOverlay, setPickerOverlay] = useState<'left' | 'right' | 'bottom' | null>(null)
+
+  function openStripPicker(index: number) {
+    setPickerSlot(index)
   }
 
-  function save() {
-    setStrip(selected)
+  function removeFromStrip(index: number) {
+    const next = localStrip.filter((_, i) => i !== index)
+    setLocalStrip(next)
+    setStrip(next)
   }
+
+  function handleStripPick(id: InstrumentId | null) {
+    if (id === null || pickerSlot === null) return
+    const next = [...localStrip]
+    if (pickerSlot < next.length) {
+      next[pickerSlot] = id
+    } else {
+      next.push(id)
+    }
+    setLocalStrip(next)
+    setStrip(next)
+    setPickerSlot(null)
+  }
+
+  function handleOverlayPick(id: InstrumentId | null) {
+    if (pickerOverlay === 'left')   setMapLeft(id)
+    if (pickerOverlay === 'right')  setMapRight(id)
+    if (pickerOverlay === 'bottom') setMapBottom(id)
+    setPickerOverlay(null)
+  }
+
+  // Build slot list: filled slots + one empty "add" slot (up to 6)
+  const slotCount = Math.min(6, localStrip.length + 1)
+  const slots = Array.from({ length: slotCount }, (_, i) => i)
 
   return (
     <div style={{ padding: '12px 16px' }}>
-      {/* Strip config */}
-      <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '10px' }}>
-        Select up to 6 for the top strip. Tap to toggle.
-        {isPhone && ' On mobile, only positions 1–4 are shown.'}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '12px' }}>
-        {ALL_INSTRUMENTS.map((id) => {
-          const isSelected = selected.includes(id)
-          const order = selected.indexOf(id)          // 0-based position in strip
-          const hiddenOnMobile = isPhone && isSelected && order >= 4
 
-          return (
-            <button
-              key={id}
-              onClick={() => toggle(id)}
-              style={{
-                padding: '10px 12px', borderRadius: '8px',
-                border: `2px solid ${isSelected ? (hiddenOnMobile ? theme.colors.amber : theme.colors.red) : theme.colors.darkBorder}`,
-                background: isSelected ? (hiddenOnMobile ? 'rgba(230,126,34,0.12)' : theme.colors.redDim) : theme.colors.dark,
-                color: isSelected ? theme.colors.cream : theme.colors.light,
-                cursor: 'pointer', fontFamily: theme.font.primary, fontSize: theme.size.small,
-                textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                minHeight: theme.tapTarget,
-              }}
-            >
-              <span>{INSTRUMENT_LABELS[id]}</span>
-              {isSelected && (
-                <span style={{
-                  borderRadius: '4px',
-                  background: hiddenOnMobile ? theme.colors.amber : theme.colors.red,
-                  color: '#fff',
-                  padding: '2px 6px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  marginLeft: '6px',
-                }}>
-                  {hiddenOnMobile ? 'hidden' : `#${order + 1}`}
-                </span>
-              )}
-            </button>
-          )
+      {/* Strip count selector */}
+      <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '8px' }}>
+        Strip slot count {isPhone && '(phone shows max 4)'}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+        {([4, 5, 6] as const).map(n => (
+          <button
+            key={n}
+            onClick={() => setStripCount(n)}
+            style={{
+              flex: 1, padding: '10px', borderRadius: '8px',
+              border: `2px solid ${stripCount === n ? theme.colors.red : theme.colors.darkBorder}`,
+              background: stripCount === n ? theme.colors.redDim : theme.colors.dark,
+              color: stripCount === n ? theme.colors.cream : theme.colors.light,
+              cursor: 'pointer', fontFamily: theme.font.primary,
+              fontSize: theme.size.body, fontWeight: stripCount === n ? 700 : 400,
+              minHeight: theme.tapTarget,
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {/* Strip slots */}
+      <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '10px' }}>
+        Instrument strip — tap a slot to change, ✕ to remove
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+        {slots.map(i => {
+          const id = localStrip[i]
+          const hiddenOnMobile = isPhone && i >= 4
+          if (id !== undefined) {
+            return (
+              <div key={i} style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ flex: 1 }}>
+                  <SlotButton
+                    index={i}
+                    id={id}
+                    hiddenOnMobile={hiddenOnMobile}
+                    onTap={() => openStripPicker(i)}
+                  />
+                </div>
+                <button
+                  onClick={() => removeFromStrip(i)}
+                  style={{
+                    width: '44px', height: '44px', borderRadius: '8px',
+                    border: `1px solid ${theme.colors.darkBorder}`,
+                    background: theme.colors.dark, color: theme.colors.dim,
+                    cursor: 'pointer', fontSize: '18px', flexShrink: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          }
+          if (localStrip.length < 6) {
+            return <EmptySlot key={`empty-${i}`} index={i} onTap={() => openStripPicker(i)} />
+          }
+          return null
         })}
       </div>
-      <button
-        onClick={save}
-        style={{
-          width: '100%', padding: '12px', borderRadius: '8px', border: 'none',
-          background: theme.colors.red, color: '#fff', cursor: 'pointer',
-          fontFamily: theme.font.primary, fontSize: theme.size.body, fontWeight: 700,
-          minHeight: theme.tapTarget, marginBottom: '20px',
-        }}
-      >
-        Save Strip
-      </button>
 
-      {/* Map overlay config */}
+      {/* Map overlay slots */}
       <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '10px' }}>
-        Map corner overlays — large floating instruments on the map.
+        Map corner overlays — tap to change
       </div>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
-        <span style={{ fontSize: theme.size.small, color: theme.colors.light, flex: 1 }}>Top Left</span>
-        <OverlayCycleButton value={mapLeft} onSelect={setMapLeft} />
-      </div>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <span style={{ fontSize: theme.size.small, color: theme.colors.light, flex: 1 }}>Top Right</span>
-        <OverlayCycleButton value={mapRight} onSelect={setMapRight} />
-      </div>
+      <OverlaySlot label="Top Left"     id={mapLeft}   onTap={() => setPickerOverlay('left')} />
+      <OverlaySlot label="Top Right"    id={mapRight}  onTap={() => setPickerOverlay('right')} />
+      <OverlaySlot label="Bottom Right" id={mapBottom} onTap={() => setPickerOverlay('bottom')} />
+
+      {/* Strip picker modal */}
+      {pickerSlot !== null && (
+        <InstrumentPickerModal
+          current={localStrip[pickerSlot] ?? null}
+          includeNull={false}
+          onSelect={id => handleStripPick(id as InstrumentId)}
+          onClose={() => setPickerSlot(null)}
+        />
+      )}
+
+      {/* Overlay picker modal */}
+      {pickerOverlay !== null && (
+        <InstrumentPickerModal
+          current={
+            pickerOverlay === 'left' ? mapLeft
+            : pickerOverlay === 'right' ? mapRight
+            : mapBottom
+          }
+          includeNull={true}
+          onSelect={handleOverlayPick}
+          onClose={() => setPickerOverlay(null)}
+        />
+      )}
     </div>
   )
 }

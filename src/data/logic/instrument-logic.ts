@@ -152,6 +152,10 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
       return Math.round(values.maxalt).toString()
     case 'dtk':
       return values.dtk !== null ? formatDeg(values.dtk) : '---'
+    case 'dtk_arrow':
+      return values.dtk !== null ? formatDeg(values.dtk) : '---'
+    case 'brg_arrow':
+      return formatDeg(values.brg)
     case 'dte':
       return values.dte !== null ? formatNM(values.dte) : '---'
     case 'xtk':

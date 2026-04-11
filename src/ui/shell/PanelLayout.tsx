@@ -71,10 +71,12 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
               bottom: 0,
               left: '50%',
               transform: 'translateX(-50%)',
-              borderRadius: '8px 8px 0 0',
-              padding: '4px 24px',
-              minWidth: '80px',
-              minHeight: '28px',
+              borderRadius: '12px 12px 0 0',
+              padding: '12px 48px',
+              minWidth: '140px',
+              minHeight: '48px',
+              fontSize: '22px',
+              lineHeight: 1,
             }}
           >
             {hasPanel ? '˄' : '˅'}
@@ -110,10 +112,12 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
             top: '50%',
             right: 0,
             transform: 'translateY(-50%)',
-            borderRadius: '8px 0 0 8px',
-            padding: '16px 6px',
-            minWidth: '24px',
-            minHeight: '60px',
+            borderRadius: '10px 0 0 10px',
+            padding: '32px 14px',
+            minWidth: '44px',
+            minHeight: '120px',
+            fontSize: '22px',
+            lineHeight: 1,
           }}
         >
           {hasPanel ? '›' : '‹'}

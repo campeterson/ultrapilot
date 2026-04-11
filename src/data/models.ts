@@ -111,10 +111,12 @@ export type InstrumentId =
   | 'hdg'       // Ground track (°)
   | 'dist'      // Distance to origin (nm)
   | 'brg'       // Bearing to origin (°)
+  | 'brg_arrow' // Bearing to origin — arrow display
   | 'etime'     // Elapsed flight time
   | 'sess'      // Elapsed session time
   | 'maxalt'    // Max AGL this session (ft)
   | 'dtk'       // Desired track to direct-to (°)
+  | 'dtk_arrow' // Bearing to direct-to — arrow display
   | 'dte'       // Distance to direct-to (nm)
   | 'xtk'       // Cross-track error (nm)
   | 'ete'       // Est. time enroute to direct-to (min)
@@ -127,10 +129,12 @@ export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   hdg: 'TRACK',
   dist: 'DIST',
   brg: 'BRG',
+  brg_arrow: '→ ORIG',
   etime: 'FLT',
   sess: 'SESS',
   maxalt: 'MAX AGL',
   dtk: 'DTK',
+  dtk_arrow: '→ D→',
   dte: 'DTE',
   xtk: 'XTK',
   ete: 'ETE',
@@ -144,10 +148,12 @@ export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
   hdg: '°',
   dist: 'nm',
   brg: '°',
+  brg_arrow: '',
   etime: '',
   sess: '',
   maxalt: 'ft',
   dtk: '°',
+  dtk_arrow: '',
   dte: 'nm',
   xtk: 'nm',
   ete: 'min',

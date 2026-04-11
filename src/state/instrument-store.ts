@@ -9,6 +9,8 @@ interface SavedConfig {
   strip: InstrumentId[]
   mapLeft: InstrumentId | null
   mapRight: InstrumentId | null
+  mapBottom: InstrumentId | null
+  stripCount: 4 | 5 | 6
 }
 
 function loadConfig(): SavedConfig {
@@ -16,30 +18,33 @@ function loadConfig(): SavedConfig {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      // Legacy: stored as a plain array before map overlay support
       if (Array.isArray(parsed)) {
-        return { strip: parsed.length > 0 ? parsed : DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null }
+        return { strip: parsed.length > 0 ? parsed : DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6 }
       }
       if (typeof parsed === 'object' && parsed !== null) {
         return {
           strip: Array.isArray(parsed.strip) && parsed.strip.length > 0 ? parsed.strip : DEFAULT_INSTRUMENT_STRIP,
           mapLeft: parsed.mapLeft ?? null,
           mapRight: parsed.mapRight ?? null,
+          mapBottom: parsed.mapBottom ?? null,
+          stripCount: parsed.stripCount ?? 6,
         }
       }
     }
   } catch {}
-  return { strip: DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null }
+  return { strip: DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6 }
 }
 
-function saveConfig(strip: InstrumentId[], mapLeft: InstrumentId | null, mapRight: InstrumentId | null) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ strip, mapLeft, mapRight }))
+function saveConfig(c: SavedConfig) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(c))
 }
 
 interface InstrumentStore {
   strip: InstrumentId[]
   mapLeft: InstrumentId | null
   mapRight: InstrumentId | null
+  mapBottom: InstrumentId | null
+  stripCount: 4 | 5 | 6
   values: InstrumentValues | null
   maxAGLft: number
 
@@ -48,6 +53,8 @@ interface InstrumentStore {
   setStrip: (ids: InstrumentId[]) => void
   setMapLeft: (id: InstrumentId | null) => void
   setMapRight: (id: InstrumentId | null) => void
+  setMapBottom: (id: InstrumentId | null) => void
+  setStripCount: (n: 4 | 5 | 6) => void
   resetMaxAGL: () => void
 }
 
@@ -63,31 +70,33 @@ export const useInstrumentStore = create<InstrumentStore>((set, get) => ({
   strip: initial.strip,
   mapLeft: initial.mapLeft,
   mapRight: initial.mapRight,
+  mapBottom: initial.mapBottom,
+  stripCount: initial.stripCount,
   values: null,
   maxAGLft: 0,
 
   setValues: (values) => set({ values }),
-
-  updateMaxAGL: (aglFt) => {
-    if (aglFt > get().maxAGLft) set({ maxAGLft: aglFt })
-  },
+  updateMaxAGL: (aglFt) => { if (aglFt > get().maxAGLft) set({ maxAGLft: aglFt }) },
 
   setStrip: (ids) => {
-    const { mapLeft, mapRight } = get()
-    saveConfig(ids, mapLeft, mapRight)
+    const s = get(); saveConfig({ strip: ids, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ strip: ids })
   },
-
   setMapLeft: (id) => {
-    const { strip, mapRight } = get()
-    saveConfig(strip, id, mapRight)
+    const s = get(); saveConfig({ strip: s.strip, mapLeft: id, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ mapLeft: id })
   },
-
   setMapRight: (id) => {
-    const { strip, mapLeft } = get()
-    saveConfig(strip, mapLeft, id)
+    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: id, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ mapRight: id })
+  },
+  setMapBottom: (id) => {
+    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: id, stripCount: s.stripCount })
+    set({ mapBottom: id })
+  },
+  setStripCount: (n) => {
+    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: n })
+    set({ stripCount: n })
   },
 
   resetMaxAGL: () => set({ maxAGLft: 0 }),
