@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
 import { getEvents } from '../../../data/db'
@@ -210,12 +211,12 @@ function ConfirmModal({
   title: string; message: string; confirmLabel: string; destructive?: boolean
   onCancel: () => void; onConfirm: () => void
 }) {
-  return (
+  return createPortal(
     <div
       onClick={onCancel}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 320,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
       }}
     >
       <div
@@ -255,7 +256,8 @@ function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
