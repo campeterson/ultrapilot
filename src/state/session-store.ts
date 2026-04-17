@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { putSession, getSession, listSessions, deleteSession } from '../data/db'
+import { putSession, getSession, listSessions, listDeletedSessions, deleteSession, softDeleteSession, restoreSession } from '../data/db'
 import { createSession, endSession } from '../data/logic/session-logic'
 import type { Session } from '../data/models'
 
@@ -12,6 +12,10 @@ interface SessionStore {
   sessions: Session[]
   loadingSessions: boolean
 
+  // Trash
+  deletedSessions: Session[]
+  loadingDeleted: boolean
+
   // History map overlay — the past session currently shown on the map
   historySessionId: string | null
   setHistorySession: (id: string | null) => void
@@ -21,6 +25,9 @@ interface SessionStore {
   endCurrentSession: (maxAGLft: number, totalDistNM: number) => Promise<void>
   resetOrigin: (lat: number, lon: number, altMSLm: number) => Promise<void>
   loadHistory: () => Promise<void>
+  loadDeleted: () => Promise<void>
+  trashSessionById: (id: string) => Promise<void>
+  restoreSessionById: (id: string) => Promise<void>
   deleteSessionById: (id: string) => Promise<void>
 
   // Track point buffer (flushed periodically to DB)
@@ -34,6 +41,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionStatus: 'idle',
   sessions: [],
   loadingSessions: false,
+  deletedSessions: [],
+  loadingDeleted: false,
   historySessionId: null,
   setHistorySession: (id) => set({ historySessionId: id }),
   trackBuffer: [],
@@ -69,10 +78,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set({ sessions, loadingSessions: false })
   },
 
+  loadDeleted: async () => {
+    set({ loadingDeleted: true })
+    const deletedSessions = await listDeletedSessions()
+    set({ deletedSessions, loadingDeleted: false })
+  },
+
+  trashSessionById: async (id) => {
+    await softDeleteSession(id)
+    const [sessions, deletedSessions] = await Promise.all([listSessions(), listDeletedSessions()])
+    set({ sessions, deletedSessions })
+  },
+
+  restoreSessionById: async (id) => {
+    await restoreSession(id)
+    const [sessions, deletedSessions] = await Promise.all([listSessions(), listDeletedSessions()])
+    set({ sessions, deletedSessions })
+  },
+
   deleteSessionById: async (id) => {
     await deleteSession(id)
-    const sessions = await listSessions()
-    set({ sessions })
+    const [sessions, deletedSessions] = await Promise.all([listSessions(), listDeletedSessions()])
+    set({ sessions, deletedSessions })
   },
 
   pushTrackPoint: (pt) => {
@@ -95,7 +122,7 @@ export async function restoreLastSession(): Promise<Session | null> {
   const lastId = localStorage.getItem('ultrapilot_lastSession')
   if (!lastId) return null
   const s = await getSession(lastId)
-  if (s && !s.endTime) {
+  if (s && !s.endTime && !s.deletedAt) {
     useSessionStore.setState({ session: s, sessionStatus: 'active' })
     return s
   }

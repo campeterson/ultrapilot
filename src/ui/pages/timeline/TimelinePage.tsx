@@ -135,7 +135,7 @@ function EventRow({ event }: { event: StampEvent }) {
 }
 
 export function TimelinePage() {
-  const { session, sessionStatus } = useSessionStore()
+  const { session, sessionStatus, startSession } = useSessionStore()
   const { events, loadEvents, addStamp } = useTimelineStore()
   const { maxAGLft } = useInstrumentStore()
   const [stampOpen, setStampOpen] = useState(false)
@@ -161,10 +161,33 @@ export function TimelinePage() {
     setStampOpen(false)
   }
 
+  async function handleStartSession() {
+    const pos = useGPSStore.getState().position
+    if (!pos) { alert('Waiting for GPS fix…'); return }
+    const s = await startSession(pos.lat, pos.lon, pos.altMSL)
+    await addStamp(buildStamp(s.id, 'session_start', pos.lat, pos.lon, pos.altMSL, 0, pos.speed, null))
+  }
+
   if (!session) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.colors.dim, fontFamily: theme.font.primary }}>
-        No active session
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100%', gap: '16px', padding: '24px',
+        color: theme.colors.dim, fontFamily: theme.font.primary,
+      }}>
+        <div style={{ fontSize: theme.size.body }}>No active session</div>
+        <button
+          onClick={handleStartSession}
+          style={{
+            padding: '14px 28px', borderRadius: '10px', border: 'none',
+            background: theme.colors.red, color: '#fff', cursor: 'pointer',
+            fontSize: '15px', fontWeight: 700, fontFamily: theme.font.primary,
+            letterSpacing: '0.06em', minHeight: theme.tapTarget,
+            boxShadow: '0 2px 16px rgba(192,57,43,0.4)',
+          }}
+        >
+          START SESSION
+        </button>
       </div>
     )
   }

@@ -62,7 +62,17 @@ async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
 export async function listSessions(): Promise<Session[]> {
   const db = await getDB()
   const all = await db.getAll('sessions')
-  return all.sort((a, b) => b.startTime.localeCompare(a.startTime))
+  return all
+    .filter(s => !s.deletedAt)
+    .sort((a, b) => b.startTime.localeCompare(a.startTime))
+}
+
+export async function listDeletedSessions(): Promise<Session[]> {
+  const db = await getDB()
+  const all = await db.getAll('sessions')
+  return all
+    .filter(s => !!s.deletedAt)
+    .sort((a, b) => (b.deletedAt ?? '').localeCompare(a.deletedAt ?? ''))
 }
 
 export async function getSession(id: string): Promise<Session | undefined> {
@@ -73,6 +83,22 @@ export async function getSession(id: string): Promise<Session | undefined> {
 export async function putSession(session: Session): Promise<void> {
   const db = await getDB()
   await db.put('sessions', session)
+}
+
+export async function softDeleteSession(id: string): Promise<void> {
+  const db = await getDB()
+  const existing = await db.get('sessions', id)
+  if (!existing) return
+  await db.put('sessions', { ...existing, deletedAt: new Date().toISOString() })
+}
+
+export async function restoreSession(id: string): Promise<void> {
+  const db = await getDB()
+  const existing = await db.get('sessions', id)
+  if (!existing) return
+  const { deletedAt: _omit, ...rest } = existing
+  void _omit
+  await db.put('sessions', { ...rest, deletedAt: null })
 }
 
 export async function deleteSession(id: string): Promise<void> {

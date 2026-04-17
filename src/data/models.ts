@@ -10,6 +10,7 @@ export interface Session {
   maxAGL: number
   totalDistanceNM: number
   deviceInfo: string
+  deletedAt?: string | null  // ISO; set when soft-deleted to trash
 }
 
 // ─── Track Points ─────────────────────────────────────────────────────────────
