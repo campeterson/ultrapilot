@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../data/models'
+import { useSessionStore } from '../../state/session-store'
+import { useGPSStore } from '../../state/gps-store'
+import { useInstrumentStore } from '../../state/instrument-store'
 import { theme } from '../theme'
 
 const ALL_INSTRUMENTS: InstrumentId[] = [
@@ -19,6 +23,21 @@ interface InstrumentPickerModalProps {
 
 export function InstrumentPickerModal({ current, includeNull, onSelect, onClose }: InstrumentPickerModalProps) {
   const options: Array<InstrumentId | null> = includeNull ? OVERLAY_INSTRUMENTS : ALL_INSTRUMENTS
+  const session = useSessionStore(s => s.session)
+  const resetOrigin = useSessionStore(s => s.resetOrigin)
+  const position = useGPSStore(s => s.position)
+  const resetMaxAGL = useInstrumentStore(s => s.resetMaxAGL)
+  const [confirmZero, setConfirmZero] = useState(false)
+
+  const canZero = !!session && !!position
+
+  async function handleZero() {
+    if (!session || !position) return
+    await resetOrigin(position.lat, position.lon, position.altMSL)
+    resetMaxAGL()
+    setConfirmZero(false)
+    onClose()
+  }
 
   return createPortal(
     <div
@@ -39,8 +58,29 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
           fontFamily: theme.font.primary,
         }}
       >
-        <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '16px' }}>
-          Choose Instrument
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '12px', marginBottom: '16px',
+          }}
+        >
+          <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream }}>
+            Choose Instrument
+          </div>
+          {canZero && (
+            <button
+              onClick={() => setConfirmZero(true)}
+              style={{
+                padding: '6px 10px', borderRadius: '6px',
+                border: `1px solid ${theme.colors.darkBorder}`,
+                background: 'none', color: theme.colors.light,
+                cursor: 'pointer', fontFamily: theme.font.primary,
+                fontSize: theme.size.small, whiteSpace: 'nowrap',
+              }}
+            >
+              Zero AGL
+            </button>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {options.map((id, i) => {
@@ -77,6 +117,59 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
           Cancel
         </button>
       </div>
+
+      {confirmZero && (
+        <div
+          onClick={(e) => { e.stopPropagation(); setConfirmZero(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 310,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.colors.darkCard,
+              border: `1px solid ${theme.colors.darkBorder}`,
+              borderRadius: '16px', padding: '20px', width: '280px',
+              fontFamily: theme.font.primary,
+            }}
+          >
+            <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '8px' }}>
+              Zero AGL?
+            </div>
+            <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginBottom: '16px', lineHeight: 1.4 }}>
+              Set the current altitude as the AGL baseline for this session. Max AGL will also reset.
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setConfirmZero(false)}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '8px',
+                  border: `1px solid ${theme.colors.darkBorder}`, background: 'none',
+                  color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
+                  fontSize: theme.size.body, minHeight: theme.tapTarget,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleZero}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '8px',
+                  border: `2px solid ${theme.colors.red}`,
+                  background: theme.colors.redDim, color: theme.colors.cream,
+                  cursor: 'pointer', fontFamily: theme.font.primary, fontWeight: 700,
+                  fontSize: theme.size.body, minHeight: theme.tapTarget,
+                }}
+              >
+                Zero
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   )
