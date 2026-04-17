@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // Use the existing manifest.json from public/
       manifest: false,
       workbox: {

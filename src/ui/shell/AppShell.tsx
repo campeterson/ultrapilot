@@ -3,6 +3,7 @@ import { NavBar, type NavTab } from './NavBar'
 import { MorePicker, type MoreView } from './MorePicker'
 import { InstrumentStrip } from './InstrumentStrip'
 import { PanelLayout } from './PanelLayout'
+import { UpdateBanner } from './UpdateBanner'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
@@ -121,6 +122,8 @@ export function AppShell() {
         onSelect={handleMoreSelect}
         onDismiss={() => setMoreOpen(false)}
       />
+
+      <UpdateBanner />
     </>
   )
 }
