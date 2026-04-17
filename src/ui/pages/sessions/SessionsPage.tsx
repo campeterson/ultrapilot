@@ -6,6 +6,7 @@ import { trackEvent as analyticsTrack } from '../../../lib/analytics'
 import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../../data/logic/stamp-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import type { Session, StampEvent } from '../../../data/models'
+import { SessionMap } from './SessionMap'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -137,6 +138,11 @@ function SessionDetail({ session, onBack }: { session: Session; onBack: () => vo
         </div>
       </div>
 
+      {/* Map — top half */}
+      <div style={{ flexBasis: '45%', flexShrink: 0, minHeight: '220px', position: 'relative', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
+        {!loading && <SessionMap session={session} events={events} />}
+      </div>
+
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: '8px', padding: '12px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
         {[
@@ -152,7 +158,7 @@ function SessionDetail({ session, onBack }: { session: Session; onBack: () => vo
       </div>
 
       {/* Event list */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading && (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>Loading…</div>
         )}
