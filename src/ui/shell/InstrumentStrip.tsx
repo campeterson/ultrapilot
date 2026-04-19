@@ -50,6 +50,9 @@ export function InstrumentStrip() {
       }}
     >
       {visibleStrip.map((id, idx) => {
+        // HSI is a composite SVG instrument — not suited for the text strip
+        if (id === 'hsi') return null
+
         const label = INSTRUMENT_LABELS[id]
         const unit = INSTRUMENT_UNITS[id]
         const displayValue = values ? formatInstrumentValue(id, values) : '—'

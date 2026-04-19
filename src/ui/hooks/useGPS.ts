@@ -3,6 +3,7 @@ import { useGPSStore } from '../../state/gps-store'
 import { useSessionStore } from '../../state/session-store'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { useDirectToStore } from '../../state/direct-to-store'
+import { useRouteStore } from '../../state/route-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
 import { bulkAddTrackPoints } from '../../data/db'
 import { verticalSpeedFpm, msToKnots } from '../../data/logic/gps-logic'
@@ -77,6 +78,9 @@ export function useGPS() {
           )
           setValues(values)
           updateMaxAGL(values.agl)
+
+          // Auto-advance route leg when close enough to current waypoint
+          useRouteStore.getState().checkAutoAdvance(values.dte, pos.lat, pos.lon)
 
           // Buffer track points at TRACK_INTERVAL_MS (if recording enabled)
           const { recordTrack } = useMapSettingsStore.getState()

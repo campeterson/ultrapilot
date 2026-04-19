@@ -6,6 +6,7 @@ import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
+import { useRouteStore } from '../../../state/route-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
@@ -73,9 +74,10 @@ function makeDirectToIcon(): L.DivIcon {
 }
 
 type MapSelection =
-  | { kind: 'tap';      lat: number; lon: number; x: number; y: number }
-  | { kind: 'waypoint'; waypoint: Waypoint;        x: number; y: number }
-  | { kind: 'airport';  airport: Airport;           x: number; y: number }
+  | { kind: 'tap';          lat: number; lon: number; x: number; y: number }
+  | { kind: 'waypoint';     waypoint: Waypoint;        x: number; y: number }
+  | { kind: 'airport';      airport: Airport;           x: number; y: number }
+  | { kind: 'routeWaypoint'; routeId: string; legIndex: number; waypoint: Waypoint; x: number; y: number }
 
 export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const mapRef = useRef<LeafletMap | null>(null)
@@ -89,6 +91,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const waypointMarkersRef = useRef<Map<string, L.Marker>>(new Map())
   const airportMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
   const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
+  const routeLayersRef = useRef<(L.Polyline | L.CircleMarker)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
   const updateAirportsRef = useRef<(() => void) | null>(null)
@@ -98,6 +101,8 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
+  const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
+  const routeWaypoints = useWaypointStore(s => s.waypoints)
   const { loadDatabase: loadAirports } = useAirportStore()
 
   const [selection, setSelection] = useState<MapSelection | null>(null)
@@ -309,6 +314,93 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     }
   }, [directTo, position])
 
+  // ── Route polyline ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    for (const layer of routeLayersRef.current) layer.remove()
+    routeLayersRef.current = []
+    if (!map) return
+
+    // Determine which route to draw: active takes priority, then preview
+    const routeId = activeRoute?.routeId ?? previewRouteId
+    if (!routeId) return
+
+    const wps = waypointsForRoute(routeId)
+    if (wps.length < 2) return
+
+    const isFlying = !!activeRoute && activeRoute.routeId === routeId
+    const layers: (L.Polyline | L.CircleMarker)[] = []
+
+    // Route line — black border underneath, magenta on top
+    const allCoords: [number, number][] = wps.map(w => [w.lat, w.lon])
+    const lineOpacity = isFlying ? 0.95 : 0.6
+    const dashArray = isFlying ? undefined : '8 5'
+    // Black border (wider, drawn first so it sits behind)
+    layers.push(L.polyline(allCoords, {
+      color: '#000', weight: isFlying ? 7 : 5, opacity: lineOpacity * 0.6, dashArray,
+    }).addTo(map))
+    // Magenta line on top — clickable to select nearest waypoint
+    const magentaLine = L.polyline(allCoords, {
+      color: theme.colors.magenta, weight: isFlying ? 4 : 3, opacity: lineOpacity, dashArray,
+      interactive: true, bubblingMouseEvents: false,
+    }).addTo(map)
+    magentaLine.on('click', (e: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(e)
+      // Find the waypoint closest to the click point
+      let nearest = 0
+      let nearestDist = Infinity
+      wps.forEach((wp, i) => {
+        const pt = map.latLngToContainerPoint([wp.lat, wp.lon])
+        const dx = pt.x - e.containerPoint.x
+        const dy = pt.y - e.containerPoint.y
+        const d = Math.sqrt(dx * dx + dy * dy)
+        if (d < nearestDist) { nearestDist = d; nearest = i }
+      })
+      const wp = wps[nearest]
+      setSelection({ kind: 'routeWaypoint', routeId, legIndex: nearest, waypoint: wp, x: e.containerPoint.x, y: e.containerPoint.y })
+    })
+    layers.push(magentaLine)
+
+    // Waypoint markers — large invisible tap target + small visible dot on top
+    wps.forEach((wp, i) => {
+      const isCurrentLeg = isFlying && i === activeRoute.legIndex
+
+      // Invisible tap target (44px diameter = 22px radius)
+      const tapTarget = L.circleMarker([wp.lat, wp.lon], {
+        radius: 22,
+        color: 'transparent',
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        weight: 0,
+        interactive: true,
+        bubblingMouseEvents: false,
+      }).addTo(map)
+
+      // Visible dot on top (purely decorative, non-interactive)
+      const dot = L.circleMarker([wp.lat, wp.lon], {
+        radius: isCurrentLeg ? 9 : 6,
+        color: '#000',
+        weight: 2,
+        fillColor: isCurrentLeg ? theme.colors.magenta : 'rgba(30,30,36,0.9)',
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(map)
+
+      dot.bindTooltip(`${i + 1}. ${wp.name}`, { direction: 'top' })
+
+      tapTarget.on('click', (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(e)
+        setSelection({ kind: 'routeWaypoint', routeId, legIndex: i, waypoint: wp, x: e.containerPoint.x, y: e.containerPoint.y })
+      })
+
+      layers.push(tapTarget, dot)
+    })
+
+    routeLayersRef.current = layers
+  // routeWaypoints in deps ensures redraw when waypoints load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoute, previewRouteId, routeWaypoints])
+
   // ── Origin marker ───────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
@@ -488,20 +580,24 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       {selection && !wpForm && (() => {
         const w = containerRef.current?.clientWidth ?? 300
         const borderColor =
-          selection.kind === 'airport'  ? `${theme.colors.cyan}55` :
-          selection.kind === 'waypoint' ? `${theme.colors.blue}55` :
+          selection.kind === 'airport'       ? `${theme.colors.cyan}55` :
+          selection.kind === 'waypoint'      ? `${theme.colors.blue}55` :
+          selection.kind === 'routeWaypoint' ? `${theme.colors.magenta}55` :
           theme.colors.darkBorder
 
-        // Extract lat/lon regardless of kind for Direct To
+        // Extract lat/lon/name for shared actions (Direct To, Add Waypoint)
         const selLat = selection.kind === 'tap' ? selection.lat
-          : selection.kind === 'waypoint' ? selection.waypoint.lat
+          : selection.kind === 'waypoint'      ? selection.waypoint.lat
+          : selection.kind === 'routeWaypoint' ? selection.waypoint.lat
           : selection.airport.lat
         const selLon = selection.kind === 'tap' ? selection.lon
-          : selection.kind === 'waypoint' ? selection.waypoint.lon
+          : selection.kind === 'waypoint'      ? selection.waypoint.lon
+          : selection.kind === 'routeWaypoint' ? selection.waypoint.lon
           : selection.airport.lon
         const selName = selection.kind === 'tap'
           ? `${selLat.toFixed(4)}, ${selLon.toFixed(4)}`
-          : selection.kind === 'waypoint' ? selection.waypoint.name
+          : selection.kind === 'waypoint'      ? selection.waypoint.name
+          : selection.kind === 'routeWaypoint' ? selection.waypoint.name
           : selection.airport.id
 
         return (
@@ -555,7 +651,39 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
                   </div>
                 </>
               )}
+              {selection.kind === 'routeWaypoint' && (
+                <>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.magenta }}>
+                    {selection.legIndex + 1}. {selection.waypoint.name}
+                  </div>
+                  <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '3px' }}>
+                    {selLat.toFixed(5)}, {selLon.toFixed(5)}
+                  </div>
+                </>
+              )}
             </div>
+
+            {/* Fly Leg — route waypoint only, session required */}
+            {selection.kind === 'routeWaypoint' && (
+              <button
+                disabled={!session}
+                onClick={() => {
+                  if (!session) return
+                  const pos = useGPSStore.getState().position
+                  jumpToLeg(selection.routeId, selection.legIndex, pos?.lat ?? selLat, pos?.lon ?? selLon)
+                  setSelection(null)
+                }}
+                style={{
+                  ...menuBtnStyle,
+                  color: session ? theme.colors.magenta : theme.colors.dim,
+                  fontWeight: 700,
+                  opacity: session ? 1 : 0.5,
+                  cursor: session ? 'pointer' : 'default',
+                }}
+              >
+                <span>✈</span> Fly Leg{!session && <span style={{ fontSize: theme.size.tiny, fontWeight: 400, marginLeft: 6 }}>(start session first)</span>}
+              </button>
+            )}
 
             {/* Direct To — all kinds, session required */}
             {session && (

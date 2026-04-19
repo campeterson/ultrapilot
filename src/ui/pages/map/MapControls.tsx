@@ -13,6 +13,7 @@ import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/i
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
+import { HSIInstrument } from './HSIInstrument'
 
 interface MapControlsProps {
   onRecenter: () => void
@@ -69,8 +70,33 @@ function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; pos
   const valueColor = values ? getInstrumentColor(id, values) : theme.colors.cream
 
   const isArrow = id === 'brg_arrow' || id === 'dtk_arrow'
-  const bearingDeg = id === 'brg_arrow' ? (values?.brg ?? 0) : (values?.dtk ?? 0)
+  const absBearing = id === 'brg_arrow' ? (values?.brg ?? 0) : (values?.dtk ?? 0)
+  // Relative to current track so "up" = direction of travel
+  const bearingDeg = ((absBearing - (values?.hdg ?? 0)) + 360) % 360
   const hasValue = id === 'dtk_arrow' ? values?.dtk !== null : true
+
+  // HSI gets its own full rendering
+  if (id === 'hsi') {
+    return (
+      <div
+        onClick={onClick}
+        style={{
+          ...POSITION_STYLE[position],
+          background: 'transparent',
+          cursor: onClick ? 'pointer' : undefined,
+        }}
+      >
+        <HSIInstrument
+          hdg={values?.hdg ?? 0}
+          dtk={values?.dtk ?? null}
+          xtk={values?.xtk ?? null}
+          brg={values?.brg ?? 0}
+          dist={values?.dist ?? 0}
+          size={160}
+        />
+      </div>
+    )
+  }
 
   return (
     <div

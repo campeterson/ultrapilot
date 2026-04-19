@@ -1,6 +1,6 @@
 import { theme } from '../theme'
 
-export type NavTab = 'map' | 'timeline' | 'checklists' | 'wx' | 'waypoints' | 'more'
+export type NavTab = 'map' | 'timeline' | 'checklists' | 'wx' | 'waypoints' | 'routes' | 'more'
 
 interface NavBarProps {
   active: NavTab
@@ -13,6 +13,7 @@ const TABS: { id: NavTab; label: string; icon: string }[] = [
   { id: 'checklists', label: 'Lists', icon: '☑' },
   { id: 'wx', label: 'Wx/Apt', icon: '⛅' },
   { id: 'waypoints', label: 'Wpts', icon: '⌖' },
+  { id: 'routes', label: 'Routes', icon: '✈' },
   { id: 'more', label: 'More', icon: '⋯' },
 ]
 

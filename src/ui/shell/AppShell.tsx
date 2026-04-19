@@ -4,11 +4,13 @@ import { MorePicker, type MoreView } from './MorePicker'
 import { InstrumentStrip } from './InstrumentStrip'
 import { PanelLayout } from './PanelLayout'
 import { UpdateBanner } from './UpdateBanner'
+import { RouteBanner } from './RouteBanner'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
 import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
+import { useRouteStore } from '../../state/route-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
 import { theme } from '../theme'
 import { trackEvent } from '../../lib/analytics'
@@ -17,6 +19,7 @@ import { TimelinePage } from '../pages/timeline/TimelinePage'
 import { ChecklistsPage } from '../pages/checklists/ChecklistsPage'
 import { WxPage } from '../pages/weather/WxPage'
 import { WaypointsPage } from '../pages/waypoints/WaypointsPage'
+import { RoutesPage } from '../pages/routes/RoutesPage'
 import { SessionsPage } from '../pages/sessions/SessionsPage'
 import { InstrumentsPage } from '../pages/instruments/InstrumentsPage'
 import { SettingsPage } from '../pages/settings/SettingsPage'
@@ -46,6 +49,7 @@ export function AppShell() {
       setMoreOpen(false)
       setPanelOpen(false)
       useDirectToStore.getState().clearTarget()
+      useRouteStore.getState().deactivateRoute()
     }
     prevStatus.current = sessionStatus
   }, [sessionStatus])
@@ -87,6 +91,7 @@ export function AppShell() {
       case 'checklists': return <ChecklistsPage />
       case 'wx': return <WxPage />
       case 'waypoints': return <WaypointsPage />
+      case 'routes': return <RoutesPage />
       default: return null
     }
   }
@@ -123,6 +128,7 @@ export function AppShell() {
         onDismiss={() => setMoreOpen(false)}
       />
 
+      <RouteBanner />
       <UpdateBanner />
     </>
   )

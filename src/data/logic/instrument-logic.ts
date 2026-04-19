@@ -183,16 +183,23 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
       return values.wspd !== null ? Math.round(values.wspd).toString() : '---'
     case 'dtk':
       return values.dtk !== null ? formatDeg(values.dtk) : '---'
-    case 'dtk_arrow':
-      return values.dtk !== null ? formatDeg(values.dtk) : '---'
-    case 'brg_arrow':
-      return formatDeg(values.brg)
+    case 'dtk_arrow': {
+      if (values.dtk === null) return '---'
+      const rel = ((values.dtk - values.hdg) + 360) % 360
+      return formatDeg(rel)
+    }
+    case 'brg_arrow': {
+      const rel = ((values.brg - values.hdg) + 360) % 360
+      return formatDeg(rel)
+    }
     case 'dte':
       return values.dte !== null ? formatNM(values.dte) : '---'
     case 'xtk':
       return values.xtk !== null ? values.xtk.toFixed(2) : '---'
     case 'ete':
       return values.ete !== null ? Math.round(values.ete).toString() : '---'
+    case 'hsi':
+      return ''  // rendered as SVG, not text
   }
 }
 

@@ -126,6 +126,7 @@ export type InstrumentId =
   | 'dte'       // Distance to direct-to (nm)
   | 'xtk'       // Cross-track error (nm)
   | 'ete'       // Est. time enroute to direct-to (min)
+  | 'hsi'       // Horizontal situation indicator (composite SVG)
 
 export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   gs: 'GND SPD',
@@ -149,6 +150,7 @@ export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   dte: 'DTE',
   xtk: 'XTK',
   ete: 'ETE',
+  hsi: 'HSI',
 }
 
 export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
@@ -173,6 +175,7 @@ export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
   dte: 'nm',
   xtk: 'nm',
   ete: 'min',
+  hsi: '',
 }
 
 export const INSTRUMENT_DESCRIPTIONS: Record<InstrumentId, string> = {
@@ -197,6 +200,7 @@ export const INSTRUMENT_DESCRIPTIONS: Record<InstrumentId, string> = {
   dte: 'Range to direct-to',
   xtk: 'Off-course error',
   ete: 'Time to direct-to',
+  hsi: 'Course + deviation',
 }
 
 export interface InstrumentGroup {
@@ -210,11 +214,21 @@ export const INSTRUMENT_GROUPS: InstrumentGroup[] = [
   { name: 'Track',     ids: ['hdg'] },
   { name: 'Wind',      ids: ['wdir', 'wspd'] },
   { name: 'Origin',    ids: ['dist', 'brg', 'brg_arrow'] },
-  { name: 'Direct-to', ids: ['dtk', 'dtk_arrow', 'dte', 'xtk', 'ete'] },
+  { name: 'Direct-to', ids: ['dtk', 'dtk_arrow', 'dte', 'xtk', 'ete', 'hsi'] },
   { name: 'Time',      ids: ['etime', 'sess', 'tod'] },
 ]
 
 export const DEFAULT_INSTRUMENT_STRIP: InstrumentId[] = ['agl', 'msl', 'gs', 'hdg', 'dist', 'etime']
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+export interface Route {
+  id: string
+  name: string
+  waypointIds: string[]  // ordered
+  createdAt: string
+  updatedAt: string
+}
 
 // ─── GPS Position ─────────────────────────────────────────────────────────────
 

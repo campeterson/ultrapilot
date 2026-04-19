@@ -1,8 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { Session, TrackPoint, StampEvent, Checklist, Waypoint } from './models'
+import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route } from './models'
 
 const DB_NAME = 'ultrapilot'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 type UltraPilotDB = {
   sessions: {
@@ -26,6 +26,10 @@ type UltraPilotDB = {
   waypoints: {
     key: string
     value: Waypoint
+  }
+  routes: {
+    key: string
+    value: Route
   }
 }
 
@@ -51,6 +55,9 @@ async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
       }
       if (!db.objectStoreNames.contains('waypoints')) {
         db.createObjectStore('waypoints', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('routes')) {
+        db.createObjectStore('routes', { keyPath: 'id' })
       }
     },
   })
@@ -187,4 +194,22 @@ export async function putWaypoint(waypoint: Waypoint): Promise<void> {
 export async function deleteWaypoint(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('waypoints', id)
+}
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+export async function listRoutes(): Promise<Route[]> {
+  const db = await getDB()
+  const all = await db.getAll('routes')
+  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export async function putRoute(route: Route): Promise<void> {
+  const db = await getDB()
+  await db.put('routes', route)
+}
+
+export async function deleteRoute(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('routes', id)
 }
