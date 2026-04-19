@@ -384,8 +384,15 @@ export function SettingsPage() {
       <Row label="Version">
         <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{__APP_VERSION__}</span>
       </Row>
-      <Row label="UltraPilot">
-        <span style={{ fontSize: theme.size.small, color: theme.colors.dim }}>Aviator's Toolkit</span>
+      <Row label="Part of">
+        <a
+          href="https://aviatorstoolkit.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: theme.size.small, color: theme.colors.magenta, textDecoration: 'none' }}
+        >
+          Aviator's Toolkit ↗
+        </a>
       </Row>
     </div>
   )
