@@ -213,3 +213,33 @@ export async function deleteRoute(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('routes', id)
 }
+
+/**
+ * Import a bundle of waypoints + routes.
+ * Skips any record whose ID already exists in the DB (no overwrite).
+ * Returns counts of how many were actually inserted.
+ */
+export async function importBundle(
+  waypoints: Waypoint[],
+  routes: Route[],
+): Promise<{ waypointsAdded: number; routesAdded: number }> {
+  const db = await getDB()
+  let waypointsAdded = 0
+  let routesAdded = 0
+
+  const tx = db.transaction(['waypoints', 'routes'], 'readwrite')
+  const wpStore = tx.objectStore('waypoints')
+  const rtStore = tx.objectStore('routes')
+
+  for (const wp of waypoints) {
+    const existing = await wpStore.get(wp.id)
+    if (!existing) { wpStore.put(wp); waypointsAdded++ }
+  }
+  for (const rt of routes) {
+    const existing = await rtStore.get(rt.id)
+    if (!existing) { rtStore.put(rt); routesAdded++ }
+  }
+
+  await tx.done
+  return { waypointsAdded, routesAdded }
+}

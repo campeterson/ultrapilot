@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { Route, Waypoint } from '../data/models'
-import { listRoutes, putRoute, deleteRoute as dbDeleteRoute } from '../data/db'
+import { listRoutes, putRoute, deleteRoute as dbDeleteRoute, importBundle } from '../data/db'
 import { useDirectToStore } from './direct-to-store'
 import { useWaypointStore } from './waypoint-store'
+import { buildRouteBundle, downloadBundle, parseBundle } from '../data/logic/route-io'
 
 const AUTO_ADVANCE_NM = 0.1
 const LS_KEY = 'ultrapilot_activeRoute'
@@ -53,6 +54,13 @@ interface RouteStore {
   waypointsForRoute: (routeId: string) => Waypoint[]
   activeRoute: () => Route | null
   activeLeg: () => Waypoint | null
+
+  /** Download this route + its waypoints as a shareable JSON file */
+  shareRoute: (routeId: string) => void
+  /** Download all routes + all waypoints as a shareable JSON file */
+  shareAll: () => void
+  /** Read a .json file and import any routes/waypoints not already present. Returns a summary string. */
+  importFile: (file: File) => Promise<string>
 }
 
 function pushDirectTo(wp: Waypoint, fromLat: number, fromLon: number) {
@@ -203,5 +211,54 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
     if (!active) return null
     const wps = get().waypointsForRoute(active.routeId)
     return wps[active.legIndex] ?? null
+  },
+
+  shareRoute: (routeId) => {
+    const { routes } = get()
+    const route = routes.find(r => r.id === routeId)
+    if (!route) return
+    const allWps = useWaypointStore.getState().waypoints
+    const routeWps = route.waypointIds
+      .map(id => allWps.find(w => w.id === id))
+      .filter((w): w is Waypoint => !!w)
+    const bundle = buildRouteBundle([route], routeWps)
+    const safeName = route.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    downloadBundle(bundle, `${safeName}.json`)
+  },
+
+  shareAll: () => {
+    const { routes } = get()
+    const allWps = useWaypointStore.getState().waypoints
+    const bundle = buildRouteBundle(routes, allWps)
+    const date = new Date().toISOString().slice(0, 10)
+    downloadBundle(bundle, `ultrapilot_routes_${date}.json`)
+  },
+
+  importFile: async (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const raw = JSON.parse(e.target?.result as string)
+          const result = parseBundle(raw)
+          if (!result.ok) { resolve(`Import failed: ${result.error}`); return }
+          const { waypointsAdded, routesAdded } = await importBundle(
+            result.bundle.waypoints,
+            result.bundle.routes,
+          )
+          // Reload both stores so UI reflects new data
+          await get().load()
+          await useWaypointStore.getState().load()
+          const parts: string[] = []
+          if (routesAdded > 0) parts.push(`${routesAdded} route${routesAdded === 1 ? '' : 's'}`)
+          if (waypointsAdded > 0) parts.push(`${waypointsAdded} waypoint${waypointsAdded === 1 ? '' : 's'}`)
+          if (parts.length === 0) resolve('Nothing new — all items already exist.')
+          else resolve(`Imported ${parts.join(' and ')}.`)
+        } catch {
+          resolve('Import failed: invalid JSON file.')
+        }
+      }
+      reader.readAsText(file)
+    })
   },
 }))

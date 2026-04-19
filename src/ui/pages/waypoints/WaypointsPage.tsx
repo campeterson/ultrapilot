@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
 import { useWaypointStore } from '../../../state/waypoint-store'
+import { useRouteStore } from '../../../state/route-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
@@ -20,7 +21,8 @@ interface FormState {
 const EMPTY_FORM: FormState = { name: '', lat: '', lon: '', note: '' }
 
 export function WaypointsPage() {
-  const { waypoints, loading, load, save, remove } = useWaypointStore()
+  const { waypoints, loading, load, save, remove, shareWaypoint, shareAllWaypoints } = useWaypointStore()
+  const { importFile } = useRouteStore()
   const { position } = useGPSStore()
   const { session } = useSessionStore()
   const { setTarget: setDirectTo } = useDirectToStore()
@@ -28,8 +30,18 @@ export function WaypointsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
   const [detailWp, setDetailWp] = useState<Waypoint | null>(null)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
 
   useEffect(() => { load() }, [load])
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const msg = await importFile(file)
+    setImportStatus(msg)
+    setTimeout(() => setImportStatus(null), 4000)
+  }
 
   function openNew() {
     setForm({ ...EMPTY_FORM, name: `Waypoint ${waypoints.length + 1}` })
@@ -79,26 +91,61 @@ export function WaypointsPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       {/* Header */}
-      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Waypoints</span>
+      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>Waypoints</span>
+        <input
+          id="wp-import-input"
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={handleImportFile}
+        />
+        <label
+          htmlFor="wp-import-input"
+          style={{
+            padding: '8px 12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`,
+            color: theme.colors.light, cursor: 'pointer', fontSize: theme.size.body,
+            fontFamily: theme.font.primary, minHeight: theme.tapTarget,
+            display: 'flex', alignItems: 'center',
+          }}
+        >
+          Import
+        </label>
+        {waypoints.length > 0 && (
+          <button
+            onClick={() => shareAllWaypoints()}
+            style={{
+              padding: '8px 12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`,
+              background: 'none', color: theme.colors.light, cursor: 'pointer',
+              fontSize: theme.size.body, fontFamily: theme.font.primary, minHeight: theme.tapTarget,
+            }}
+          >
+            Share All
+          </button>
+        )}
         <button
           onClick={openNew}
           style={{
-            padding: '8px 16px',
-            borderRadius: '8px',
-            border: 'none',
-            background: theme.colors.red,
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: theme.size.body,
-            fontWeight: 700,
-            fontFamily: theme.font.primary,
+            padding: '8px 16px', borderRadius: '8px', border: 'none',
+            background: theme.colors.red, color: '#fff', cursor: 'pointer',
+            fontSize: theme.size.body, fontWeight: 700, fontFamily: theme.font.primary,
             minHeight: theme.tapTarget,
           }}
         >
           + New
         </button>
       </div>
+
+      {/* Import status toast */}
+      {importStatus && (
+        <div style={{
+          padding: '10px 16px', background: theme.colors.darkCard,
+          borderBottom: `1px solid ${theme.colors.darkBorder}`,
+          fontSize: theme.size.small, color: theme.colors.cream,
+        }}>
+          {importStatus}
+        </div>
+      )}
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -195,6 +242,18 @@ export function WaypointsPage() {
                   ◇ Direct To
                 </button>
               )}
+              <button
+                onClick={() => { shareWaypoint(detailWp.id); setDetailWp(null) }}
+                style={{
+                  padding: '12px', borderRadius: '8px',
+                  border: `1px solid ${theme.colors.darkBorder}`,
+                  background: 'none', color: theme.colors.magenta, cursor: 'pointer',
+                  fontFamily: theme.font.primary, fontSize: theme.size.body,
+                  minHeight: theme.tapTarget,
+                }}
+              >
+                ↑ Share Waypoint
+              </button>
               <button
                 onClick={() => { remove(detailWp.id); setDetailWp(null) }}
                 style={{

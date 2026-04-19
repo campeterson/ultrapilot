@@ -98,7 +98,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   const { position } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
-  const { waypoints, load: loadWaypoints, save: saveWaypoint } = useWaypointStore()
+  const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
   const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
@@ -697,6 +697,16 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
                 style={{ ...menuBtnStyle, color: theme.colors.magenta }}
               >
                 <span>◇</span> Direct To
+              </button>
+            )}
+
+            {/* Share Waypoint — waypoint only */}
+            {selection.kind === 'waypoint' && (
+              <button
+                onClick={() => { shareWaypoint(selection.waypoint.id); setSelection(null) }}
+                style={{ ...menuBtnStyle, color: theme.colors.magenta }}
+              >
+                <span>↑</span> Share Waypoint
               </button>
             )}
 

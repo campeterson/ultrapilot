@@ -4,6 +4,7 @@ import type { Waypoint } from '../data/models'
 import { useSessionStore } from './session-store'
 import { useTimelineStore } from './timeline-store'
 import { trackEvent } from '../lib/analytics'
+import { buildRouteBundle, downloadBundle } from '../data/logic/route-io'
 
 interface WaypointStore {
   waypoints: Waypoint[]
@@ -11,6 +12,8 @@ interface WaypointStore {
   load: () => Promise<void>
   save: (w: Waypoint) => Promise<void>
   remove: (id: string) => Promise<void>
+  shareWaypoint: (id: string) => void
+  shareAllWaypoints: () => void
 }
 
 export const useWaypointStore = create<WaypointStore>((set) => ({
@@ -35,6 +38,21 @@ export const useWaypointStore = create<WaypointStore>((set) => ({
     await deleteWaypoint(id)
     const waypoints = await listWaypoints()
     set({ waypoints })
+  },
+
+  shareWaypoint: (id) => {
+    const wp = useWaypointStore.getState().waypoints.find(w => w.id === id)
+    if (!wp) return
+    const bundle = buildRouteBundle([], [wp])
+    const safeName = wp.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    downloadBundle(bundle, `${safeName}.json`)
+  },
+
+  shareAllWaypoints: () => {
+    const { waypoints } = useWaypointStore.getState()
+    const bundle = buildRouteBundle([], waypoints)
+    const date = new Date().toISOString().slice(0, 10)
+    downloadBundle(bundle, `ultrapilot_waypoints_${date}.json`)
   },
 }))
 

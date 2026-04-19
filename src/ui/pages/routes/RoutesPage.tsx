@@ -29,7 +29,7 @@ const labelStyle: React.CSSProperties = {
 }
 
 export function RoutesPage() {
-  const { routes, loading, active, load, createRoute, removeRoute, activateRoute, deactivateRoute, setPreview } = useRouteStore()
+  const { routes, loading, active, load, createRoute, removeRoute, activateRoute, deactivateRoute, setPreview, shareRoute, shareAll, importFile } = useRouteStore()
   const { waypoints, load: loadWaypoints } = useWaypointStore()
   const position = useGPSStore(s => s.position)
   const session = useSessionStore(s => s.session)
@@ -38,6 +38,7 @@ export function RoutesPage() {
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editRoute, setEditRoute] = useState<Route | null>(null)
   const [detailRoute, setDetailRoute] = useState<Route | null>(null)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
 
   useEffect(() => {
     load()
@@ -48,6 +49,15 @@ export function RoutesPage() {
   useEffect(() => {
     if (position) refreshNearby(position.lat, position.lon)
   }, [position, refreshNearby])
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const msg = await importFile(file)
+    setImportStatus(msg)
+    setTimeout(() => setImportStatus(null), 4000)
+  }
 
   function openNewBuilder() {
     setEditRoute(null)
@@ -75,8 +85,39 @@ export function RoutesPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       {/* Header */}
-      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Routes</span>
+      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>Routes</span>
+        {/* Hidden file input for import */}
+        <input
+          id="route-import-input"
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={handleImportFile}
+        />
+        <label
+          htmlFor="route-import-input"
+          style={{
+            padding: '8px 12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`,
+            color: theme.colors.light, cursor: 'pointer', fontSize: theme.size.body,
+            fontFamily: theme.font.primary, minHeight: theme.tapTarget,
+            display: 'flex', alignItems: 'center',
+          }}
+        >
+          Import
+        </label>
+        {routes.length > 0 && (
+          <button
+            onClick={() => shareAll()}
+            style={{
+              padding: '8px 12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`,
+              background: 'none', color: theme.colors.light, cursor: 'pointer',
+              fontSize: theme.size.body, fontFamily: theme.font.primary, minHeight: theme.tapTarget,
+            }}
+          >
+            Share All
+          </button>
+        )}
         <button
           onClick={openNewBuilder}
           style={{
@@ -89,6 +130,17 @@ export function RoutesPage() {
           + New
         </button>
       </div>
+
+      {/* Import status toast */}
+      {importStatus && (
+        <div style={{
+          padding: '10px 16px', background: theme.colors.darkCard,
+          borderBottom: `1px solid ${theme.colors.darkBorder}`,
+          fontSize: theme.size.small, color: theme.colors.cream,
+        }}>
+          {importStatus}
+        </div>
+      )}
 
       {/* Active route hint */}
       {active && (
@@ -146,6 +198,7 @@ export function RoutesPage() {
           onActivate={() => handleActivate(detailRoute)}
           onDeactivate={() => deactivateRoute()}
           onEdit={() => openEditBuilder(detailRoute)}
+          onShare={() => shareRoute(detailRoute.id)}
           onDelete={() => handleDelete(detailRoute.id)}
           onClose={() => { setPreview(null); setDetailRoute(null) }}
         />
@@ -215,7 +268,7 @@ function RouteRow({ route, isActive, waypoints, onTap }: {
 
 // ─── Detail modal ─────────────────────────────────────────────────────────────
 
-function RouteDetailModal({ route, waypoints, isActive, hasSession, onActivate, onDeactivate, onEdit, onDelete, onClose }: {
+function RouteDetailModal({ route, waypoints, isActive, hasSession, onActivate, onDeactivate, onEdit, onShare, onDelete, onClose }: {
   route: Route
   waypoints: Waypoint[]
   isActive: boolean
@@ -223,6 +276,7 @@ function RouteDetailModal({ route, waypoints, isActive, hasSession, onActivate, 
   onActivate: () => void
   onDeactivate: () => void
   onEdit: () => void
+  onShare: () => void
   onDelete: () => void
   onClose: () => void
 }) {
@@ -302,6 +356,16 @@ function RouteDetailModal({ route, waypoints, isActive, hasSession, onActivate, 
             }}
           >
             Edit Route
+          </button>
+          <button
+            onClick={onShare}
+            style={{
+              padding: '12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`,
+              background: 'none', color: theme.colors.magenta, cursor: 'pointer',
+              fontFamily: theme.font.primary, fontSize: theme.size.body, minHeight: theme.tapTarget,
+            }}
+          >
+            ↑ Share Route
           </button>
           {!confirmDelete ? (
             <button
