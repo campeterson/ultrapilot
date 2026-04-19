@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { INSTRUMENT_LABELS, type InstrumentId } from '../../data/models'
+import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, INSTRUMENT_DESCRIPTIONS, type InstrumentId } from '../../data/models'
 import { useSessionStore } from '../../state/session-store'
 import { useGPSStore } from '../../state/gps-store'
 import { useInstrumentStore } from '../../state/instrument-store'
@@ -28,6 +28,7 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
   const position = useGPSStore(s => s.position)
   const resetMaxAGL = useInstrumentStore(s => s.resetMaxAGL)
   const [confirmZero, setConfirmZero] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
 
   const canZero = !!session && !!position
 
@@ -85,30 +86,50 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {options.map((id, i) => {
             const label = id ? INSTRUMENT_LABELS[id] : 'Off'
+            const unit = id ? INSTRUMENT_UNITS[id] : ''
+            const desc = id ? INSTRUMENT_DESCRIPTIONS[id] : ''
             const isActive = id === current
             return (
               <button
                 key={id ?? `null-${i}`}
                 onClick={() => { onSelect(id); onClose() }}
                 style={{
-                  padding: '12px 10px', borderRadius: '8px',
+                  padding: showDetails ? '8px 8px' : '12px 10px', borderRadius: '8px',
                   border: `2px solid ${isActive ? theme.colors.red : theme.colors.darkBorder}`,
                   background: isActive ? theme.colors.redDim : theme.colors.dark,
                   color: isActive ? theme.colors.cream : theme.colors.light,
                   cursor: 'pointer', fontFamily: theme.font.primary,
                   fontSize: theme.size.small, textAlign: 'center',
                   minHeight: theme.tapTarget,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: '2px',
                 }}
               >
-                {label}
+                <div>{label}{showDetails && unit ? ` (${unit})` : ''}</div>
+                {showDetails && desc && (
+                  <div style={{ fontSize: '10px', color: theme.colors.dim, lineHeight: 1.2 }}>
+                    {desc}
+                  </div>
+                )}
               </button>
             )
           })}
         </div>
         <button
+          onClick={() => setShowDetails(d => !d)}
+          style={{
+            width: '100%', marginTop: '14px', padding: '10px', borderRadius: '8px',
+            border: `1px solid ${theme.colors.darkBorder}`, background: 'none',
+            color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
+            fontSize: theme.size.small, minHeight: theme.tapTarget,
+          }}
+        >
+          {showDetails ? 'Hide Details' : 'Show Details'}
+        </button>
+        <button
           onClick={onClose}
           style={{
-            width: '100%', marginTop: '14px', padding: '12px', borderRadius: '8px',
+            width: '100%', marginTop: '8px', padding: '12px', borderRadius: '8px',
             border: `1px solid ${theme.colors.darkBorder}`, background: 'none',
             color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary,
             fontSize: theme.size.body, minHeight: theme.tapTarget,

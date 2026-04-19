@@ -160,6 +160,25 @@ export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
   ete: 'min',
 }
 
+export const INSTRUMENT_DESCRIPTIONS: Record<InstrumentId, string> = {
+  gs: 'Ground speed',
+  agl: 'Height above origin',
+  msl: 'GPS altitude',
+  vs: 'Climb/descent rate',
+  hdg: 'Direction of travel',
+  dist: 'Range from origin',
+  brg: 'Heading to origin',
+  brg_arrow: 'Arrow to origin',
+  etime: 'Flight duration',
+  sess: 'Session duration',
+  maxalt: 'Peak AGL this session',
+  dtk: 'Course to direct-to',
+  dtk_arrow: 'Arrow to direct-to',
+  dte: 'Range to direct-to',
+  xtk: 'Off-course error',
+  ete: 'Time to direct-to',
+}
+
 export const DEFAULT_INSTRUMENT_STRIP: InstrumentId[] = ['agl', 'msl', 'gs', 'hdg', 'dist', 'etime']
 
 // ─── GPS Position ─────────────────────────────────────────────────────────────
