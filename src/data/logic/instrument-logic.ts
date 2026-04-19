@@ -1,5 +1,5 @@
 import type { InstrumentId } from '../models'
-import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM, crossTrackErrorNM, estimatedTimeEnrouteMin } from './gps-logic'
+import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM, crossTrackErrorNM, estimatedTimeEnrouteMin, estimateWind, type WindSample } from './gps-logic'
 
 export interface DirectToTarget {
   lat: number
@@ -18,11 +18,22 @@ export interface InstrumentValues {
   brg: number       // degrees
   etime: number     // ms (elapsed flight time)
   sess: number      // ms (elapsed session time)
+  tod: number       // ms (unix timestamp of position fix)
   maxalt: number    // feet (max AGL this session)
+  avgs: number      // knots (rolling avg)
+  avgvs: number     // fpm (rolling avg)
+  wdir: number | null  // degrees (wind from; null when unresolvable)
+  wspd: number | null  // knots
   dtk: number | null   // degrees (null when no direct-to)
   dte: number | null   // nm
   xtk: number | null   // nm (signed)
   ete: number | null   // minutes
+}
+
+export interface RollingStats {
+  avgGSKts: number
+  avgVSFpm: number
+  windSamples: WindSample[]
 }
 
 export interface RawPosition {
@@ -44,6 +55,7 @@ export function deriveInstruments(
   sessionStartMs: number,
   flightStartMs: number | null,
   maxAGLft: number,
+  rolling: RollingStats,
   directTo?: DirectToTarget | null,
 ): InstrumentValues {
   const agl = computeAGLft(pos.altMSL, originAltMSLm)
@@ -61,6 +73,8 @@ export function deriveInstruments(
     ete = estimatedTimeEnrouteMin(dte, gs)
   }
 
+  const wind = estimateWind(rolling.windSamples)
+
   return {
     gs,
     agl,
@@ -71,7 +85,12 @@ export function deriveInstruments(
     brg: bearing(pos.lat, pos.lon, originLat, originLon),
     etime: flightStartMs !== null ? pos.ts - flightStartMs : 0,
     sess: pos.ts - sessionStartMs,
+    tod: pos.ts,
     maxalt: Math.max(maxAGLft, agl),
+    avgs: rolling.avgGSKts,
+    avgvs: rolling.avgVSFpm,
+    wdir: wind ? wind.dirDeg : null,
+    wspd: wind ? wind.speedKts : null,
     dtk,
     dte,
     xtk,
@@ -148,8 +167,20 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
       return formatElapsed(values.etime)
     case 'sess':
       return formatElapsed(values.sess)
+    case 'tod':
+      return formatClock(values.tod)
     case 'maxalt':
       return Math.round(values.maxalt).toString()
+    case 'avgs':
+      return Math.round(values.avgs).toString()
+    case 'avgvs': {
+      const v = Math.round(values.avgvs)
+      return v > 0 ? `+${v}` : v.toString()
+    }
+    case 'wdir':
+      return values.wdir !== null ? formatDeg(values.wdir) : '---'
+    case 'wspd':
+      return values.wspd !== null ? Math.round(values.wspd).toString() : '---'
     case 'dtk':
       return values.dtk !== null ? formatDeg(values.dtk) : '---'
     case 'dtk_arrow':
@@ -163,6 +194,14 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
     case 'ete':
       return values.ete !== null ? Math.round(values.ete).toString() : '---'
   }
+}
+
+function formatClock(unixMs: number): string {
+  if (!unixMs) return '--:--'
+  const d = new Date(unixMs)
+  const h = d.getHours().toString().padStart(2, '0')
+  const m = d.getMinutes().toString().padStart(2, '0')
+  return `${h}:${m}`
 }
 
 function formatElapsed(ms: number): string {

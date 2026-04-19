@@ -328,6 +328,8 @@ function StartSessionButton() {
   async function handleStart() {
     const pos = useGPSStore.getState().position
     if (!pos) { alert('Waiting for GPS fix…'); return }
+    useInstrumentStore.getState().resetRolling()
+    useInstrumentStore.getState().resetMaxAGL()
     const s = await startSession(pos.lat, pos.lon, pos.altMSL)
     await addStamp({ sessionId: s.id, ts: Date.now(), type: 'session_start', lat: pos.lat, lon: pos.lon, altMSL: pos.altMSL, altAGL: 0, speed: pos.speed, note: null })
   }

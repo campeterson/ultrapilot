@@ -115,7 +115,12 @@ export type InstrumentId =
   | 'brg_arrow' // Bearing to origin — arrow display
   | 'etime'     // Elapsed flight time
   | 'sess'      // Elapsed session time
+  | 'tod'       // Time of day (local clock)
   | 'maxalt'    // Max AGL this session (ft)
+  | 'avgs'      // Avg ground speed this session (kt)
+  | 'avgvs'     // Avg vertical speed while climbing/descending (fpm)
+  | 'wdir'      // Estimated wind direction (from, °)
+  | 'wspd'      // Estimated wind speed (kt)
   | 'dtk'       // Desired track to direct-to (°)
   | 'dtk_arrow' // Bearing to direct-to — arrow display
   | 'dte'       // Distance to direct-to (nm)
@@ -133,7 +138,12 @@ export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   brg_arrow: '→ ORIG',
   etime: 'FLT',
   sess: 'SESS',
+  tod: 'TIME',
   maxalt: 'MAX AGL',
+  avgs: 'AVG SPD',
+  avgvs: 'AVG V/S',
+  wdir: 'WIND',
+  wspd: 'WIND SPD',
   dtk: 'DTK',
   dtk_arrow: '→ D→',
   dte: 'DTE',
@@ -152,7 +162,12 @@ export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
   brg_arrow: '',
   etime: '',
   sess: '',
+  tod: '',
   maxalt: 'ft',
+  avgs: 'kt',
+  avgvs: 'fpm',
+  wdir: '°',
+  wspd: 'kt',
   dtk: '°',
   dtk_arrow: '',
   dte: 'nm',
@@ -171,13 +186,33 @@ export const INSTRUMENT_DESCRIPTIONS: Record<InstrumentId, string> = {
   brg_arrow: 'Arrow to origin',
   etime: 'Flight duration',
   sess: 'Session duration',
+  tod: 'Local clock time',
   maxalt: 'Peak AGL this session',
+  avgs: 'Avg ground speed',
+  avgvs: 'Avg climb/descent',
+  wdir: 'Est. wind from',
+  wspd: 'Est. wind speed',
   dtk: 'Course to direct-to',
   dtk_arrow: 'Arrow to direct-to',
   dte: 'Range to direct-to',
   xtk: 'Off-course error',
   ete: 'Time to direct-to',
 }
+
+export interface InstrumentGroup {
+  name: string
+  ids: InstrumentId[]
+}
+
+export const INSTRUMENT_GROUPS: InstrumentGroup[] = [
+  { name: 'Speed',     ids: ['gs', 'avgs'] },
+  { name: 'Altitude',  ids: ['agl', 'msl', 'maxalt', 'vs', 'avgvs'] },
+  { name: 'Track',     ids: ['hdg'] },
+  { name: 'Wind',      ids: ['wdir', 'wspd'] },
+  { name: 'Origin',    ids: ['dist', 'brg', 'brg_arrow'] },
+  { name: 'Direct-to', ids: ['dtk', 'dtk_arrow', 'dte', 'xtk', 'ete'] },
+  { name: 'Time',      ids: ['etime', 'sess', 'tod'] },
+]
 
 export const DEFAULT_INSTRUMENT_STRIP: InstrumentId[] = ['agl', 'msl', 'gs', 'hdg', 'dist', 'etime']
 

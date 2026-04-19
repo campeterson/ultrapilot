@@ -1,17 +1,48 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, INSTRUMENT_DESCRIPTIONS, type InstrumentId } from '../../data/models'
+import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, INSTRUMENT_DESCRIPTIONS, INSTRUMENT_GROUPS, type InstrumentId } from '../../data/models'
 import { useSessionStore } from '../../state/session-store'
 import { useGPSStore } from '../../state/gps-store'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { theme } from '../theme'
 
-const ALL_INSTRUMENTS: InstrumentId[] = [
-  'gs', 'agl', 'msl', 'vs', 'hdg', 'dist', 'brg', 'brg_arrow',
-  'etime', 'sess', 'maxalt', 'dtk', 'dtk_arrow', 'dte', 'xtk', 'ete',
-]
+interface InstrumentButtonProps {
+  id: InstrumentId | null
+  current: InstrumentId | null
+  showDetails: boolean
+  onSelect: (id: InstrumentId | null) => void
+  onClose: () => void
+}
 
-const OVERLAY_INSTRUMENTS: Array<InstrumentId | null> = [null, ...ALL_INSTRUMENTS]
+function InstrumentButton({ id, current, showDetails, onSelect, onClose }: InstrumentButtonProps) {
+  const label = id ? INSTRUMENT_LABELS[id] : 'Off'
+  const unit = id ? INSTRUMENT_UNITS[id] : ''
+  const desc = id ? INSTRUMENT_DESCRIPTIONS[id] : ''
+  const isActive = id === current
+  return (
+    <button
+      onClick={() => { onSelect(id); onClose() }}
+      style={{
+        padding: showDetails ? '8px 8px' : '12px 10px', borderRadius: '8px',
+        border: `2px solid ${isActive ? theme.colors.red : theme.colors.darkBorder}`,
+        background: isActive ? theme.colors.redDim : theme.colors.dark,
+        color: isActive ? theme.colors.cream : theme.colors.light,
+        cursor: 'pointer', fontFamily: theme.font.primary,
+        fontSize: theme.size.small, textAlign: 'center',
+        minHeight: theme.tapTarget,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: '2px',
+      }}
+    >
+      <div>{label}{showDetails && unit ? ` (${unit})` : ''}</div>
+      {showDetails && desc && (
+        <div style={{ fontSize: '10px', color: theme.colors.dim, lineHeight: 1.2 }}>
+          {desc}
+        </div>
+      )}
+    </button>
+  )
+}
 
 interface InstrumentPickerModalProps {
   current: InstrumentId | null
@@ -22,7 +53,6 @@ interface InstrumentPickerModalProps {
 }
 
 export function InstrumentPickerModal({ current, includeNull, onSelect, onClose }: InstrumentPickerModalProps) {
-  const options: Array<InstrumentId | null> = includeNull ? OVERLAY_INSTRUMENTS : ALL_INSTRUMENTS
   const session = useSessionStore(s => s.session)
   const resetOrigin = useSessionStore(s => s.resetOrigin)
   const position = useGPSStore(s => s.position)
@@ -83,37 +113,39 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
             </button>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          {options.map((id, i) => {
-            const label = id ? INSTRUMENT_LABELS[id] : 'Off'
-            const unit = id ? INSTRUMENT_UNITS[id] : ''
-            const desc = id ? INSTRUMENT_DESCRIPTIONS[id] : ''
-            const isActive = id === current
-            return (
-              <button
-                key={id ?? `null-${i}`}
-                onClick={() => { onSelect(id); onClose() }}
-                style={{
-                  padding: showDetails ? '8px 8px' : '12px 10px', borderRadius: '8px',
-                  border: `2px solid ${isActive ? theme.colors.red : theme.colors.darkBorder}`,
-                  background: isActive ? theme.colors.redDim : theme.colors.dark,
-                  color: isActive ? theme.colors.cream : theme.colors.light,
-                  cursor: 'pointer', fontFamily: theme.font.primary,
-                  fontSize: theme.size.small, textAlign: 'center',
-                  minHeight: theme.tapTarget,
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', gap: '2px',
-                }}
-              >
-                <div>{label}{showDetails && unit ? ` (${unit})` : ''}</div>
-                {showDetails && desc && (
-                  <div style={{ fontSize: '10px', color: theme.colors.dim, lineHeight: 1.2 }}>
-                    {desc}
-                  </div>
-                )}
-              </button>
-            )
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {includeNull && (
+            <InstrumentButton
+              id={null}
+              current={current}
+              showDetails={showDetails}
+              onSelect={onSelect}
+              onClose={onClose}
+            />
+          )}
+          {INSTRUMENT_GROUPS.map(group => (
+            <div key={group.name}>
+              <div style={{
+                fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em',
+                color: theme.colors.dim, textTransform: 'uppercase',
+                marginBottom: '6px',
+              }}>
+                {group.name}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {group.ids.map(id => (
+                  <InstrumentButton
+                    key={id}
+                    id={id}
+                    current={current}
+                    showDetails={showDetails}
+                    onSelect={onSelect}
+                    onClose={onClose}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
         <button
           onClick={() => setShowDetails(d => !d)}

@@ -5,7 +5,7 @@ import { useInstrumentStore } from '../../state/instrument-store'
 import { useDirectToStore } from '../../state/direct-to-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
 import { bulkAddTrackPoints } from '../../data/db'
-import { verticalSpeedFpm } from '../../data/logic/gps-logic'
+import { verticalSpeedFpm, msToKnots } from '../../data/logic/gps-logic'
 import { deriveInstruments } from '../../data/logic/instrument-logic'
 import type { GPSPosition } from '../../data/models'
 
@@ -54,8 +54,13 @@ export function useGPS() {
             recent.map(p => ({ altMSL: p.altMSL, ts: p.ts }))
           )
 
-          const { maxAGLft } = useInstrumentStore.getState()
+          const instStore = useInstrumentStore.getState()
+          const { maxAGLft } = instStore
           if (!currentSession) return
+
+          // Push rolling samples BEFORE deriving so wind/avgs reflect this tick
+          instStore.updateRolling(msToKnots(pos.speed), vsFpm, pos.heading)
+          const rolling = useInstrumentStore.getState().getRollingStats()
 
           const { target: directTo } = useDirectToStore.getState()
           const values = deriveInstruments(
@@ -67,6 +72,7 @@ export function useGPS() {
             new Date(currentSession.startTime).getTime(),
             null,  // flight timer managed separately
             maxAGLft,
+            rolling,
             directTo,
           )
           setValues(values)

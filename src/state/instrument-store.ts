@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 import type { InstrumentId } from '../data/models'
-import type { InstrumentValues } from '../data/logic/instrument-logic'
+import type { InstrumentValues, RollingStats } from '../data/logic/instrument-logic'
+import type { WindSample } from '../data/logic/gps-logic'
 import { DEFAULT_INSTRUMENT_STRIP } from '../data/models'
+
+const WIND_BUFFER_SIZE = 60
+const WIND_MIN_SPEED_KTS = 3  // below this, track is unreliable
 
 const STORAGE_KEY = 'ultrapilot_instrumentConfig'
 
@@ -48,8 +52,18 @@ interface InstrumentStore {
   values: InstrumentValues | null
   maxAGLft: number
 
+  // Rolling stats (reset per session)
+  avgGSSum: number
+  avgGSCount: number
+  avgVSSum: number
+  avgVSCount: number
+  windSamples: WindSample[]
+
   setValues: (values: InstrumentValues) => void
   updateMaxAGL: (aglFt: number) => void
+  updateRolling: (gsKts: number, vsFpm: number, trackDeg: number) => void
+  getRollingStats: () => RollingStats
+  resetRolling: () => void
   setStrip: (ids: InstrumentId[]) => void
   setMapLeft: (id: InstrumentId | null) => void
   setMapRight: (id: InstrumentId | null) => void
@@ -60,7 +74,8 @@ interface InstrumentStore {
 
 const NULL_VALUES: InstrumentValues = {
   gs: 0, agl: 0, msl: 0, vs: 0, hdg: 0,
-  dist: 0, brg: 0, etime: 0, sess: 0, maxalt: 0,
+  dist: 0, brg: 0, etime: 0, sess: 0, tod: 0, maxalt: 0,
+  avgs: 0, avgvs: 0, wdir: null, wspd: null,
   dtk: null, dte: null, xtk: null, ete: null,
 }
 
@@ -75,8 +90,49 @@ export const useInstrumentStore = create<InstrumentStore>((set, get) => ({
   values: null,
   maxAGLft: 0,
 
+  avgGSSum: 0,
+  avgGSCount: 0,
+  avgVSSum: 0,
+  avgVSCount: 0,
+  windSamples: [],
+
   setValues: (values) => set({ values }),
   updateMaxAGL: (aglFt) => { if (aglFt > get().maxAGLft) set({ maxAGLft: aglFt }) },
+
+  updateRolling: (gsKts, vsFpm, trackDeg) => {
+    const s = get()
+    const nextGSSum = s.avgGSSum + gsKts
+    const nextGSCount = s.avgGSCount + 1
+    // Only include VS when there's meaningful motion
+    const includeVS = Math.abs(vsFpm) > 50
+    const nextVSSum = includeVS ? s.avgVSSum + vsFpm : s.avgVSSum
+    const nextVSCount = includeVS ? s.avgVSCount + 1 : s.avgVSCount
+    // Wind buffer: only while moving, finite track
+    let nextWind = s.windSamples
+    if (gsKts >= WIND_MIN_SPEED_KTS && isFinite(trackDeg)) {
+      nextWind = [...s.windSamples.slice(-(WIND_BUFFER_SIZE - 1)), { trackDeg, speedKts: gsKts }]
+    }
+    set({
+      avgGSSum: nextGSSum, avgGSCount: nextGSCount,
+      avgVSSum: nextVSSum, avgVSCount: nextVSCount,
+      windSamples: nextWind,
+    })
+  },
+
+  getRollingStats: () => {
+    const s = get()
+    return {
+      avgGSKts: s.avgGSCount > 0 ? s.avgGSSum / s.avgGSCount : 0,
+      avgVSFpm: s.avgVSCount > 0 ? s.avgVSSum / s.avgVSCount : 0,
+      windSamples: s.windSamples,
+    }
+  },
+
+  resetRolling: () => set({
+    avgGSSum: 0, avgGSCount: 0,
+    avgVSSum: 0, avgVSCount: 0,
+    windSamples: [],
+  }),
 
   setStrip: (ids) => {
     const s = get(); saveConfig({ strip: ids, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: s.stripCount })

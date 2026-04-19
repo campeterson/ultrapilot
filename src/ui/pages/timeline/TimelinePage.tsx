@@ -164,6 +164,8 @@ export function TimelinePage() {
   async function handleStartSession() {
     const pos = useGPSStore.getState().position
     if (!pos) { alert('Waiting for GPS fix…'); return }
+    useInstrumentStore.getState().resetRolling()
+    useInstrumentStore.getState().resetMaxAGL()
     const s = await startSession(pos.lat, pos.lon, pos.altMSL)
     await addStamp(buildStamp(s.id, 'session_start', pos.lat, pos.lon, pos.altMSL, 0, pos.speed, null))
   }

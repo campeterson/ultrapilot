@@ -90,6 +90,94 @@ export function estimatedTimeEnrouteMin(distNM: number, speedKts: number): numbe
   return (distNM / speedKts) * 60
 }
 
+export interface WindSample {
+  trackDeg: number   // ground track
+  speedKts: number   // ground speed
+}
+
+export interface WindEstimate {
+  /** Direction wind is coming FROM, degrees */
+  dirDeg: number
+  /** Wind speed, knots */
+  speedKts: number
+}
+
+/** Estimate wind from a set of (ground track, ground speed) samples.
+ *  Uses algebraic circle fit in velocity space (Kasa method).
+ *  Assumes constant true airspeed across samples (brief window).
+ *  Returns null if track variation is too small to resolve wind. */
+export function estimateWind(samples: WindSample[]): WindEstimate | null {
+  if (samples.length < 8) return null
+  // Convert to velocity components (east, north)
+  const pts = samples.map(s => ({
+    x: s.speedKts * Math.sin(s.trackDeg * DEG_TO_RAD),
+    y: s.speedKts * Math.cos(s.trackDeg * DEG_TO_RAD),
+  }))
+  // Require track spread ≥ 60° for a meaningful fit
+  const tracks = samples.map(s => s.trackDeg).sort((a, b) => a - b)
+  let maxGap = tracks[0] + 360 - tracks[tracks.length - 1]
+  for (let i = 1; i < tracks.length; i++) {
+    maxGap = Math.max(maxGap, tracks[i] - tracks[i - 1])
+  }
+  const spread = 360 - maxGap
+  if (spread < 60) return null
+  // Kasa fit: minimize Σ(x² + y² + Dx + Ey + F)²
+  // Solve normal equations for D, E, F
+  let Sx = 0, Sy = 0, Sxx = 0, Syy = 0, Sxy = 0
+  let Sxz = 0, Syz = 0, Sz = 0
+  const n = pts.length
+  for (const p of pts) {
+    const z = p.x * p.x + p.y * p.y
+    Sx += p.x; Sy += p.y
+    Sxx += p.x * p.x; Syy += p.y * p.y; Sxy += p.x * p.y
+    Sxz += p.x * z; Syz += p.y * z; Sz += z
+  }
+  // Solve 3x3 system:
+  // [Sxx Sxy Sx][D]   [-Sxz]
+  // [Sxy Syy Sy][E] = [-Syz]
+  // [Sx  Sy  n ][F]   [-Sz ]
+  const a = [
+    [Sxx, Sxy, Sx, -Sxz],
+    [Sxy, Syy, Sy, -Syz],
+    [Sx,  Sy,  n,  -Sz ],
+  ]
+  const sol = solve3(a)
+  if (!sol) return null
+  const [D, E] = sol
+  const cx = -D / 2
+  const cy = -E / 2
+  // Wind blows TO (cx, cy) — direction it's going. Convert to "from" bearing.
+  const toDeg = (Math.atan2(cx, cy) * RAD_TO_DEG + 360) % 360
+  const fromDeg = (toDeg + 180) % 360
+  const speed = Math.sqrt(cx * cx + cy * cy)
+  if (!isFinite(speed) || speed > 100) return null
+  return { dirDeg: fromDeg, speedKts: speed }
+}
+
+function solve3(m: number[][]): [number, number, number] | null {
+  // Gaussian elimination with partial pivoting on 3x4 matrix
+  const a = m.map(r => r.slice())
+  for (let i = 0; i < 3; i++) {
+    let maxRow = i
+    for (let k = i + 1; k < 3; k++) {
+      if (Math.abs(a[k][i]) > Math.abs(a[maxRow][i])) maxRow = k
+    }
+    if (Math.abs(a[maxRow][i]) < 1e-9) return null
+    ;[a[i], a[maxRow]] = [a[maxRow], a[i]]
+    for (let k = i + 1; k < 3; k++) {
+      const f = a[k][i] / a[i][i]
+      for (let j = i; j < 4; j++) a[k][j] -= f * a[i][j]
+    }
+  }
+  const x = [0, 0, 0]
+  for (let i = 2; i >= 0; i--) {
+    let s = a[i][3]
+    for (let j = i + 1; j < 3; j++) s -= a[i][j] * x[j]
+    x[i] = s / a[i][i]
+  }
+  return [x[0], x[1], x[2]]
+}
+
 /** Compute destination point given start, bearing (degrees), and distance (NM).
  *  Returns [lat, lon] in decimal degrees. */
 export function destinationPoint(lat: number, lon: number, bearingDeg: number, distNM: number): [number, number] {
