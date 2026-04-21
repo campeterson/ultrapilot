@@ -11,7 +11,7 @@ import { useRouteStore } from '../../../state/route-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
-import { destinationPoint, bearing } from '../../../data/logic/gps-logic'
+import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
@@ -96,14 +96,12 @@ function circlePolygon(lat: number, lon: number, radiusM: number, steps = 64): G
   return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } }
 }
 
-function makeArrowEl(headingDeg: number): HTMLDivElement {
+function makeArrowEl(): HTMLDivElement {
   const el = document.createElement('div')
-  el.style.cssText = `width:24px;height:32px;display:flex;align-items:center;justify-content:center;`
-  el.innerHTML = `<div style="transform:rotate(${headingDeg}deg);transform-origin:50% 50%;width:24px;height:32px;display:flex;align-items:center;justify-content:center;">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
-      <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-    </svg>
-  </div>`
+  el.style.cssText = `width:24px;height:32px;`
+  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
+    <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`
   return el
 }
 
@@ -132,7 +130,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   // Store current track heading for orientation-toggle use
   const currentTrackRef = useRef(0)
 
-  const { position } = useGPSStore()
+  const { position, smoothedTrack } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
   const { showDirectionLine, showDistanceRings, mapOrientation } = useMapSettingsStore()
@@ -386,29 +384,31 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
     const lngLat: [number, number] = [position.lon, position.lat]
 
-    // Compute track from recent positions when moving
-    const recent = useGPSStore.getState().recentPositions
-    const track = (recent.length >= 2 && position.speed > 1)
-      ? bearing(recent[recent.length - 2].lat, recent[recent.length - 2].lon,
-                 recent[recent.length - 1].lat, recent[recent.length - 1].lon)
-      : (position.heading ?? 0)
-
+    // Use smoothed track from the GPS store (circular EMA). Falls back to
+    // device compass heading, then 0, until we have enough motion to resolve.
+    const track = smoothedTrack ?? position.heading ?? 0
     currentTrackRef.current = track
 
-    // Position arrow marker
+    // Position arrow marker. rotationAlignment:'map' + rotation:track means the
+    // arrow points in the geographic track direction regardless of map bearing,
+    // so in Track Up mode the arrow naturally points toward the top of screen.
     if (!posMarkerRef.current) {
-      const el = makeArrowEl(track)
-      posMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
+      posMarkerRef.current = new maplibregl.Marker({
+        element: makeArrowEl(),
+        anchor: 'center',
+        rotation: track,
+        rotationAlignment: 'map',
+      })
         .setLngLat(lngLat)
         .addTo(map)
     } else {
       posMarkerRef.current.setLngLat(lngLat)
-      const inner = posMarkerRef.current.getElement().firstElementChild as HTMLElement | null
-      if (inner) inner.style.transform = `rotate(${track}deg)`
+      posMarkerRef.current.setRotation(track)
     }
 
-    // Track Up: rotate map to keep aircraft heading toward top
-    if (mapOrientation === 'track-up' && position.speed > 0.5) {
+    // Track Up: rotate map to keep aircraft heading toward top. Gated on a
+    // smoothed track existing (so we don't rotate on GPS jitter at rest).
+    if (mapOrientation === 'track-up' && smoothedTrack !== null) {
       map.setBearing(track)
     }
 
@@ -438,7 +438,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     } else {
       ringsSrc?.setData(emptyFC())
     }
-  }, [position, mapOrientation, showDirectionLine, showDistanceRings])
+  }, [position, smoothedTrack, mapOrientation, showDirectionLine, showDistanceRings])
 
   // ── React to orientation mode change ────────────────────────────────────────
   useEffect(() => {

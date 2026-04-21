@@ -24,6 +24,18 @@ export function bearing(lat1: number, lon1: number, lat2: number, lon2: number):
   return ((Math.atan2(y, x) * RAD_TO_DEG) + 360) % 360
 }
 
+/** Circular exponential moving average for angles in degrees (0–360).
+ *  Averages on the unit circle so the 359°/1° wrap is handled correctly.
+ *  alpha is the weight of the new sample (0..1). prev=null returns next. */
+export function circularEMA(prev: number | null, next: number, alpha: number): number {
+  if (prev === null || !isFinite(prev)) return next
+  const p = prev * DEG_TO_RAD
+  const n = next * DEG_TO_RAD
+  const sin = (1 - alpha) * Math.sin(p) + alpha * Math.sin(n)
+  const cos = (1 - alpha) * Math.cos(p) + alpha * Math.cos(n)
+  return ((Math.atan2(sin, cos) * RAD_TO_DEG) + 360) % 360
+}
+
 /** AGL = current MSL minus origin MSL (both in meters), result in feet */
 export function computeAGLft(currentMSLm: number, originMSLm: number): number {
   return metersToFeet(currentMSLm - originMSLm)
