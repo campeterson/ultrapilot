@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import L from 'leaflet'
-import type { Map as LeafletMap, Marker, Polyline, Circle } from 'leaflet'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { Protocol } from 'pmtiles'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
@@ -16,388 +17,488 @@ import { MapControls } from './MapControls'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
+// Register PMTiles protocol once at module load
+const _pmtiles = new Protocol()
+maplibregl.addProtocol('pmtiles', _pmtiles.tile.bind(_pmtiles))
+
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 const DIR_LINE_NM = 1.5
 const RING_RADII_M = [926, 1852, 3704] // 0.5, 1, 2 nm
 const AIRPORT_MIN_ZOOM = 8
-const AIRPORT_CYAN = theme.colors.cyan
 
-function loadMapState() {
-  try {
-    const raw = localStorage.getItem(MAP_STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as { center: [number, number]; zoom: number }
-  } catch {}
-  return { center: [38.9, -94.6] as [number, number], zoom: 11 }
+// Aviation color constants per docs/04-MAP_CONVENTIONS.md
+const COLOR_TRACK = theme.colors.trackGreen  // green — breadcrumb trail
+const COLOR_MAGENTA = theme.colors.magenta   // magenta — active navigation
+
+const OSM_TILES = [
+  'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+]
+
+const OSM_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: OSM_TILES,
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
 }
 
-function saveMapState(map: LeafletMap) {
+const DEFAULT_MAP_STATE = { center: [-94.6, 38.9] as [number, number], zoom: 11 }
+
+function loadMapState(): { center: [number, number]; zoom: number } {
+  try {
+    const raw = localStorage.getItem(MAP_STORAGE_KEY)
+    if (!raw) return DEFAULT_MAP_STATE
+    const parsed = JSON.parse(raw) as { center: [number, number]; zoom: number }
+    const [a, b] = parsed.center
+    const zoom = typeof parsed.zoom === 'number' ? parsed.zoom : 11
+    // MapLibre expects [lng, lat]. Valid: |lng| ≤ 180, |lat| ≤ 90.
+    if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
+      return { center: [a, b], zoom }
+    }
+    // Legacy Leaflet format was [lat, lng] — swap it.
+    if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+      return { center: [b, a], zoom }
+    }
+  } catch {}
+  return DEFAULT_MAP_STATE
+}
+
+function saveMapState(map: maplibregl.Map) {
   const c = map.getCenter()
-  localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify({ center: [c.lat, c.lng], zoom: map.getZoom() }))
+  localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify({ center: [c.lng, c.lat], zoom: map.getZoom() }))
 }
 
 function newWpId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-function makeArrowIcon(headingDeg: number): L.DivIcon {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
-    <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-  </svg>`
-  return L.divIcon({
-    html: `<div style="transform:rotate(${headingDeg}deg);transform-origin:50% 50%;width:24px;height:32px;display:flex;align-items:center;justify-content:center;">${svg}</div>`,
-    className: '',
-    iconSize: [24, 32],
-    iconAnchor: [12, 16],
-  })
+function emptyFC(): GeoJSON.FeatureCollection {
+  return { type: 'FeatureCollection', features: [] }
 }
 
-function makeWaypointIcon(): L.DivIcon {
-  return L.divIcon({
-    html: `<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;"><div style="width:12px;height:12px;border-radius:50%;background:${theme.colors.blue};opacity:0.85;border:2px solid ${theme.colors.blue};box-sizing:border-box;"></div></div>`,
-    className: '',
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    tooltipAnchor: [0, -22],
-  })
+/** Approximate geographic circle as a GeoJSON Polygon */
+function circlePolygon(lat: number, lon: number, radiusM: number, steps = 64): GeoJSON.Feature<GeoJSON.Polygon> {
+  const coords: [number, number][] = []
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * Math.PI * 2
+    const dx = (radiusM * Math.cos(angle)) / (111320 * Math.cos((lat * Math.PI) / 180))
+    const dy = (radiusM * Math.sin(angle)) / 110540
+    coords.push([lon + dx, lat + dy])
+  }
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } }
 }
 
-function makeDirectToIcon(): L.DivIcon {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 20 20" width="20" height="20">
-    <polygon points="0,-8 8,0 0,8 -8,0" fill="none" stroke="${theme.colors.magenta}" stroke-width="2.5" stroke-linejoin="round"/>
-  </svg>`
-  return L.divIcon({
-    html: svg,
-    className: '',
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  })
+function makeArrowEl(headingDeg: number): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.cssText = `width:24px;height:32px;display:flex;align-items:center;justify-content:center;`
+  el.innerHTML = `<div style="transform:rotate(${headingDeg}deg);transform-origin:50% 50%;width:24px;height:32px;display:flex;align-items:center;justify-content:center;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
+      <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+  </div>`
+  return el
+}
+
+function makeOriginEl(): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.cssText = `display:flex;flex-direction:column;align-items:center;pointer-events:none;`
+  el.innerHTML = `
+    <div style="background:rgba(20,20,24,0.85);color:${theme.colors.cream};font-family:${theme.font.primary};font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.25);margin-bottom:3px;white-space:nowrap;">ORIGIN</div>
+    <div style="width:12px;height:12px;border-radius:50%;border:2px solid ${theme.colors.cream};background:transparent;"></div>`
+  return el
 }
 
 type MapSelection =
-  | { kind: 'tap';          lat: number; lon: number; x: number; y: number }
-  | { kind: 'waypoint';     waypoint: Waypoint;        x: number; y: number }
-  | { kind: 'airport';      airport: Airport;           x: number; y: number }
+  | { kind: 'tap';           lat: number; lon: number; x: number; y: number }
+  | { kind: 'waypoint';      waypoint: Waypoint;       x: number; y: number }
+  | { kind: 'airport';       airport: Airport;          x: number; y: number }
   | { kind: 'routeWaypoint'; routeId: string; legIndex: number; waypoint: Waypoint; x: number; y: number }
 
 export function MapPage({ showControls = true }: { showControls?: boolean }) {
-  const mapRef = useRef<LeafletMap | null>(null)
-  const posMarkerRef = useRef<Marker | null>(null)
-  const originMarkerRef = useRef<L.CircleMarker | null>(null)
-  const liveTrackRef = useRef<Polyline | null>(null)
-  const dirLineRef = useRef<Polyline | null>(null)
-  const directToLineRef = useRef<Polyline | null>(null)
-  const directToMarkerRef = useRef<Marker | null>(null)
-  const distRingsRef = useRef<Circle[]>([])
-  const waypointMarkersRef = useRef<Map<string, L.Marker>>(new Map())
-  const airportMarkersRef = useRef<Map<string, L.CircleMarker>>(new Map())
-  const historyLayersRef = useRef<(L.CircleMarker | Polyline)[]>([])
-  const routeLayersRef = useRef<(L.Polyline | L.CircleMarker)[]>([])
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const mapLoadedRef = useRef(false)
+  const posMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const originMarkerRef = useRef<maplibregl.Marker | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const autoFollowRef = useRef(true)
-  const updateAirportsRef = useRef<(() => void) | null>(null)
+  // Store current track heading for orientation-toggle use
+  const currentTrackRef = useRef(0)
 
   const { position } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
-  const { showDirectionLine, showDistanceRings } = useMapSettingsStore()
+  const { showDirectionLine, showDistanceRings, mapOrientation } = useMapSettingsStore()
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
   const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
   const routeWaypoints = useWaypointStore(s => s.waypoints)
-  const { loadDatabase: loadAirports } = useAirportStore()
+  const { loadDatabase: loadAirports, allAirports, loaded: airportsLoaded } = useAirportStore()
 
   const [selection, setSelection] = useState<MapSelection | null>(null)
-  const [wpForm, setWpForm] = useState<{ lat: number; lon: number; name?: string } | null>(null)
+  const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
   const [wpName, setWpName] = useState('')
 
-  // ── Init map ────────────────────────────────────────────────────────────────
+  // ── Init map ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
     const saved = loadMapState()
-    const map = L.map(containerRef.current, {
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: OSM_STYLE,
       center: saved.center,
       zoom: saved.zoom,
-      zoomControl: false,
+      bearing: 0,
       attributionControl: false,
-      preferCanvas: true,
+      pitchWithRotate: false,
     })
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors',
-    }).addTo(map)
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
 
-    L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map)
+    map.on('load', () => {
+      mapLoadedRef.current = true
 
-    function updateAirportMarkers() {
-      const { allAirports, loaded } = useAirportStore.getState()
-      if (!loaded || allAirports.length === 0) return
-      const zoom = map.getZoom()
-      if (zoom < AIRPORT_MIN_ZOOM) {
-        for (const [, m] of airportMarkersRef.current) m.remove()
-        airportMarkersRef.current.clear()
-        return
+      // ── GeoJSON sources ───────────────────────────────────────────────────
+      const sources: [string, GeoJSON.FeatureCollection | GeoJSON.Feature][] = [
+        ['history-source',      emptyFC()],
+        ['history-events',      emptyFC()],
+        ['route-source',        emptyFC()],
+        ['route-waypoints',     emptyFC()],
+        ['direct-to-source',    emptyFC()],
+        ['direction-source',    emptyFC()],
+        ['rings-source',        emptyFC()],
+        ['track-source',        emptyFC()],
+        ['waypoints-source',    emptyFC()],
+        ['airports-source',     emptyFC()],
+      ]
+      for (const [id, data] of sources) {
+        map.addSource(id, { type: 'geojson', data })
       }
-      const bounds = map.getBounds()
-      const visible = allAirports.filter(ap => bounds.contains([ap.lat, ap.lon]))
-      const visibleIds = new Set(visible.map(ap => ap.id))
-      for (const [id, m] of airportMarkersRef.current) {
-        if (!visibleIds.has(id)) { m.remove(); airportMarkersRef.current.delete(id) }
-      }
-      for (const ap of visible) {
-        if (airportMarkersRef.current.has(ap.id)) continue
-        const m = L.circleMarker([ap.lat, ap.lon], {
-          radius: 5, color: AIRPORT_CYAN, weight: 2, fillColor: '#fff', fillOpacity: 0.9,
-        }).addTo(map)
-        m.bindTooltip(ap.id, { permanent: true, direction: 'top', className: 'airport-label' })
-        m.on('click', (e) => {
-          L.DomEvent.stopPropagation(e)
-          const pt = map.latLngToContainerPoint([ap.lat, ap.lon])
-          setSelection({ kind: 'airport', airport: ap, x: pt.x, y: pt.y })
-        })
-        airportMarkersRef.current.set(ap.id, m)
-      }
-    }
 
-    updateAirportsRef.current = updateAirportMarkers
+      // ── Layers (painter order: back to front) ─────────────────────────────
 
-    map.on('moveend', () => { saveMapState(map); updateAirportMarkers() })
-    map.on('zoomend', () => updateAirportMarkers())
-    map.on('dragstart', () => { autoFollowRef.current = false })
+      // History track
+      map.addLayer({ id: 'history-track', type: 'line', source: 'history-source',
+        paint: { 'line-color': COLOR_TRACK, 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [3, 3] } })
 
-    let pointerDownAt: { x: number; y: number } | null = null
+      // History event dots
+      map.addLayer({ id: 'history-events-layer', type: 'circle', source: 'history-events',
+        paint: { 'circle-radius': 5, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } })
 
-    map.on('mousedown touchstart', (e) => {
-      const orig = (e as L.LeafletMouseEvent).originalEvent as MouseEvent | TouchEvent
-      const touch = 'touches' in orig ? orig.touches[0] : orig as MouseEvent
-      pointerDownAt = { x: touch.clientX, y: touch.clientY }
-    })
+      // Distance rings
+      map.addLayer({ id: 'rings-layer', type: 'line', source: 'rings-source',
+        paint: { 'line-color': theme.colors.dim, 'line-width': 1, 'line-opacity': 0.5 } })
 
-    map.on('click', (e) => {
-      const me = e as L.LeafletMouseEvent
-      if (!pointerDownAt) return
-      const orig = me.originalEvent as MouseEvent | TouchEvent
-      const touch = 'changedTouches' in orig ? orig.changedTouches[0] : orig as MouseEvent
-      const dx = touch.clientX - pointerDownAt.x
-      const dy = touch.clientY - pointerDownAt.y
-      pointerDownAt = null
-      if (Math.sqrt(dx * dx + dy * dy) > 8) return
+      // Route — black border then magenta on top
+      map.addLayer({ id: 'route-border', type: 'line', source: 'route-source',
+        paint: { 'line-color': '#000', 'line-width': ['case', ['get', 'active'], 7, 5], 'line-opacity': 0.4 } })
+      map.addLayer({ id: 'route-line', type: 'line', source: 'route-source',
+        paint: {
+          'line-color': COLOR_MAGENTA,
+          'line-width': ['case', ['get', 'active'], 4, 3],
+          'line-opacity': ['case', ['get', 'active'], 0.95, 0.6],
+          'line-dasharray': ['case', ['get', 'active'], ['literal', [1]], ['literal', [6, 4]]],
+        } })
 
-      const containerRect = containerRef.current?.getBoundingClientRect()
-      if (!containerRect) return
-      setSelection({
-        kind: 'tap',
-        lat: me.latlng.lat,
-        lon: me.latlng.lng,
-        x: touch.clientX - containerRect.left,
-        y: touch.clientY - containerRect.top,
+      // Route waypoint tap targets (invisible, 22px radius for 44px touch target)
+      map.addLayer({ id: 'route-waypoints-tap', type: 'circle', source: 'route-waypoints',
+        paint: { 'circle-radius': 22, 'circle-color': 'transparent', 'circle-opacity': 0 } })
+
+      // Route waypoint dots
+      map.addLayer({ id: 'route-waypoints-dots', type: 'circle', source: 'route-waypoints',
+        paint: {
+          'circle-radius': ['case', ['get', 'isCurrentLeg'], 9, 6],
+          'circle-color': ['case', ['get', 'isCurrentLeg'], COLOR_MAGENTA, 'rgba(30,30,36,0.9)'],
+          'circle-stroke-color': '#000',
+          'circle-stroke-width': 2,
+        } })
+
+      // Route waypoint labels
+      map.addLayer({ id: 'route-waypoints-labels', type: 'symbol', source: 'route-waypoints',
+        layout: {
+          'text-field': ['concat', ['to-string', ['get', 'legNum']], '. ', ['get', 'name']],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -0.8],
+          'text-allow-overlap': false,
+        },
+        paint: { 'text-color': theme.colors.cream, 'text-halo-color': '#000', 'text-halo-width': 1 } })
+
+      // Direct-To line
+      map.addLayer({ id: 'direct-to-line', type: 'line', source: 'direct-to-source',
+        paint: { 'line-color': COLOR_MAGENTA, 'line-width': 2, 'line-opacity': 0.85, 'line-dasharray': [5, 3] } })
+
+      // Direction projection line
+      map.addLayer({ id: 'direction-line', type: 'line', source: 'direction-source',
+        paint: { 'line-color': theme.colors.cream, 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [3, 3] } })
+
+      // Live track (green breadcrumb)
+      map.addLayer({ id: 'track-line', type: 'line', source: 'track-source',
+        paint: { 'line-color': COLOR_TRACK, 'line-width': 2, 'line-opacity': 0.9 } })
+
+      // Airport circles
+      map.addLayer({ id: 'airports-circle', type: 'circle', source: 'airports-source',
+        minzoom: AIRPORT_MIN_ZOOM,
+        paint: {
+          'circle-radius': 5,
+          'circle-color': '#fff',
+          'circle-stroke-color': theme.colors.cyan,
+          'circle-stroke-width': 2,
+          'circle-opacity': 0.9,
+        } })
+
+      // Airport labels
+      map.addLayer({ id: 'airports-labels', type: 'symbol', source: 'airports-source',
+        minzoom: AIRPORT_MIN_ZOOM,
+        layout: {
+          'text-field': ['get', 'id'],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -0.8],
+          'text-allow-overlap': false,
+        },
+        paint: { 'text-color': theme.colors.cyan, 'text-halo-color': '#000', 'text-halo-width': 1 } })
+
+      // Waypoints — tap target then visible dot
+      map.addLayer({ id: 'waypoints-tap', type: 'circle', source: 'waypoints-source',
+        paint: { 'circle-radius': 22, 'circle-color': 'transparent', 'circle-opacity': 0 } })
+      map.addLayer({ id: 'waypoints-circle', type: 'circle', source: 'waypoints-source',
+        paint: { 'circle-radius': 6, 'circle-color': theme.colors.blue, 'circle-stroke-color': theme.colors.blue, 'circle-stroke-width': 2, 'circle-opacity': 0.85 } })
+      map.addLayer({ id: 'waypoints-labels', type: 'symbol', source: 'waypoints-source',
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -0.8],
+          'text-allow-overlap': false,
+        },
+        paint: { 'text-color': theme.colors.cream, 'text-halo-color': '#000', 'text-halo-width': 1 } })
+
+      // ── Click handlers ────────────────────────────────────────────────────
+
+      map.on('click', 'airports-circle', (e) => {
+        e.preventDefault()
+        const f = e.features?.[0]
+        if (!f) return
+        const props = f.properties as { id: string; name: string; elev: number; lat: number; lon: number }
+        setSelection({ kind: 'airport', airport: { id: props.id, name: props.name, lat: props.lat, lon: props.lon, elev: props.elev }, x: e.point.x, y: e.point.y })
       })
+
+      map.on('click', 'waypoints-tap', (e) => {
+        e.preventDefault()
+        const f = e.features?.[0]
+        if (!f) return
+        const p = f.properties as { id: string; name: string; lat: number; lon: number; note: string | null; createdAt: string }
+        const wp: Waypoint = { id: p.id, name: p.name, lat: p.lat, lon: p.lon, note: p.note, createdAt: p.createdAt }
+        setSelection({ kind: 'waypoint', waypoint: wp, x: e.point.x, y: e.point.y })
+      })
+
+      map.on('click', 'route-waypoints-tap', (e) => {
+        e.preventDefault()
+        const f = e.features?.[0]
+        if (!f) return
+        const p = f.properties as { routeId: string; legIndex: number; id: string; name: string; lat: number; lon: number; note: string | null; createdAt: string }
+        const wp: Waypoint = { id: p.id, name: p.name, lat: p.lat, lon: p.lon, note: p.note, createdAt: p.createdAt }
+        setSelection({ kind: 'routeWaypoint', routeId: p.routeId, legIndex: p.legIndex, waypoint: wp, x: e.point.x, y: e.point.y })
+      })
+
+      // Empty map tap (only fires when no feature layer handled it)
+      map.on('click', (e) => {
+        if ((e as maplibregl.MapMouseEvent & { defaultPrevented?: boolean }).defaultPrevented) return
+        setSelection({ kind: 'tap', lat: e.lngLat.lat, lon: e.lngLat.lng, x: e.point.x, y: e.point.y })
+      })
+
+      // Cursor styles
+      for (const layer of ['airports-circle', 'waypoints-tap', 'route-waypoints-tap']) {
+        map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = '' })
+      }
     })
+
+    map.on('dragstart', () => { autoFollowRef.current = false })
+    map.on('moveend', () => saveMapState(map))
 
     mapRef.current = map
 
-    const ro = new ResizeObserver(() => map.invalidateSize())
+    const ro = new ResizeObserver(() => map.resize())
     ro.observe(containerRef.current!)
 
     return () => {
       ro.disconnect()
-      for (const [, m] of airportMarkersRef.current) m.remove()
-      airportMarkersRef.current.clear()
+      mapLoadedRef.current = false
+      posMarkerRef.current?.remove()
+      posMarkerRef.current = null
+      originMarkerRef.current?.remove()
+      originMarkerRef.current = null
       map.remove()
       mapRef.current = null
     }
   }, [])
 
-  // ── Load airports + render on initial load ──────────────────────────────────
-  useEffect(() => {
-    loadAirports().then(() => updateAirportsRef.current?.())
-  }, [loadAirports])
-
-  // ── Load waypoints ──────────────────────────────────────────────────────────
+  // ── Load airports + waypoints ────────────────────────────────────────────────
+  useEffect(() => { loadAirports() }, [loadAirports])
   useEffect(() => { loadWaypoints() }, [loadWaypoints])
 
-  // ── Position arrow marker + direction line + distance rings ─────────────────
+  // ── Airports → GeoJSON source ────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current || !airportsLoaded) return
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: allAirports.map(ap => ({
+        type: 'Feature',
+        properties: { id: ap.id, name: ap.name, elev: ap.elev, lat: ap.lat, lon: ap.lon },
+        geometry: { type: 'Point', coordinates: [ap.lon, ap.lat] },
+      })),
+    }
+    ;(map.getSource('airports-source') as maplibregl.GeoJSONSource | undefined)?.setData(fc)
+  }, [airportsLoaded, allAirports])
+
+  // ── Waypoints → GeoJSON source ───────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: waypoints.map(wp => ({
+        type: 'Feature',
+        properties: { id: wp.id, name: wp.name, lat: wp.lat, lon: wp.lon, note: wp.note, createdAt: wp.createdAt },
+        geometry: { type: 'Point', coordinates: [wp.lon, wp.lat] },
+      })),
+    }
+    ;(map.getSource('waypoints-source') as maplibregl.GeoJSONSource | undefined)?.setData(fc)
+  }, [waypoints])
+
+  // ── Position marker + bearing + direction line + distance rings ──────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !position) return
 
-    const latlng: [number, number] = [position.lat, position.lon]
+    const lngLat: [number, number] = [position.lon, position.lat]
 
-    // Compute heading from last 2 track points when moving, fall back to GPS heading
+    // Compute track from recent positions when moving
     const recent = useGPSStore.getState().recentPositions
-    const heading = (recent.length >= 2 && position.speed > 1)
+    const track = (recent.length >= 2 && position.speed > 1)
       ? bearing(recent[recent.length - 2].lat, recent[recent.length - 2].lon,
-                recent[recent.length - 1].lat, recent[recent.length - 1].lon)
+                 recent[recent.length - 1].lat, recent[recent.length - 1].lon)
       : (position.heading ?? 0)
 
+    currentTrackRef.current = track
+
+    // Position arrow marker
     if (!posMarkerRef.current) {
-      posMarkerRef.current = L.marker(latlng, {
-        icon: makeArrowIcon(heading),
-        zIndexOffset: 100,
-      }).addTo(map)
+      const el = makeArrowEl(track)
+      posMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map)
     } else {
-      posMarkerRef.current.setLatLng(latlng)
-      posMarkerRef.current.setIcon(makeArrowIcon(heading))
+      posMarkerRef.current.setLngLat(lngLat)
+      const inner = posMarkerRef.current.getElement().firstElementChild as HTMLElement | null
+      if (inner) inner.style.transform = `rotate(${track}deg)`
+    }
+
+    // Track Up: rotate map to keep aircraft heading toward top
+    if (mapOrientation === 'track-up' && position.speed > 0.5) {
+      map.setBearing(track)
     }
 
     if (autoFollowRef.current) {
-      map.setView(latlng, map.getZoom())
+      map.setCenter(lngLat)
     }
 
+    // Direction projection line
+    if (!mapLoadedRef.current) return
+    const dirSrc = map.getSource('direction-source') as maplibregl.GeoJSONSource | undefined
     if (showDirectionLine && position.speed > 0.5) {
-      // Start line slightly ahead of the aircraft so it projects from the arrow tip
-      const lineStart = destinationPoint(position.lat, position.lon, heading, 0.02)
-      const dest = destinationPoint(position.lat, position.lon, heading, DIR_LINE_NM)
-      const lineCoords: [number, number][] = [lineStart, dest]
-      if (!dirLineRef.current) {
-        dirLineRef.current = L.polyline(lineCoords, {
-          color: theme.colors.cream, weight: 1.5, opacity: 0.6, dashArray: '4 4',
-        }).addTo(map)
-      } else {
-        dirLineRef.current.setLatLngs(lineCoords)
-      }
+      const start = destinationPoint(position.lat, position.lon, track, 0.02)
+      const end = destinationPoint(position.lat, position.lon, track, DIR_LINE_NM)
+      dirSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[start[1], start[0]], [end[1], end[0]]] } })
     } else {
-      dirLineRef.current?.remove()
-      dirLineRef.current = null
+      dirSrc?.setData(emptyFC())
     }
 
+    // Distance rings
+    const ringsSrc = map.getSource('rings-source') as maplibregl.GeoJSONSource | undefined
     if (showDistanceRings) {
-      if (distRingsRef.current.length === 0) {
-        distRingsRef.current = RING_RADII_M.map(r =>
-          L.circle(latlng, {
-            radius: r, color: theme.colors.dim, weight: 1, fillOpacity: 0, opacity: 0.4,
-          }).addTo(map)
-        )
-      } else {
-        distRingsRef.current.forEach(ring => ring.setLatLng(latlng))
+      const fc: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: RING_RADII_M.map(r => circlePolygon(position.lat, position.lon, r)),
       }
+      ringsSrc?.setData(fc)
     } else {
-      distRingsRef.current.forEach(r => r.remove())
-      distRingsRef.current = []
+      ringsSrc?.setData(emptyFC())
     }
-  }, [position, showDirectionLine, showDistanceRings])
+  }, [position, mapOrientation, showDirectionLine, showDistanceRings])
 
-  // ── Direct-To line + destination marker ────────────────────────────────────
+  // ── React to orientation mode change ────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    if (mapOrientation === 'north-up') {
+      map.rotateTo(0, { duration: 300 })
+    } else {
+      map.setBearing(currentTrackRef.current)
+    }
+  }, [mapOrientation])
 
+  // ── Direct-To line ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    const src = map.getSource('direct-to-source') as maplibregl.GeoJSONSource | undefined
     if (!directTo || !position) {
-      directToLineRef.current?.remove()
-      directToLineRef.current = null
-      directToMarkerRef.current?.remove()
-      directToMarkerRef.current = null
+      src?.setData(emptyFC())
       return
     }
-
-    const from: [number, number] = [position.lat, position.lon]
-    const to: [number, number] = [directTo.lat, directTo.lon]
-
-    if (!directToLineRef.current) {
-      directToLineRef.current = L.polyline([from, to], {
-        color: theme.colors.magenta, weight: 2, opacity: 0.85, dashArray: '8 4',
-      }).addTo(map)
-    } else {
-      directToLineRef.current.setLatLngs([from, to])
-    }
-
-    if (!directToMarkerRef.current) {
-      directToMarkerRef.current = L.marker(to, {
-        icon: makeDirectToIcon(),
-        zIndexOffset: 90,
-      }).addTo(map)
-      directToMarkerRef.current.bindTooltip(`D→ ${directTo.name}`, {
-        permanent: true, direction: 'top', className: 'origin-tooltip',
-      })
-    } else {
-      directToMarkerRef.current.setLatLng(to)
-    }
+    src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[position.lon, position.lat], [directTo.lon, directTo.lat]] } })
   }, [directTo, position])
 
-  // ── Route polyline ──────────────────────────────────────────────────────────
+  // ── Route layers ────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
-    for (const layer of routeLayersRef.current) layer.remove()
-    routeLayersRef.current = []
-    if (!map) return
+    if (!map || !mapLoadedRef.current) return
 
-    // Determine which route to draw: active takes priority, then preview
     const routeId = activeRoute?.routeId ?? previewRouteId
-    if (!routeId) return
+    if (!routeId) {
+      ;(map.getSource('route-source') as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC())
+      ;(map.getSource('route-waypoints') as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC())
+      return
+    }
 
     const wps = waypointsForRoute(routeId)
     if (wps.length < 2) return
 
     const isFlying = !!activeRoute && activeRoute.routeId === routeId
-    const layers: (L.Polyline | L.CircleMarker)[] = []
+    const coords: [number, number][] = wps.map(w => [w.lon, w.lat])
 
-    // Route line — black border underneath, magenta on top
-    const allCoords: [number, number][] = wps.map(w => [w.lat, w.lon])
-    const lineOpacity = isFlying ? 0.95 : 0.6
-    const dashArray = isFlying ? undefined : '8 5'
-    // Black border (wider, drawn first so it sits behind)
-    layers.push(L.polyline(allCoords, {
-      color: '#000', weight: isFlying ? 7 : 5, opacity: lineOpacity * 0.6, dashArray,
-    }).addTo(map))
-    // Magenta line on top — clickable to select nearest waypoint
-    const magentaLine = L.polyline(allCoords, {
-      color: theme.colors.magenta, weight: isFlying ? 4 : 3, opacity: lineOpacity, dashArray,
-      interactive: true, bubblingMouseEvents: false,
-    }).addTo(map)
-    magentaLine.on('click', (e: L.LeafletMouseEvent) => {
-      L.DomEvent.stopPropagation(e)
-      // Find the waypoint closest to the click point
-      let nearest = 0
-      let nearestDist = Infinity
-      wps.forEach((wp, i) => {
-        const pt = map.latLngToContainerPoint([wp.lat, wp.lon])
-        const dx = pt.x - e.containerPoint.x
-        const dy = pt.y - e.containerPoint.y
-        const d = Math.sqrt(dx * dx + dy * dy)
-        if (d < nearestDist) { nearestDist = d; nearest = i }
-      })
-      const wp = wps[nearest]
-      setSelection({ kind: 'routeWaypoint', routeId, legIndex: nearest, waypoint: wp, x: e.containerPoint.x, y: e.containerPoint.y })
-    })
-    layers.push(magentaLine)
-
-    // Waypoint markers — large invisible tap target + small visible dot on top
-    wps.forEach((wp, i) => {
-      const isCurrentLeg = isFlying && i === activeRoute.legIndex
-
-      // Invisible tap target (44px diameter = 22px radius)
-      const tapTarget = L.circleMarker([wp.lat, wp.lon], {
-        radius: 22,
-        color: 'transparent',
-        fillColor: 'transparent',
-        fillOpacity: 0,
-        weight: 0,
-        interactive: true,
-        bubblingMouseEvents: false,
-      }).addTo(map)
-
-      // Visible dot on top (purely decorative, non-interactive)
-      const dot = L.circleMarker([wp.lat, wp.lon], {
-        radius: isCurrentLeg ? 9 : 6,
-        color: '#000',
-        weight: 2,
-        fillColor: isCurrentLeg ? theme.colors.magenta : 'rgba(30,30,36,0.9)',
-        fillOpacity: 1,
-        interactive: false,
-      }).addTo(map)
-
-      dot.bindTooltip(`${i + 1}. ${wp.name}`, { direction: 'top' })
-
-      tapTarget.on('click', (e: L.LeafletMouseEvent) => {
-        L.DomEvent.stopPropagation(e)
-        setSelection({ kind: 'routeWaypoint', routeId, legIndex: i, waypoint: wp, x: e.containerPoint.x, y: e.containerPoint.y })
-      })
-
-      layers.push(tapTarget, dot)
+    ;(map.getSource('route-source') as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: 'Feature',
+      properties: { active: isFlying },
+      geometry: { type: 'LineString', coordinates: coords },
     })
 
-    routeLayersRef.current = layers
-  // routeWaypoints in deps ensures redraw when waypoints load
+    const wpFeatures: GeoJSON.Feature[] = wps.map((wp, i) => ({
+      type: 'Feature',
+      properties: {
+        routeId, legIndex: i,
+        id: wp.id, name: wp.name, lat: wp.lat, lon: wp.lon, note: wp.note, createdAt: wp.createdAt,
+        isCurrentLeg: isFlying && i === activeRoute.legIndex,
+        legNum: i + 1,
+      },
+      geometry: { type: 'Point', coordinates: [wp.lon, wp.lat] },
+    }))
+    ;(map.getSource('route-waypoints') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: wpFeatures })
+  // routeWaypoints dep ensures redraw when waypoint data loads
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoute, previewRouteId, routeWaypoints])
 
@@ -410,24 +511,23 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       originMarkerRef.current = null
       return
     }
-    const latlng: [number, number] = [session.originLat, session.originLon]
+    const lngLat: [number, number] = [session.originLon, session.originLat]
     if (!originMarkerRef.current) {
-      originMarkerRef.current = L.circleMarker(latlng, {
-        radius: 6, color: theme.colors.cream, weight: 2, fillOpacity: 0,
-      }).addTo(map)
-      originMarkerRef.current.bindTooltip('ORIGIN', { permanent: true, direction: 'top', className: 'origin-tooltip' })
+      originMarkerRef.current = new maplibregl.Marker({ element: makeOriginEl(), anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map)
     } else {
-      originMarkerRef.current.setLatLng(latlng)
+      originMarkerRef.current.setLngLat(lngLat)
     }
   }, [session?.id, session?.originLat, session?.originLon])
 
   // ── Live track ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    if (!map || !mapLoadedRef.current) return
+    const src = map.getSource('track-source') as maplibregl.GeoJSONSource | undefined
     if (!session) {
-      liveTrackRef.current?.remove()
-      liveTrackRef.current = null
+      src?.setData(emptyFC())
       return
     }
     let cancelled = false
@@ -435,97 +535,70 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       if (cancelled || !mapRef.current) return
       const buf = useSessionStore.getState().trackBuffer
       const all: [number, number][] = [
-        ...pts.map(p => [p.lat, p.lon] as [number, number]),
-        ...buf.map(p => [p.lat, p.lon] as [number, number]),
+        ...pts.map(p => [p.lon, p.lat] as [number, number]),
+        ...buf.map(p => [p.lon, p.lat] as [number, number]),
       ]
       if (all.length < 2) return
-      if (!liveTrackRef.current) {
-        liveTrackRef.current = L.polyline(all, {
-          color: theme.colors.red, weight: 2, opacity: 0.85, dashArray: '6 4',
-        }).addTo(mapRef.current)
-      } else {
-        liveTrackRef.current.setLatLngs(all)
-      }
+      ;(mapRef.current?.getSource('track-source') as maplibregl.GeoJSONSource | undefined)?.setData({
+        type: 'Feature', properties: {},
+        geometry: { type: 'LineString', coordinates: all },
+      })
     })
     return () => { cancelled = true }
   }, [session?.id, trackBuffer])
 
-  // ── Waypoint markers ────────────────────────────────────────────────────────
+  // ── History session overlay ──────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
-    const existing = waypointMarkersRef.current
-    const currentIds = new Set(waypoints.map(w => w.id))
-    for (const [id, marker] of existing) {
-      if (!currentIds.has(id)) { marker.remove(); existing.delete(id) }
-    }
-    for (const wp of waypoints) {
-      if (!existing.has(wp.id)) {
-        const marker = L.marker([wp.lat, wp.lon], {
-          icon: makeWaypointIcon(),
-          zIndexOffset: 80,
-        }).addTo(map)
-        marker.bindTooltip(wp.name, { permanent: false, direction: 'top' })
-        marker.on('click', (e) => {
-          L.DomEvent.stopPropagation(e)
-          const current = useWaypointStore.getState().waypoints.find(w => w.id === wp.id)
-          if (!current) return
-          const pt = map.latLngToContainerPoint([current.lat, current.lon])
-          setSelection({ kind: 'waypoint', waypoint: current, x: pt.x, y: pt.y })
-        })
-        existing.set(wp.id, marker)
-      }
-    }
-  }, [waypoints])
+    if (!map || !mapLoadedRef.current) return
+    const trackSrc = map.getSource('history-source') as maplibregl.GeoJSONSource | undefined
+    const evtSrc = map.getSource('history-events') as maplibregl.GeoJSONSource | undefined
 
-  // ── History session overlay ─────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current
-    for (const layer of historyLayersRef.current) layer.remove()
-    historyLayersRef.current = []
-    if (!map || !historySessionId || session) return
+    if (!historySessionId || session) {
+      trackSrc?.setData(emptyFC())
+      evtSrc?.setData(emptyFC())
+      return
+    }
 
     let cancelled = false
-    async function loadHistory() {
+    async function load() {
       const [points, events] = await Promise.all([
         getTrackPoints(historySessionId!),
         getEvents(historySessionId!),
       ])
       if (cancelled || !mapRef.current) return
       const m = mapRef.current
-      const layers: (L.CircleMarker | Polyline)[] = []
+
       if (points.length > 1) {
         const coords: [number, number][] = points
           .filter((_, i) => i % 5 === 0 || i === points.length - 1)
-          .map(p => [p.lat, p.lon])
-        const line = L.polyline(coords, {
-          color: theme.colors.red, weight: 2, opacity: 0.7, dashArray: '6 4',
-        }).addTo(m)
-        layers.push(line)
-        m.fitBounds(line.getBounds(), { padding: [40, 40] })
+          .map(p => [p.lon, p.lat])
+        trackSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } })
+        // Fit map to history track
+        const lons = coords.map(c => c[0])
+        const lats = coords.map(c => c[1])
+        m.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 })
       }
-      for (const ev of events) {
-        const color = EVENT_COLORS[ev.type]
-        const marker = L.circleMarker([ev.lat, ev.lon], {
-          radius: 5, color, weight: 2, fillColor: color, fillOpacity: 0.8,
-        }).addTo(m)
-        marker.bindTooltip(EVENT_LABELS[ev.type], { direction: 'top' })
-        layers.push(marker)
-      }
-      historyLayersRef.current = layers
+
+      const evtFeatures: GeoJSON.Feature[] = events.map(ev => ({
+        type: 'Feature',
+        properties: { color: EVENT_COLORS[ev.type], label: EVENT_LABELS[ev.type] },
+        geometry: { type: 'Point', coordinates: [ev.lon, ev.lat] },
+      }))
+      evtSrc?.setData({ type: 'FeatureCollection', features: evtFeatures })
     }
-    loadHistory()
+    load()
     return () => { cancelled = true }
   }, [historySessionId, session])
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   function handleRecenter() {
     const map = mapRef.current
     const pos = useGPSStore.getState().position
     if (!map || !pos) return
     autoFollowRef.current = true
-    map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 13))
+    map.easeTo({ center: [pos.lon, pos.lat], zoom: Math.max(map.getZoom(), 13) })
   }
 
   async function handleSaveWaypoint() {
@@ -543,9 +616,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     setWpName('')
   }
 
-  function dismissAll() {
-    setSelection(null)
-  }
+  function dismissAll() { setSelection(null) }
+
+  // ── Styles for popup UI ───────────────────────────────────────────────────────
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 12px', borderRadius: '8px',
@@ -565,10 +638,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div
-        ref={containerRef}
-        style={{ width: '100%', height: '100%', isolation: 'isolate' }}
-      />
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {showControls && <MapControls onRecenter={handleRecenter} />}
 
       {/* Light-dismiss overlay */}
@@ -585,14 +655,13 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
           selection.kind === 'routeWaypoint' ? `${theme.colors.magenta}55` :
           theme.colors.darkBorder
 
-        // Extract lat/lon/name for shared actions (Direct To, Add Waypoint)
-        const selLat = selection.kind === 'tap' ? selection.lat
-          : selection.kind === 'waypoint'      ? selection.waypoint.lat
-          : selection.kind === 'routeWaypoint' ? selection.waypoint.lat
+        const selLat = selection.kind === 'tap'          ? selection.lat
+          : selection.kind === 'waypoint'                ? selection.waypoint.lat
+          : selection.kind === 'routeWaypoint'           ? selection.waypoint.lat
           : selection.airport.lat
-        const selLon = selection.kind === 'tap' ? selection.lon
-          : selection.kind === 'waypoint'      ? selection.waypoint.lon
-          : selection.kind === 'routeWaypoint' ? selection.waypoint.lon
+        const selLon = selection.kind === 'tap'          ? selection.lon
+          : selection.kind === 'waypoint'                ? selection.waypoint.lon
+          : selection.kind === 'routeWaypoint'           ? selection.waypoint.lon
           : selection.airport.lon
         const selName = selection.kind === 'tap'
           ? `${selLat.toFixed(4)}, ${selLon.toFixed(4)}`
@@ -625,9 +694,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               )}
               {selection.kind === 'waypoint' && (
                 <>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>
-                    ⌖ {selection.waypoint.name}
-                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>⌖ {selection.waypoint.name}</div>
                   <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '3px' }}>
                     {selLat.toFixed(5)}, {selLon.toFixed(5)}
                   </div>
@@ -639,23 +706,15 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               {selection.kind === 'airport' && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: theme.colors.cyan, fontFamily: theme.font.mono }}>
-                      {selection.airport.id}
-                    </span>
-                    <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono }}>
-                      {selection.airport.elev} ft MSL
-                    </span>
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: theme.colors.cyan, fontFamily: theme.font.mono }}>{selection.airport.id}</span>
+                    <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono }}>{selection.airport.elev} ft MSL</span>
                   </div>
-                  <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginTop: '2px', lineHeight: 1.3 }}>
-                    {selection.airport.name}
-                  </div>
+                  <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginTop: '2px', lineHeight: 1.3 }}>{selection.airport.name}</div>
                 </>
               )}
               {selection.kind === 'routeWaypoint' && (
                 <>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.magenta }}>
-                    {selection.legIndex + 1}. {selection.waypoint.name}
-                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.magenta }}>{selection.legIndex + 1}. {selection.waypoint.name}</div>
                   <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '3px' }}>
                     {selLat.toFixed(5)}, {selLon.toFixed(5)}
                   </div>
@@ -663,7 +722,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               )}
             </div>
 
-            {/* Fly Leg — route waypoint only, session required */}
+            {/* Fly Leg */}
             {selection.kind === 'routeWaypoint' && (
               <button
                 disabled={!session}
@@ -673,25 +732,18 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
                   jumpToLeg(selection.routeId, selection.legIndex, pos?.lat ?? selLat, pos?.lon ?? selLon)
                   setSelection(null)
                 }}
-                style={{
-                  ...menuBtnStyle,
-                  color: session ? theme.colors.magenta : theme.colors.dim,
-                  fontWeight: 700,
-                  opacity: session ? 1 : 0.5,
-                  cursor: session ? 'pointer' : 'default',
-                }}
+                style={{ ...menuBtnStyle, color: session ? theme.colors.magenta : theme.colors.dim, fontWeight: 700, opacity: session ? 1 : 0.5, cursor: session ? 'pointer' : 'default' }}
               >
                 <span>✈</span> Fly Leg{!session && <span style={{ fontSize: theme.size.tiny, fontWeight: 400, marginLeft: 6 }}>(start session first)</span>}
               </button>
             )}
 
-            {/* Direct To — all kinds, session required */}
+            {/* Direct To */}
             {session && (
               <button
                 onClick={() => {
                   const pos = useGPSStore.getState().position
-                  setDirectTo({ lat: selLat, lon: selLon, name: selName,
-                    fromLat: pos?.lat ?? selLat, fromLon: pos?.lon ?? selLon })
+                  setDirectTo({ lat: selLat, lon: selLon, name: selName, fromLat: pos?.lat ?? selLat, fromLon: pos?.lon ?? selLon })
                   setSelection(null)
                 }}
                 style={{ ...menuBtnStyle, color: theme.colors.magenta }}
@@ -700,17 +752,14 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               </button>
             )}
 
-            {/* Share Waypoint — waypoint only */}
+            {/* Share Waypoint */}
             {selection.kind === 'waypoint' && (
-              <button
-                onClick={() => { shareWaypoint(selection.waypoint.id); setSelection(null) }}
-                style={{ ...menuBtnStyle, color: theme.colors.magenta }}
-              >
+              <button onClick={() => { shareWaypoint(selection.waypoint.id); setSelection(null) }} style={{ ...menuBtnStyle, color: theme.colors.magenta }}>
                 <span>↑</span> Share Waypoint
               </button>
             )}
 
-            {/* Add Waypoint — tap and airport */}
+            {/* Add Waypoint */}
             {(selection.kind === 'tap' || selection.kind === 'airport') && (
               <button
                 onClick={() => {
@@ -724,20 +773,17 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               </button>
             )}
 
-            {/* Fetch METAR — airport only */}
+            {/* Fetch METAR */}
             {selection.kind === 'airport' && (
               <button
-                onClick={() => {
-                  useWeatherStore.getState().fetchByStation(selection.airport.id)
-                  setSelection(null)
-                }}
+                onClick={() => { useWeatherStore.getState().fetchByStation(selection.airport.id); setSelection(null) }}
                 style={{ ...menuBtnStyle, color: theme.colors.blue }}
               >
                 <span>☁</span> Fetch METAR
               </button>
             )}
 
-            {/* Reset Origin — tap only, session required */}
+            {/* Reset Origin */}
             {selection.kind === 'tap' && session && (
               <button
                 onClick={async () => {
@@ -753,11 +799,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               </button>
             )}
 
-            {/* Close row — last item, no border */}
-            <button
-              onClick={dismissAll}
-              style={{ ...menuBtnStyle, color: theme.colors.dim, borderBottom: 'none', justifyContent: 'center', fontSize: theme.size.small }}
-            >
+            <button onClick={dismissAll} style={{ ...menuBtnStyle, color: theme.colors.dim, borderBottom: 'none', justifyContent: 'center', fontSize: theme.size.small }}>
               Dismiss
             </button>
           </div>
@@ -768,22 +810,11 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       {wpForm && (
         <div
           onClick={() => { setWpForm(null); setWpName('') }}
-          style={{
-            position: 'absolute', inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 110,
-          }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110 }}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
-              background: theme.colors.darkCard,
-              border: `1px solid ${theme.colors.darkBorder}`,
-              borderRadius: '16px', padding: '24px',
-              width: 'min(300px, calc(100vw - 48px))',
-              fontFamily: theme.font.primary,
-            }}
+            style={{ background: theme.colors.darkCard, border: `1px solid ${theme.colors.darkBorder}`, borderRadius: '16px', padding: '24px', width: 'min(300px, calc(100vw - 48px))', fontFamily: theme.font.primary }}
           >
             <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, marginBottom: '4px' }}>Add Waypoint</div>
             <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, marginBottom: '16px' }}>
@@ -799,24 +830,12 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
             <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
               <button
                 onClick={() => { setWpForm(null); setWpName('') }}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '8px',
-                  border: `1px solid ${theme.colors.darkBorder}`,
-                  background: 'none', color: theme.colors.light, cursor: 'pointer',
-                  fontFamily: theme.font.primary, fontSize: theme.size.body,
-                  minHeight: theme.tapTarget,
-                }}
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: `1px solid ${theme.colors.darkBorder}`, background: 'none', color: theme.colors.light, cursor: 'pointer', fontFamily: theme.font.primary, fontSize: theme.size.body, minHeight: theme.tapTarget }}
               >Cancel</button>
               <button
                 onClick={handleSaveWaypoint}
                 disabled={!wpName.trim()}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '8px', border: 'none',
-                  background: wpName.trim() ? theme.colors.red : theme.colors.darkBorder,
-                  color: '#fff', cursor: wpName.trim() ? 'pointer' : 'default',
-                  fontFamily: theme.font.primary, fontSize: theme.size.body,
-                  fontWeight: 700, minHeight: theme.tapTarget,
-                }}
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: wpName.trim() ? theme.colors.red : theme.colors.darkBorder, color: '#fff', cursor: wpName.trim() ? 'pointer' : 'default', fontFamily: theme.font.primary, fontSize: theme.size.body, fontWeight: 700, minHeight: theme.tapTarget }}
               >Save</button>
             </div>
           </div>

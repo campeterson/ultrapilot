@@ -1,6 +1,5 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import 'leaflet/dist/leaflet.css'
 import { AppShell } from './ui/shell/AppShell'
 import { restoreLastSession } from './state/session-store'
 

@@ -14,6 +14,7 @@ export const theme = {
     cyan: '#00acc1',
     purple: '#8e44ad',
     magenta: '#e040fb',
+    trackGreen: '#00E676',
     navBg: '#0c0c12',
     stripBg: 'rgba(14, 14, 20, 0.96)',
   },

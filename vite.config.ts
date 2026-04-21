@@ -31,11 +31,21 @@ export default defineConfig({
             },
           },
           {
-            // OSM map tiles — cache-first for offline map support
+            // OSM map tiles — match the three subdomain form so existing
+            // Leaflet-era caches still serve offline.
             urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ultrapilot-tiles-v1',
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // MapLibre glyph font atlases (for text labels on map)
+            urlPattern: /^https:\/\/demotiles\.maplibre\.org\/font\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ultrapilot-glyphs-v1',
               cacheableResponse: { statuses: [0, 200] },
             },
           },

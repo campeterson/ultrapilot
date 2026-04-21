@@ -423,10 +423,8 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  function toggleWaypoint(id: string) {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+  function addWaypoint(id: string) {
+    setSelectedIds(prev => [...prev, id])
   }
 
   function moveUp(index: number) {
@@ -451,7 +449,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
     // Create or reuse a waypoint for this airport
     const existing = useWaypointStore.getState().waypoints.find(w => w.name === ap.id)
     if (existing) {
-      if (!selectedIds.includes(existing.id)) setSelectedIds(prev => [...prev, existing.id])
+      setSelectedIds(prev => [...prev, existing.id])
       return
     }
     const wp: Waypoint = {
@@ -475,7 +473,6 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
   }
 
   const orderedWps = selectedIds.map(id => waypoints.find(w => w.id === id)).filter((w): w is Waypoint => !!w)
-  const unselected = waypoints.filter(w => !selectedIds.includes(w.id))
 
   return (
     <div
@@ -513,10 +510,10 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
         {orderedWps.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
             <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '8px' }}>Route legs (tap ↑↓ to reorder, × to remove)</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '200px', overflowY: 'auto' }}>
               {orderedWps.map((wp, i) => (
                 <div
-                  key={wp.id}
+                  key={i}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     background: theme.colors.dark, borderRadius: '8px', padding: '8px 10px',
@@ -527,7 +524,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
                   <button onClick={() => moveUp(i)} style={reorderBtnStyle} disabled={i === 0}>↑</button>
                   <button onClick={() => moveDown(i)} style={reorderBtnStyle} disabled={i === orderedWps.length - 1}>↓</button>
                   <button
-                    onClick={() => setSelectedIds(prev => prev.filter(x => x !== wp.id))}
+                    onClick={() => setSelectedIds(prev => prev.filter((_, idx) => idx !== i))}
                     style={{ ...reorderBtnStyle, color: theme.colors.dim }}
                   >×</button>
                 </div>
@@ -537,14 +534,14 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
         )}
 
         {/* Add waypoints */}
-        {unselected.length > 0 && (
+        {waypoints.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
             <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '8px' }}>Add waypoints</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
-              {unselected.map(wp => (
+              {waypoints.map(wp => (
                 <button
                   key={wp.id}
-                  onClick={() => toggleWaypoint(wp.id)}
+                  onClick={() => addWaypoint(wp.id)}
                   style={{
                     padding: '10px 12px', borderRadius: '8px',
                     border: `1px solid ${theme.colors.darkBorder}`,
@@ -574,11 +571,6 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
             <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '8px' }}>Nearby airports</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
               {nearbyAirports
-                .filter(ap => {
-                  // Hide airports already in the route (matched by name === ap.id)
-                  const wpForAp = waypoints.find(w => w.name === ap.id) ?? { id: `wp-apt-${ap.id}` }
-                  return !selectedIds.includes(wpForAp.id)
-                })
                 .map(ap => (
                   <button
                     key={ap.id}

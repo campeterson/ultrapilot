@@ -62,6 +62,27 @@ function ArrowSVG({ color, size = 36 }: { color: string; size?: number }) {
   )
 }
 
+/** Directional arrow icon — shown when map is in Track Up mode */
+function TrackUpIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -12 20 24" width="22" height="22">
+      <polygon points="0,-10 6,8 0,4 -6,8" fill={theme.colors.cream} stroke={theme.colors.red} strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Compass rose icon with N — shown when map is in North Up mode */
+function NorthUpIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 24 24" width="22" height="22">
+      <circle cx="0" cy="0" r="10" fill="none" stroke={theme.colors.cream} strokeWidth="1.2" opacity="0.7" />
+      <polygon points="0,-8 3,0 0,8 -3,0" fill={theme.colors.cream} opacity="0.85" />
+      <polygon points="0,-8 3,0 0,0" fill={theme.colors.red} />
+      <text x="0" y="-10.5" textAnchor="middle" fontSize="5" fontWeight="700" fill={theme.colors.cream} fontFamily="sans-serif">N</text>
+    </svg>
+  )
+}
+
 function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; position: OverlayPosition; onClick?: () => void }) {
   const { values } = useInstrumentStore()
   const label = INSTRUMENT_LABELS[id]
@@ -185,7 +206,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
   const { addStamp } = useTimelineStore()
   const { target: directTo, clearTarget } = useDirectToStore()
   const { mapLeft, mapRight, mapBottom, setMapLeft, setMapRight, setMapBottom } = useInstrumentStore()
-  const { showMapOverlays } = useMapSettingsStore()
+  const { showMapOverlays, mapOrientation, setOrientation } = useMapSettingsStore()
   const layout = useResponsiveLayout()
 
   // On tablet-portrait, the chevron toggle sits at bottom-center of the map area.
@@ -214,9 +235,17 @@ export function MapControls({ onRecenter }: MapControlsProps) {
       {showMapOverlays && mapRight && <MapOverlayInstrument id={mapRight} position="top-right" onClick={() => setOverlayPicker('right')} />}
       {showMapOverlays && mapBottom && <MapOverlayInstrument id={mapBottom} position="bottom-right" onClick={() => setOverlayPicker('bottom')} />}
 
-      {/* Bottom-left: D→ indicator + recenter + cancel D→ */}
+      {/* Bottom-left: D→ indicator + orientation toggle + recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
         <DirectToIndicator />
+        <button
+          style={btnBase}
+          onClick={() => setOrientation(mapOrientation === 'track-up' ? 'north-up' : 'track-up')}
+          title={mapOrientation === 'track-up' ? 'Track Up — tap for North Up' : 'North Up — tap for Track Up'}
+          aria-label={`Orientation: ${mapOrientation === 'track-up' ? 'Track Up' : 'North Up'}`}
+        >
+          {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
+        </button>
         <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
         {directTo && (
           <button
@@ -350,6 +379,10 @@ function RecordingIndicator() {
 function StartSessionButton() {
   const { startSession } = useSessionStore()
   const { addStamp } = useTimelineStore()
+  const layout = useResponsiveLayout()
+
+  // On tablet-portrait, clear the panel chevron at bottom-center of the map area.
+  const bottom = layout === 'tablet-portrait' ? '80px' : '24px'
 
   async function handleStart() {
     const pos = useGPSStore.getState().position
@@ -364,7 +397,7 @@ function StartSessionButton() {
     <button
       onClick={handleStart}
       style={{
-        position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+        position: 'absolute', bottom, left: '50%', transform: 'translateX(-50%)',
         padding: '14px 28px', borderRadius: '10px', border: 'none',
         background: theme.colors.red, color: '#fff', cursor: 'pointer',
         fontSize: '15px', fontWeight: 700, fontFamily: theme.font.primary,

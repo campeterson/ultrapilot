@@ -1,59 +1,89 @@
 import { useEffect, useRef } from 'react'
-import L from 'leaflet'
-import type { Map as LeafletMap, Polyline } from 'leaflet'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { getTrackPoints } from '../../../data/db'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import { theme } from '../../theme'
 import type { Session, StampEvent } from '../../../data/models'
+
+const STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: [
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
+}
 
 interface SessionMapProps {
   session: Session
   events: StampEvent[]
 }
 
-function makeStampIcon(color: string, label: string): L.DivIcon {
-  const html = `
-    <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-100%);">
-      <div style="background:${theme.colors.darkCard};color:${theme.colors.cream};font-family:${theme.font.primary};font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;border:1px solid ${color};white-space:nowrap;line-height:1.2;margin-bottom:2px;">${label}</div>
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="18" viewBox="0 0 14 18">
-        <path d="M7 18 L1 8 A6 6 0 1 1 13 8 Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
-        <circle cx="7" cy="7" r="2" fill="#fff"/>
-      </svg>
-    </div>`
-  return L.divIcon({
-    html,
-    className: '',
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
+function makeOriginEl(): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.cssText = `width:14px;height:14px;border-radius:50%;background:${theme.colors.red};border:2px solid ${theme.colors.cream};`
+  el.title = 'Origin'
+  return el
+}
+
+function makeStampEl(color: string, label: string): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.cssText = `display:flex;flex-direction:column;align-items:center;transform:translateY(-100%);pointer-events:none;`
+  el.innerHTML = `
+    <div style="background:${theme.colors.darkCard};color:${theme.colors.cream};font-family:${theme.font.primary};font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;border:1px solid ${color};white-space:nowrap;line-height:1.2;margin-bottom:2px;">${label}</div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="18" viewBox="0 0 14 18">
+      <path d="M7 18 L1 8 A6 6 0 1 1 13 8 Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="7" cy="7" r="2" fill="#fff"/>
+    </svg>`
+  return el
 }
 
 export function SessionMap({ session, events }: SessionMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<LeafletMap | null>(null)
-  const layersRef = useRef<(L.Marker | L.CircleMarker | Polyline)[]>([])
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const markersRef = useRef<maplibregl.Marker[]>([])
+  const mapLoadedRef = useRef(false)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
-    const map = L.map(containerRef.current, {
-      center: [session.originLat, session.originLon],
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: STYLE,
+      center: [session.originLon, session.originLat],
       zoom: 13,
-      zoomControl: true,
       attributionControl: false,
-      preferCanvas: true,
+      pitchWithRotate: false,
     })
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors',
-    }).addTo(map)
-    L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map)
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+
+    map.on('load', () => {
+      mapLoadedRef.current = true
+      map.addSource('track-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({ id: 'track-line', type: 'line', source: 'track-source',
+        paint: { 'line-color': theme.colors.trackGreen, 'line-width': 3, 'line-opacity': 0.9 } })
+    })
+
     mapRef.current = map
 
-    const ro = new ResizeObserver(() => map.invalidateSize())
+    const ro = new ResizeObserver(() => map.resize())
     ro.observe(containerRef.current)
 
     return () => {
       ro.disconnect()
+      for (const m of markersRef.current) m.remove()
+      markersRef.current = []
+      mapLoadedRef.current = false
       map.remove()
       mapRef.current = null
     }
@@ -63,55 +93,54 @@ export function SessionMap({ session, events }: SessionMapProps) {
     const map = mapRef.current
     if (!map) return
 
-    for (const layer of layersRef.current) layer.remove()
-    layersRef.current = []
-
     let cancelled = false
 
     async function load() {
       const points = await getTrackPoints(session.id)
       if (cancelled || !mapRef.current) return
       const m = mapRef.current
-      const layers: (L.Marker | L.CircleMarker | Polyline)[] = []
+
+      // Clear prior markers
+      for (const mk of markersRef.current) mk.remove()
+      markersRef.current = []
 
       // Origin marker
-      const origin = L.circleMarker([session.originLat, session.originLon], {
-        radius: 6, color: theme.colors.cream, weight: 2, fillColor: theme.colors.red, fillOpacity: 1,
-      }).addTo(m)
-      origin.bindTooltip('Origin', { direction: 'top' })
-      layers.push(origin)
+      const originMarker = new maplibregl.Marker({ element: makeOriginEl(), anchor: 'center' })
+        .setLngLat([session.originLon, session.originLat])
+        .addTo(m)
+      markersRef.current.push(originMarker)
 
-      // Track polyline
-      let bounds: L.LatLngBounds | null = null
-      if (points.length > 1) {
-        const coords: [number, number][] = points
-          .filter((_, i) => i % 3 === 0 || i === points.length - 1)
-          .map(p => [p.lat, p.lon])
-        const line = L.polyline(coords, {
-          color: theme.colors.red, weight: 3, opacity: 0.85,
-        }).addTo(m)
-        layers.push(line)
-        bounds = line.getBounds()
+      // Build list of coordinates to fit bounds to
+      const originLL: [number, number] = [session.originLon, session.originLat]
+      const bounds = new maplibregl.LngLatBounds(originLL, originLL)
+
+      // Track polyline → GeoJSON source
+      const setTrack = () => {
+        if (points.length > 1) {
+          const coords: [number, number][] = points
+            .filter((_, i) => i % 3 === 0 || i === points.length - 1)
+            .map(p => [p.lon, p.lat])
+          ;(m.getSource('track-source') as maplibregl.GeoJSONSource | undefined)?.setData({
+            type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords },
+          })
+          for (const c of coords) bounds.extend(c)
+        }
       }
+      if (mapLoadedRef.current) setTrack()
+      else m.once('load', setTrack)
 
-      // Stamp markers with flag + label
+      // Stamp markers
       for (const ev of events) {
         const color = EVENT_COLORS[ev.type]
         const label = EVENT_LABELS[ev.type]
-        const marker = L.marker([ev.lat, ev.lon], {
-          icon: makeStampIcon(color, label),
-          keyboard: false,
-        }).addTo(m)
-        layers.push(marker)
-        const ll = L.latLng(ev.lat, ev.lon)
-        bounds = bounds ? bounds.extend(ll) : L.latLngBounds(ll, ll)
+        const marker = new maplibregl.Marker({ element: makeStampEl(color, label), anchor: 'bottom' })
+          .setLngLat([ev.lon, ev.lat])
+          .addTo(m)
+        markersRef.current.push(marker)
+        bounds.extend([ev.lon, ev.lat])
       }
 
-      if (bounds && bounds.isValid()) {
-        m.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 })
-      }
-
-      layersRef.current = layers
+      m.fitBounds(bounds, { padding: 30, maxZoom: 15, duration: 0 })
     }
 
     load()
@@ -121,10 +150,7 @@ export function SessionMap({ session, events }: SessionMapProps) {
   return (
     <div
       ref={containerRef}
-      style={{
-        width: '100%', height: '100%',
-        background: theme.colors.darkCard,
-      }}
+      style={{ width: '100%', height: '100%', background: theme.colors.darkCard }}
     />
   )
 }
