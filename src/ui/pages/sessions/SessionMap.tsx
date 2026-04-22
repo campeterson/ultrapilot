@@ -5,7 +5,7 @@ import { Protocol } from 'pmtiles'
 import { getTrackPoints } from '../../../data/db'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import { theme } from '../../theme'
-import { PROTOMAPS_STYLE_DARK } from '../map/map-style'
+import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import type { Session, StampEvent } from '../../../data/models'
 
 // Register PMTiles protocol once at module load (harmless if MapPage also registered it).
@@ -50,7 +50,7 @@ export function SessionMap({ session, events }: SessionMapProps) {
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: PROTOMAPS_STYLE_DARK,
+      style: PROTOMAPS_STYLE_LIGHT,
       center: [session.originLon, session.originLat],
       zoom: 13,
       attributionControl: false,

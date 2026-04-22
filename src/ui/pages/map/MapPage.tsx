@@ -14,7 +14,7 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
-import { PROTOMAPS_STYLE_DARK } from './map-style'
+import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
@@ -135,7 +135,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     const saved = loadMapState()
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: PROTOMAPS_STYLE_DARK,
+      style: PROTOMAPS_STYLE_LIGHT,
       center: saved.center,
       zoom: saved.zoom,
       bearing: 0,
