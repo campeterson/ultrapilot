@@ -1,26 +1,18 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { Protocol } from 'pmtiles'
 import { getTrackPoints } from '../../../data/db'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import { theme } from '../../theme'
+import { PROTOMAPS_STYLE_DARK } from '../map/map-style'
 import type { Session, StampEvent } from '../../../data/models'
 
-const STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
+// Register PMTiles protocol once at module load (harmless if MapPage also registered it).
+if (!('_pmtilesRegistered' in (globalThis as Record<string, unknown>))) {
+  const p = new Protocol()
+  maplibregl.addProtocol('pmtiles', p.tile.bind(p))
+  ;(globalThis as Record<string, unknown>)._pmtilesRegistered = true
 }
 
 interface SessionMapProps {
@@ -58,7 +50,7 @@ export function SessionMap({ session, events }: SessionMapProps) {
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: STYLE,
+      style: PROTOMAPS_STYLE_DARK,
       center: [session.originLon, session.originLat],
       zoom: 13,
       attributionControl: false,

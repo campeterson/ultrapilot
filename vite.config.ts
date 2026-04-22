@@ -31,21 +31,21 @@ export default defineConfig({
             },
           },
           {
-            // OSM map tiles — match the three subdomain form so existing
-            // Leaflet-era caches still serve offline.
-            urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
+            // Protomaps hosted PMTiles archive (vector basemap). PMTiles serves
+            // 206 Partial Content from HTTP range requests, so include 206.
+            urlPattern: /^https:\/\/api\.protomaps\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'ultrapilot-tiles-v1',
-              cacheableResponse: { statuses: [0, 200] },
+              cacheName: 'ultrapilot-protomaps-v1',
+              cacheableResponse: { statuses: [0, 200, 206] },
             },
           },
           {
-            // MapLibre glyph font atlases (for text labels on map)
-            urlPattern: /^https:\/\/demotiles\.maplibre\.org\/font\/.*/i,
+            // Protomaps glyph fonts and sprites (served from GitHub Pages).
+            urlPattern: /^https:\/\/protomaps\.github\.io\/basemaps-assets\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'ultrapilot-glyphs-v1',
+              cacheName: 'ultrapilot-protomaps-assets-v1',
               cacheableResponse: { statuses: [0, 200] },
             },
           },

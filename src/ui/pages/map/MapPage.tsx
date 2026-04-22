@@ -14,12 +14,17 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
+import { PROTOMAPS_STYLE_DARK } from './map-style'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
-// Register PMTiles protocol once at module load
-const _pmtiles = new Protocol()
-maplibregl.addProtocol('pmtiles', _pmtiles.tile.bind(_pmtiles))
+// Register PMTiles protocol once at module load. The ultrapilot-pmtiles flag
+// avoids double-registration if other map components (e.g. SessionMap) also register.
+if (!('_pmtilesRegistered' in (globalThis as Record<string, unknown>))) {
+  const p = new Protocol()
+  maplibregl.addProtocol('pmtiles', p.tile.bind(p))
+  ;(globalThis as Record<string, unknown>)._pmtilesRegistered = true
+}
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 const DIR_LINE_NM = 1.5
@@ -29,26 +34,6 @@ const AIRPORT_MIN_ZOOM = 8
 // Aviation color constants per docs/04-MAP_CONVENTIONS.md
 const COLOR_TRACK = theme.colors.trackGreen  // green — breadcrumb trail
 const COLOR_MAGENTA = theme.colors.magenta   // magenta — active navigation
-
-const OSM_TILES = [
-  'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-]
-
-const OSM_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: OSM_TILES,
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
-}
 
 const DEFAULT_MAP_STATE = { center: [-94.6, 38.9] as [number, number], zoom: 11 }
 
@@ -150,7 +135,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     const saved = loadMapState()
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: OSM_STYLE,
+      style: PROTOMAPS_STYLE_DARK,
       center: saved.center,
       zoom: saved.zoom,
       bearing: 0,
