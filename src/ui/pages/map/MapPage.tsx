@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Protocol } from 'pmtiles'
+import './pmtiles-protocol'
 import { useGPSStore } from '../../../state/gps-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
@@ -17,14 +17,6 @@ import { MapControls } from './MapControls'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
-
-// Register PMTiles protocol once at module load. The ultrapilot-pmtiles flag
-// avoids double-registration if other map components (e.g. SessionMap) also register.
-if (!('_pmtilesRegistered' in (globalThis as Record<string, unknown>))) {
-  const p = new Protocol()
-  maplibregl.addProtocol('pmtiles', p.tile.bind(p))
-  ;(globalThis as Record<string, unknown>)._pmtilesRegistered = true
-}
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 const DIR_LINE_NM = 1.5

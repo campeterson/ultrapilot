@@ -241,3 +241,30 @@ export interface GPSPosition {
   accuracy: number  // meters
   ts: number        // unix ms
 }
+
+// ─── Offline Tilesets ────────────────────────────────────────────────────────
+
+export type Bbox = [minLon: number, minLat: number, maxLon: number, maxLat: number]
+
+/** A tileset offered to the user for download. Catalog is hardcoded in
+ *  src/data/logic/tilesets-catalog.ts; not persisted. */
+export interface TilesetCatalogEntry {
+  id: string
+  name: string
+  description: string
+  bbox: Bbox
+  url: string
+  estimatedSizeBytes: number
+  maxZoom: number
+}
+
+/** A downloaded PMTiles archive persisted in IndexedDB. */
+export interface Tileset {
+  id: string
+  name: string
+  bbox: Bbox
+  blob: Blob
+  sizeBytes: number
+  downloadedAt: string   // ISO
+  sourceUrl: string
+}

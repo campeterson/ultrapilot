@@ -1,19 +1,12 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Protocol } from 'pmtiles'
+import '../map/pmtiles-protocol'
 import { getTrackPoints } from '../../../data/db'
 import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import { theme } from '../../theme'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import type { Session, StampEvent } from '../../../data/models'
-
-// Register PMTiles protocol once at module load (harmless if MapPage also registered it).
-if (!('_pmtilesRegistered' in (globalThis as Record<string, unknown>))) {
-  const p = new Protocol()
-  maplibregl.addProtocol('pmtiles', p.tile.bind(p))
-  ;(globalThis as Record<string, unknown>)._pmtilesRegistered = true
-}
 
 interface SessionMapProps {
   session: Session

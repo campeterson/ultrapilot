@@ -1,8 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route } from './models'
+import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route, Tileset } from './models'
 
 const DB_NAME = 'ultrapilot'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 type UltraPilotDB = {
   sessions: {
@@ -31,6 +31,10 @@ type UltraPilotDB = {
     key: string
     value: Route
   }
+  tilesets: {
+    key: string
+    value: Tileset
+  }
 }
 
 let _db: IDBPDatabase<UltraPilotDB> | null = null
@@ -58,6 +62,9 @@ async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
       }
       if (!db.objectStoreNames.contains('routes')) {
         db.createObjectStore('routes', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('tilesets')) {
+        db.createObjectStore('tilesets', { keyPath: 'id' })
       }
     },
   })
@@ -212,6 +219,29 @@ export async function putRoute(route: Route): Promise<void> {
 export async function deleteRoute(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('routes', id)
+}
+
+// ─── Tilesets ────────────────────────────────────────────────────────────────
+
+export async function listTilesets(): Promise<Tileset[]> {
+  const db = await getDB()
+  const all = await db.getAll('tilesets')
+  return all.sort((a, b) => b.downloadedAt.localeCompare(a.downloadedAt))
+}
+
+export async function getTileset(id: string): Promise<Tileset | undefined> {
+  const db = await getDB()
+  return db.get('tilesets', id)
+}
+
+export async function putTileset(tileset: Tileset): Promise<void> {
+  const db = await getDB()
+  await db.put('tilesets', tileset)
+}
+
+export async function deleteTileset(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('tilesets', id)
 }
 
 /**

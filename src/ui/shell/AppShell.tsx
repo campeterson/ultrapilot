@@ -23,6 +23,8 @@ import { RoutesPage } from '../pages/routes/RoutesPage'
 import { SessionsPage } from '../pages/sessions/SessionsPage'
 import { InstrumentsPage } from '../pages/instruments/InstrumentsPage'
 import { SettingsPage } from '../pages/settings/SettingsPage'
+import { TilesetsPage } from '../pages/tilesets/TilesetsPage'
+import { useTilesetsStore } from '../../state/tilesets-store'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<NavTab>('map')
@@ -36,6 +38,10 @@ export function AppShell() {
 
   // Start GPS on mount
   useGPS()
+
+  // Register downloaded offline tilesets with the PMTiles protocol so the map
+  // can render pmtiles://<id> sources. Idempotent — the store guards on init.
+  useEffect(() => { useTilesetsStore.getState().init() }, [])
 
   // Keep screen awake during active sessions
   useWakeLock(sessionStatus === 'active')
@@ -84,6 +90,7 @@ export function AppShell() {
   function getPanelContent() {
     if (moreView === 'instruments') return <InstrumentsPage />
     if (moreView === 'sessions') return <SessionsPage />
+    if (moreView === 'tilesets') return <TilesetsPage />
     if (moreView === 'settings') return <SettingsPage />
 
     switch (activeTab) {
