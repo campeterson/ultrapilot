@@ -60,6 +60,7 @@ interface InstrumentStore {
   windSamples: WindSample[]
 
   setValues: (values: InstrumentValues) => void
+  clearValues: () => void
   updateMaxAGL: (aglFt: number) => void
   updateRolling: (gsKts: number, vsFpm: number, trackDeg: number) => void
   getRollingStats: () => RollingStats
@@ -97,6 +98,7 @@ export const useInstrumentStore = create<InstrumentStore>((set, get) => ({
   windSamples: [],
 
   setValues: (values) => set({ values }),
+  clearValues: () => set({ values: null }),
   updateMaxAGL: (aglFt) => { if (aglFt > get().maxAGLft) set({ maxAGLft: aglFt }) },
 
   updateRolling: (gsKts, vsFpm, trackDeg) => {

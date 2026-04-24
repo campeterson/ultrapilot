@@ -75,8 +75,8 @@ function circlePolygon(lat: number, lon: number, radiusM: number, steps = 64): G
 
 function makeArrowEl(): HTMLDivElement {
   const el = document.createElement('div')
-  el.style.cssText = `width:24px;height:32px;`
-  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="24" height="32">
+  el.style.cssText = `width:40px;height:52px;`
+  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -16 24 32" width="40" height="52">
     <polygon points="0,-14 8,10 0,5 -8,10" fill="${theme.colors.red}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
   </svg>`
   return el
@@ -217,7 +217,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
       // Live track (green breadcrumb)
       map.addLayer({ id: 'track-line', type: 'line', source: 'track-source',
-        paint: { 'line-color': COLOR_TRACK, 'line-width': 2, 'line-opacity': 0.9 } })
+        paint: { 'line-color': COLOR_TRACK, 'line-width': 4, 'line-opacity': 0.9 } })
 
       // Airport circles
       map.addLayer({ id: 'airports-circle', type: 'circle', source: 'airports-source',

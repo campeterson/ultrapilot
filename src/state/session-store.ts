@@ -20,6 +20,11 @@ interface SessionStore {
   historySessionId: string | null
   setHistorySession: (id: string | null) => void
 
+  // Set by endCurrentSession, consumed by SessionsPage to auto-open the
+  // just-ended session's detail view. Read-once: call consumeJustEndedSessionId.
+  justEndedSessionId: string | null
+  consumeJustEndedSessionId: () => string | null
+
   // Actions
   startSession: (lat: number, lon: number, altMSLm: number) => Promise<Session>
   endCurrentSession: (maxAGLft: number, totalDistNM: number) => Promise<void>
@@ -45,6 +50,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   loadingDeleted: false,
   historySessionId: null,
   setHistorySession: (id) => set({ historySessionId: id }),
+  justEndedSessionId: null,
+  consumeJustEndedSessionId: () => {
+    const id = get().justEndedSessionId
+    if (id) set({ justEndedSessionId: null })
+    return id
+  },
   trackBuffer: [],
 
   startSession: async (lat, lon, altMSLm) => {
@@ -69,7 +80,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const ended = endSession(session, maxAGLft, totalDistNM)
     await putSession(ended)
     localStorage.removeItem('ultrapilot_lastSession')
-    set({ session: null, sessionStatus: 'idle' })
+    set({ session: null, sessionStatus: 'idle', justEndedSessionId: ended.id })
   },
 
   loadHistory: async () => {

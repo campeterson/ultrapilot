@@ -13,6 +13,9 @@ import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
 import { useRouteStore } from '../../state/route-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
+import { useInstrumentStore } from '../../state/instrument-store'
+import { useGPSStore } from '../../state/gps-store'
+import { useTimelineStore } from '../../state/timeline-store'
 import { theme } from '../theme'
 import { trackEvent } from '../../lib/analytics'
 import { MapPage } from '../pages/map/MapPage'
@@ -47,16 +50,24 @@ export function AppShell() {
   // Keep screen awake during active sessions
   useWakeLock(sessionStatus === 'active')
 
-  // Return to map tab and clear direct-to when a session ends
+  // When a session ends: reset ephemeral flight state and open the sessions
+  // view on the just-ended session (SessionsPage reads justEndedSessionId from
+  // the store and auto-selects it).
   const prevStatus = useRef(sessionStatus)
   useEffect(() => {
     if (prevStatus.current === 'active' && sessionStatus === 'idle') {
       setActiveTab('map')
-      setMoreView(null)
       setMoreOpen(false)
-      setPanelOpen(false)
+      setMoreView('sessions')
+      setPanelOpen(true)
       useDirectToStore.getState().clearTarget()
       useRouteStore.getState().deactivateRoute()
+      const inst = useInstrumentStore.getState()
+      inst.clearValues()
+      inst.resetRolling()
+      inst.resetMaxAGL()
+      useGPSStore.setState({ smoothedTrack: null, recentPositions: [] })
+      useTimelineStore.getState().clearEvents()
     }
     prevStatus.current = sessionStatus
   }, [sessionStatus])

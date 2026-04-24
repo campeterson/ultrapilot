@@ -382,6 +382,8 @@ function TrashView({ onBack }: { onBack: () => void }) {
 
 export function SessionsPage() {
   const { sessions, loadingSessions, loadHistory, setHistorySession } = useSessionStore()
+  const justEndedSessionId = useSessionStore(s => s.justEndedSessionId)
+  const consumeJustEndedSessionId = useSessionStore(s => s.consumeJustEndedSessionId)
   const [selected, setSelected] = useState<Session | null>(null)
   const [showTrash, setShowTrash] = useState(false)
 
@@ -389,6 +391,18 @@ export function SessionsPage() {
 
   // Clear map overlay when page unmounts
   useEffect(() => () => { setHistorySession(null) }, [setHistorySession])
+
+  // After a session ends, AppShell opens this page and leaves the ended
+  // session id on the store. Auto-open its detail view once the list loads.
+  useEffect(() => {
+    if (!justEndedSessionId) return
+    const ended = sessions.find(s => s.id === justEndedSessionId)
+    if (!ended) return
+    setSelected(ended)
+    setHistorySession(ended.id)
+    analyticsTrack('session_detail_viewed')
+    consumeJustEndedSessionId()
+  }, [justEndedSessionId, sessions, setHistorySession, consumeJustEndedSessionId])
 
   function handleSelect(s: Session) {
     setSelected(s)
