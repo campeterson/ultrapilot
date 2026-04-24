@@ -11,6 +11,8 @@ import { theme } from '../../theme'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 // INSTRUMENT_LABELS used in InstrumentConfigurator below
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
+import { PAGE_LAYOUTS, PAGE_LAYOUT_IDS, type PageLayoutId } from '../../../data/logic/instrument-layouts'
+import { LayoutThumbnail } from '../instruments/LayoutThumbnail'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -297,6 +299,53 @@ function InstrumentConfigurator() {
   )
 }
 
+// ── Instruments Page Layout Picker ────────────────────────────────────────────
+
+function PageLayoutPicker() {
+  const pageLayoutId = useInstrumentStore(s => s.pageLayoutId)
+  const setPageLayout = useInstrumentStore(s => s.setPageLayout)
+
+  return (
+    <div style={{ padding: '12px 16px 16px' }}>
+      <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginBottom: '10px' }}>
+        Instruments page layout — tap to choose
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+        {PAGE_LAYOUT_IDS.map(id => {
+          const layout = PAGE_LAYOUTS[id]
+          const active = id === pageLayoutId
+          return (
+            <button
+              key={id}
+              onClick={() => setPageLayout(id as PageLayoutId)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                padding: '10px 8px', borderRadius: '10px',
+                border: `2px solid ${active ? theme.colors.red : theme.colors.darkBorder}`,
+                background: active ? theme.colors.redDim : theme.colors.dark,
+                color: active ? theme.colors.cream : theme.colors.light,
+                cursor: 'pointer',
+                fontFamily: theme.font.primary,
+                fontSize: theme.size.small,
+                fontWeight: active ? 700 : 400,
+                minHeight: theme.tapTarget,
+              }}
+            >
+              <LayoutThumbnail layoutId={id as PageLayoutId} active={active} size={80} />
+              <span style={{ textAlign: 'center', lineHeight: 1.2 }}>
+                {layout.name}
+                <span style={{ display: 'block', fontSize: theme.size.tiny, color: theme.colors.dim, fontWeight: 400, marginTop: '2px' }}>
+                  {layout.slots.length} slots
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
@@ -379,6 +428,9 @@ export function SettingsPage() {
         </button>
       </Row>
       {showInstrConfig && <InstrumentConfigurator />}
+
+      <SectionHeader title="INSTRUMENTS PAGE" />
+      <PageLayoutPicker />
 
       <SectionHeader title="ABOUT" />
       <Row label="Version">

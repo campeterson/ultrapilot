@@ -3,6 +3,10 @@ import type { InstrumentId } from '../data/models'
 import type { InstrumentValues, RollingStats } from '../data/logic/instrument-logic'
 import type { WindSample } from '../data/logic/gps-logic'
 import { DEFAULT_INSTRUMENT_STRIP } from '../data/models'
+import {
+  PAGE_LAYOUTS, PAGE_LAYOUT_IDS, DEFAULT_PAGE_LAYOUT_ID, resizePageSlots,
+  type PageLayoutId,
+} from '../data/logic/instrument-layouts'
 
 const WIND_BUFFER_SIZE = 60
 const WIND_MIN_SPEED_KTS = 3  // below this, track is unreliable
@@ -15,6 +19,16 @@ interface SavedConfig {
   mapRight: InstrumentId | null
   mapBottom: InstrumentId | null
   stripCount: 4 | 5 | 6
+  pageLayoutId: PageLayoutId
+  pageSlots: InstrumentId[]
+}
+
+function defaultPageSlots(): InstrumentId[] {
+  return [...PAGE_LAYOUTS[DEFAULT_PAGE_LAYOUT_ID].defaults]
+}
+
+function normalizeLayoutId(raw: unknown): PageLayoutId {
+  return PAGE_LAYOUT_IDS.includes(raw as PageLayoutId) ? (raw as PageLayoutId) : DEFAULT_PAGE_LAYOUT_ID
 }
 
 function loadConfig(): SavedConfig {
@@ -23,20 +37,34 @@ function loadConfig(): SavedConfig {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return { strip: parsed.length > 0 ? parsed : DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6 }
+        return {
+          strip: parsed.length > 0 ? parsed : DEFAULT_INSTRUMENT_STRIP,
+          mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6,
+          pageLayoutId: DEFAULT_PAGE_LAYOUT_ID,
+          pageSlots: defaultPageSlots(),
+        }
       }
       if (typeof parsed === 'object' && parsed !== null) {
+        const pageLayoutId = normalizeLayoutId(parsed.pageLayoutId)
+        const rawSlots: InstrumentId[] = Array.isArray(parsed.pageSlots) ? parsed.pageSlots : []
         return {
           strip: Array.isArray(parsed.strip) && parsed.strip.length > 0 ? parsed.strip : DEFAULT_INSTRUMENT_STRIP,
           mapLeft: parsed.mapLeft ?? null,
           mapRight: parsed.mapRight ?? null,
           mapBottom: parsed.mapBottom ?? null,
           stripCount: parsed.stripCount ?? 6,
+          pageLayoutId,
+          pageSlots: resizePageSlots(pageLayoutId, rawSlots),
         }
       }
     }
   } catch {}
-  return { strip: DEFAULT_INSTRUMENT_STRIP, mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6 }
+  return {
+    strip: DEFAULT_INSTRUMENT_STRIP,
+    mapLeft: null, mapRight: null, mapBottom: null, stripCount: 6,
+    pageLayoutId: DEFAULT_PAGE_LAYOUT_ID,
+    pageSlots: defaultPageSlots(),
+  }
 }
 
 function saveConfig(c: SavedConfig) {
@@ -49,6 +77,8 @@ interface InstrumentStore {
   mapRight: InstrumentId | null
   mapBottom: InstrumentId | null
   stripCount: 4 | 5 | 6
+  pageLayoutId: PageLayoutId
+  pageSlots: InstrumentId[]
   values: InstrumentValues | null
   maxAGLft: number
 
@@ -70,6 +100,8 @@ interface InstrumentStore {
   setMapRight: (id: InstrumentId | null) => void
   setMapBottom: (id: InstrumentId | null) => void
   setStripCount: (n: 4 | 5 | 6) => void
+  setPageLayout: (id: PageLayoutId) => void
+  setPageSlot: (index: number, id: InstrumentId) => void
   resetMaxAGL: () => void
 }
 
@@ -88,6 +120,8 @@ export const useInstrumentStore = create<InstrumentStore>((set, get) => ({
   mapRight: initial.mapRight,
   mapBottom: initial.mapBottom,
   stripCount: initial.stripCount,
+  pageLayoutId: initial.pageLayoutId,
+  pageSlots: initial.pageSlots,
   values: null,
   maxAGLft: 0,
 
@@ -137,27 +171,51 @@ export const useInstrumentStore = create<InstrumentStore>((set, get) => ({
   }),
 
   setStrip: (ids) => {
-    const s = get(); saveConfig({ strip: ids, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ strip: ids })
+    persist(get())
   },
   setMapLeft: (id) => {
-    const s = get(); saveConfig({ strip: s.strip, mapLeft: id, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ mapLeft: id })
+    persist(get())
   },
   setMapRight: (id) => {
-    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: id, mapBottom: s.mapBottom, stripCount: s.stripCount })
     set({ mapRight: id })
+    persist(get())
   },
   setMapBottom: (id) => {
-    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: id, stripCount: s.stripCount })
     set({ mapBottom: id })
+    persist(get())
   },
   setStripCount: (n) => {
-    const s = get(); saveConfig({ strip: s.strip, mapLeft: s.mapLeft, mapRight: s.mapRight, mapBottom: s.mapBottom, stripCount: n })
     set({ stripCount: n })
+    persist(get())
+  },
+  setPageLayout: (id) => {
+    const nextSlots = resizePageSlots(id, get().pageSlots)
+    set({ pageLayoutId: id, pageSlots: nextSlots })
+    persist(get())
+  },
+  setPageSlot: (index, id) => {
+    const next = [...get().pageSlots]
+    if (index < 0 || index >= next.length) return
+    next[index] = id
+    set({ pageSlots: next })
+    persist(get())
   },
 
   resetMaxAGL: () => set({ maxAGLft: 0 }),
 }))
+
+function persist(s: ReturnType<typeof useInstrumentStore.getState>) {
+  saveConfig({
+    strip: s.strip,
+    mapLeft: s.mapLeft,
+    mapRight: s.mapRight,
+    mapBottom: s.mapBottom,
+    stripCount: s.stripCount,
+    pageLayoutId: s.pageLayoutId,
+    pageSlots: s.pageSlots,
+  })
+}
 
 export { NULL_VALUES }
