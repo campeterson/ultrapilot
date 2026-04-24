@@ -2,10 +2,11 @@ import { Fragment, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
-import { getEvents } from '../../../data/db'
+import { getEvents, getTrackPoints } from '../../../data/db'
 import { trackEvent as analyticsTrack } from '../../../lib/analytics'
 import { formatNM } from '../../../data/logic/gps-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
+import { downloadString, sessionFilename, toGPX, toOADSAll, toOADSSession } from '../../../data/export'
 import type { Session, StampEvent } from '../../../data/models'
 import { TimelineEventRow } from '../../components/TimelineEventRow'
 import { SessionMap } from './SessionMap'
@@ -51,6 +52,11 @@ function formatElapsed(ms: number): string {
   const sec = s % 60
   if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
   return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+function allSessionsFilename(ext: string): string {
+  const stamp = String(Math.floor(Date.now() / 1000))
+  return `ultrapilot-all-sessions-${stamp}.${ext}`
 }
 
 // ─── Session list ─────────────────────────────────────────────────────────────
@@ -142,6 +148,18 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
     onTrash()
   }
 
+  async function handleExportGPX() {
+    const [pts, evts] = await Promise.all([getTrackPoints(session.id), getEvents(session.id)])
+    const gpx = toGPX(session, pts, evts)
+    downloadString(gpx, sessionFilename(session, 'gpx'), 'application/gpx+xml')
+  }
+
+  async function handleExportJSON() {
+    const [pts, evts] = await Promise.all([getTrackPoints(session.id), getEvents(session.id)])
+    const oads = toOADSSession(session, pts, evts)
+    downloadString(JSON.stringify(oads, null, 2), sessionFilename(session, 'oads.json'), 'application/json')
+  }
+
   const maxAGLft = Math.round(session.maxAGL * 3.28084)
   const flightMs = computeFlightTimeMs(events)
   const sessMs = session.endTime
@@ -166,6 +184,32 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
           <div style={{ fontSize: '14px', fontWeight: 700, color: theme.colors.cream }}>{formatDate(session.startTime)}</div>
           <div style={{ fontSize: theme.size.small, color: theme.colors.dim }}>{formatDuration(session.startTime, session.endTime)}</div>
         </div>
+        <button
+          onClick={handleExportGPX}
+          aria-label="Export GPX"
+          style={{
+            background: 'none', border: `1px solid ${theme.colors.darkBorder}`,
+            color: theme.colors.light, cursor: 'pointer',
+            padding: '8px 10px', borderRadius: '8px',
+            minHeight: theme.tapTarget, fontFamily: theme.font.primary,
+            fontSize: theme.size.small,
+          }}
+        >
+          GPX
+        </button>
+        <button
+          onClick={handleExportJSON}
+          aria-label="Export OADS"
+          style={{
+            background: 'none', border: `1px solid ${theme.colors.darkBorder}`,
+            color: theme.colors.light, cursor: 'pointer',
+            padding: '8px 10px', borderRadius: '8px',
+            minHeight: theme.tapTarget, fontFamily: theme.font.primary,
+            fontSize: theme.size.small,
+          }}
+        >
+          OADS
+        </button>
         <button
           onClick={() => setConfirmDelete(true)}
           aria-label="Delete session"
@@ -442,6 +486,20 @@ export function SessionsPage() {
     loadHistory()
   }
 
+  async function handleExportAll() {
+    if (sessions.length === 0) return
+    const exported = await Promise.all(sessions.map(async (s) => {
+      const [trackPoints, events] = await Promise.all([getTrackPoints(s.id), getEvents(s.id)])
+      return { session: s, trackPoints, events }
+    }))
+    const oads = toOADSAll(exported)
+    downloadString(
+      JSON.stringify(oads, null, 2),
+      allSessionsFilename('oads.json'),
+      'application/json'
+    )
+  }
+
   if (showTrash) {
     return <TrashView onBack={() => { setShowTrash(false); loadHistory() }} />
   }
@@ -457,17 +515,31 @@ export function SessionsPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
       }}>
         <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Sessions</span>
-        <button
-          onClick={() => setShowTrash(true)}
-          style={{
-            background: 'none', border: 'none', color: theme.colors.light,
-            cursor: 'pointer', fontFamily: theme.font.primary,
-            fontSize: theme.size.small, padding: '6px 4px',
-            textDecoration: 'underline',
-          }}
-        >
-          Trash
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={handleExportAll}
+            disabled={sessions.length === 0}
+            style={{
+              background: 'none', border: 'none', color: sessions.length === 0 ? theme.colors.dim : theme.colors.light,
+              cursor: sessions.length === 0 ? 'default' : 'pointer', fontFamily: theme.font.primary,
+              fontSize: theme.size.small, padding: '6px 4px',
+              textDecoration: 'underline',
+            }}
+          >
+            Export All
+          </button>
+          <button
+            onClick={() => setShowTrash(true)}
+            style={{
+              background: 'none', border: 'none', color: theme.colors.light,
+              cursor: 'pointer', fontFamily: theme.font.primary,
+              fontSize: theme.size.small, padding: '6px 4px',
+              textDecoration: 'underline',
+            }}
+          >
+            Trash
+          </button>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
