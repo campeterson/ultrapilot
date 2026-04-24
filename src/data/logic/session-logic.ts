@@ -1,4 +1,5 @@
 import type { Session, StampEvent } from '../models'
+import { haversineNM } from './gps-logic'
 
 /** Create a new Session record from a GPS fix */
 export function createSession(
@@ -52,6 +53,18 @@ export function computeFlightTimeMs(events: StampEvent[]): number {
     const start = takeoffs[i]
     const end = landings[i] ?? Date.now()
     total += Math.max(0, end - start)
+  }
+  return total
+}
+
+/** Sum total traveled distance in NM across ordered track points. */
+export function computeTrackDistanceNM(points: Array<{ lat: number; lon: number }>): number {
+  if (points.length < 2) return 0
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    total += haversineNM(prev.lat, prev.lon, curr.lat, curr.lon)
   }
   return total
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { putSession, getSession, listSessions, listDeletedSessions, deleteSession, softDeleteSession, restoreSession } from '../data/db'
-import { createSession, endSession } from '../data/logic/session-logic'
+import { putSession, getSession, listSessions, listDeletedSessions, deleteSession, softDeleteSession, restoreSession, bulkAddTrackPoints, getTrackPoints } from '../data/db'
+import { createSession, endSession, computeTrackDistanceNM } from '../data/logic/session-logic'
 import type { Session } from '../data/models'
 
 interface SessionStore {
@@ -27,7 +27,7 @@ interface SessionStore {
 
   // Actions
   startSession: (lat: number, lon: number, altMSLm: number) => Promise<Session>
-  endCurrentSession: (maxAGLft: number, totalDistNM: number) => Promise<void>
+  endCurrentSession: (maxAGLft: number) => Promise<void>
   resetOrigin: (lat: number, lon: number, altMSLm: number) => Promise<void>
   loadHistory: () => Promise<void>
   loadDeleted: () => Promise<void>
@@ -74,9 +74,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set({ session: updated })
   },
 
-  endCurrentSession: async (maxAGLft, totalDistNM) => {
-    const { session } = get()
+  endCurrentSession: async (maxAGLft) => {
+    const { session, trackBuffer } = get()
     if (!session) return
+
+    if (trackBuffer.length > 0) {
+      await bulkAddTrackPoints(trackBuffer)
+      set({ trackBuffer: [] })
+    }
+
+    const points = await getTrackPoints(session.id)
+    const totalDistNM = computeTrackDistanceNM(points)
     const ended = endSession(session, maxAGLft, totalDistNM)
     await putSession(ended)
     localStorage.removeItem('ultrapilot_lastSession')

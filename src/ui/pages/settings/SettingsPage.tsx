@@ -370,7 +370,7 @@ export function SettingsPage() {
     if (!session) return
     if (!confirm('End the current session?')) return
     const pos = useGPSStore.getState().position
-    await endCurrentSession(maxAGLft, 0)
+    await endCurrentSession(maxAGLft)
     const { addStamp } = useTimelineStore.getState()
     await addStamp({
       sessionId: session.id,

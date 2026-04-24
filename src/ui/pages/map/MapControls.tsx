@@ -7,7 +7,6 @@ import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
-import { bulkAddTrackPoints } from '../../../data/db'
 import { computeAGLft, bearing as getBearing, haversineNM, formatNM } from '../../../data/logic/gps-logic'
 import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
@@ -319,7 +318,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
 }
 
 function RecordingIndicator() {
-  const { session, endCurrentSession, clearTrackBuffer } = useSessionStore()
+  const { session, endCurrentSession } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
   const { addStamp } = useTimelineStore()
   const [modalOpen, setModalOpen] = useState(false)
@@ -332,12 +331,10 @@ function RecordingIndicator() {
     const originLon = session.originLon
     const originAlt = session.originAltMSL
 
-    const buf = clearTrackBuffer()
-    if (buf.length > 0) await bulkAddTrackPoints(buf)
     await addStamp({ sessionId, ts: Date.now(), type: 'session_end',
       lat: pos?.lat ?? originLat, lon: pos?.lon ?? originLon,
       altMSL: pos?.altMSL ?? originAlt, altAGL: 0, speed: pos?.speed ?? 0, note: null })
-    await endCurrentSession(maxAGLft, 0)
+    await endCurrentSession(maxAGLft)
     setModalOpen(false)
   }
 

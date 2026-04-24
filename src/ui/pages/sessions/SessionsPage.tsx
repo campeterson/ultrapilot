@@ -1,22 +1,19 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
 import { getEvents } from '../../../data/db'
 import { trackEvent as analyticsTrack } from '../../../lib/analytics'
-import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../../data/logic/stamp-logic'
+import { formatNM } from '../../../data/logic/gps-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import type { Session, StampEvent } from '../../../data/models'
+import { TimelineEventRow } from '../../components/TimelineEventRow'
 import { SessionMap } from './SessionMap'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function formatDuration(startIso: string, endIso: string | null): string {
@@ -27,6 +24,23 @@ function formatDuration(startIso: string, endIso: string | null): string {
   const m = Math.floor((s % 3600) / 60)
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
+}
+
+function formatSessionDateParts(iso: string): { day: string; month: string; year: number } {
+  const d = new Date(iso)
+  return {
+    day: d.toLocaleDateString([], { day: '2-digit' }),
+    month: d.toLocaleDateString([], { month: 'short' }),
+    year: d.getFullYear(),
+  }
+}
+
+function formatDurationHoursDecimal(startIso: string, endIso: string | null): string {
+  const startMs = new Date(startIso).getTime()
+  const endMs = endIso ? new Date(endIso).getTime() : Date.now()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return '0.0'
+  const hours = Math.max(0, (endMs - startMs) / 3600000)
+  return (Math.round(hours * 10) / 10).toFixed(1)
 }
 
 function formatElapsed(ms: number): string {
@@ -42,8 +56,9 @@ function formatElapsed(ms: number): string {
 // ─── Session list ─────────────────────────────────────────────────────────────
 
 function SessionRow({ session, onSelect }: { session: Session; onSelect: () => void }) {
+  const { day, month } = formatSessionDateParts(session.startTime)
   const maxAGLft = Math.round(session.maxAGL * 3.28084)
-  const duration = formatDuration(session.startTime, session.endTime)
+  const durationHours = formatDurationHoursDecimal(session.startTime, session.endTime)
 
   return (
     <button
@@ -51,6 +66,7 @@ function SessionRow({ session, onSelect }: { session: Session; onSelect: () => v
       style={{
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'space-between',
         width: '100%',
         padding: '14px 16px',
         background: 'none',
@@ -62,45 +78,50 @@ function SessionRow({ session, onSelect }: { session: Session; onSelect: () => v
         minHeight: theme.tapTarget,
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: theme.size.body, fontWeight: 700, color: theme.colors.cream, marginBottom: '3px', fontFamily: theme.font.primary }}>
-          {formatDate(session.startTime)}
+      <div style={{ width: '42px', flexShrink: 0, textAlign: 'center' }}>
+        <div style={{ fontSize: '28px', lineHeight: 1, fontWeight: 700, color: theme.colors.cream, fontFamily: theme.font.mono }}>
+          {day}
         </div>
+        <div style={{ fontSize: theme.size.tiny, lineHeight: 1.2, color: theme.colors.dim, fontFamily: theme.font.primary, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {month}
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono }}>
           {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          {' · '}
-          {duration}
+          {` · ${formatNM(session.totalDistanceNM)} nm`}
           {maxAGLft > 0 ? ` · ${maxAGLft} ft AGL` : ''}
         </div>
       </div>
-      <span style={{ color: theme.colors.dim, fontSize: '16px', flexShrink: 0 }}>›</span>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: '22px', lineHeight: 1, color: theme.colors.cream, fontFamily: theme.font.mono, fontWeight: 700 }}>
+          {durationHours}
+        </div>
+        <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.primary, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          hr
+        </div>
+      </div>
     </button>
   )
 }
 
-// ─── Session detail ───────────────────────────────────────────────────────────
-
-function EventRow({ event }: { event: StampEvent }) {
-  const color = EVENT_COLORS[event.type]
-  const label = EVENT_LABELS[event.type]
-  const detail = buildEventDetail(event)
-
+function YearSeparator({ year }: { year: number }) {
   return (
-    <div style={{ display: 'flex', gap: '10px', padding: '10px 16px', borderBottom: `1px solid ${theme.colors.darkBorder}`, alignItems: 'flex-start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-        <span style={{ fontFamily: theme.font.mono, fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700, whiteSpace: 'nowrap' }}>
-          {formatTime(event.ts)}
-        </span>
-        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color }} />
-        <div style={{ width: '1px', minHeight: '12px', background: theme.colors.darkBorder }} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0, paddingTop: '1px' }}>
-        <div style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700, marginBottom: '2px', fontFamily: theme.font.primary }}>{label}</div>
-        <div style={{ fontSize: theme.size.small, color: theme.colors.dim, wordBreak: 'break-word', fontFamily: theme.font.primary }}>{detail}</div>
-      </div>
+    <div style={{
+      padding: '10px 16px 6px',
+      borderBottom: `1px solid ${theme.colors.darkBorder}`,
+      color: theme.colors.light,
+      fontSize: theme.size.small,
+      fontWeight: 700,
+      letterSpacing: '0.06em',
+      fontFamily: theme.font.primary,
+    }}>
+      {year}
     </div>
   )
 }
+
+// ─── Session detail ───────────────────────────────────────────────────────────
 
 function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack: () => void; onTrash: () => void }) {
   const [events, setEvents] = useState<StampEvent[]>([])
@@ -187,7 +208,7 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         {!loading && events.length === 0 && (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>No events recorded.</div>
         )}
-        {events.map(ev => <EventRow key={ev.id} event={ev} />)}
+        {events.map(ev => <TimelineEventRow key={ev.id} event={ev} />)}
       </div>
 
       {confirmDelete && (
@@ -460,9 +481,18 @@ export function SessionsPage() {
             <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginTop: '6px' }}>Tap Start Session on the map.</div>
           </div>
         )}
-        {sessions.map(s => (
-          <SessionRow key={s.id} session={s} onSelect={() => handleSelect(s)} />
-        ))}
+        {sessions.map((s, index) => {
+          const year = formatSessionDateParts(s.startTime).year
+          const prevYear = index > 0 ? formatSessionDateParts(sessions[index - 1].startTime).year : null
+          const showYearHeader = index === 0 || year !== prevYear
+
+          return (
+            <Fragment key={s.id}>
+              {showYearHeader && <YearSeparator year={year} />}
+              <SessionRow session={s} onSelect={() => handleSelect(s)} />
+            </Fragment>
+          )
+        })}
       </div>
     </div>
   )
