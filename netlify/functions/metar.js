@@ -9,7 +9,7 @@ const BASE_URL = "https://aviationweather.gov/api/data";
 const BBOX_RADIUS_MILES = 75;
 const EARTH_RADIUS_MILES = 3958.8;
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
