@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { theme } from '../../theme'
-import { USER_STAMP_TYPES, EVENT_LABELS, EVENT_COLORS } from '../../../data/logic/stamp-logic'
+import { userStampTypes, eventLabel, EVENT_COLORS } from '../../../data/logic/stamp-logic'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
 import type { StampEventType } from '../../../data/models'
 
 interface StampModalProps {
@@ -11,6 +12,7 @@ interface StampModalProps {
 export function StampModal({ onSelect, onClose }: StampModalProps) {
   const [note, setNote] = useState('')
   const [selectedType, setSelectedType] = useState<StampEventType | null>(null)
+  const mode = useFlightModeStore(s => s.mode)
 
   function handleConfirm() {
     if (!selectedType) {
@@ -60,7 +62,7 @@ export function StampModal({ onSelect, onClose }: StampModalProps) {
 
         {/* Event type grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
-          {USER_STAMP_TYPES.map(type => {
+          {userStampTypes(mode).map(type => {
             const isSelected = selectedType === type
             return (
               <button
@@ -80,7 +82,7 @@ export function StampModal({ onSelect, onClose }: StampModalProps) {
                   lineHeight: 1.3,
                 }}
               >
-                {EVENT_LABELS[type]}
+                {eventLabel(type, mode)}
               </button>
             )
           })}
@@ -122,7 +124,7 @@ export function StampModal({ onSelect, onClose }: StampModalProps) {
             minHeight: theme.tapTarget,
           }}
         >
-          {selectedType ? `Stamp: ${EVENT_LABELS[selectedType]}` : 'Quick Stamp'}
+          {selectedType ? `Stamp: ${eventLabel(selectedType, mode)}` : 'Quick Stamp'}
         </button>
       </div>
     </div>

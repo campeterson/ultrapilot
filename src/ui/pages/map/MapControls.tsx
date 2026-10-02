@@ -8,11 +8,15 @@ import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { computeAGLft, bearing as getBearing, haversineNM, formatNM } from '../../../data/logic/gps-logic'
-import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
+import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 import { HSIInstrument } from './HSIInstrument'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
+import { useWindreaderStore } from '../../../state/windreader-store'
+import { useWindBands } from '../../hooks/useWindBands'
+import { WindreaderTable } from '../windreader/WindreaderTable'
 
 interface MapControlsProps {
   onRecenter: () => void
@@ -84,16 +88,20 @@ function NorthUpIcon() {
 
 function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; position: OverlayPosition; onClick?: () => void }) {
   const { values } = useInstrumentStore()
+  const mode = useFlightModeStore(s => s.mode)
   const label = INSTRUMENT_LABELS[id]
   const unit = INSTRUMENT_UNITS[id]
   const displayValue = values ? formatInstrumentValue(id, values) : '—'
-  const valueColor = values ? getInstrumentColor(id, values) : theme.colors.cream
+  const valueColor = values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
   const isArrow = id === 'brg_arrow' || id === 'dtk_arrow'
   const absBearing = id === 'brg_arrow' ? (values?.brg ?? 0) : (values?.dtk ?? 0)
   // Relative to current track so "up" = direction of travel
   const bearingDeg = ((absBearing - (values?.hdg ?? 0)) + 360) % 360
   const hasValue = id === 'dtk_arrow' ? values?.dtk !== null : true
+
+  // Course instruments are hidden in LTA mode (slot config is kept)
+  if (!isInstrumentAvailable(id, mode)) return null
 
   // HSI gets its own full rendering
   if (id === 'hsi') {
@@ -198,6 +206,33 @@ function DirectToIndicator() {
   )
 }
 
+/** Compact windreader over the map (LTA mode). Tap the header to hide. */
+function WindreaderOverlay({ top, onHide }: { top: string; onHide: () => void }) {
+  const { bands } = useWindBands()
+  return (
+    <div style={{
+      position: 'absolute', top, left: '12px', zIndex: 50, width: '210px',
+      background: 'rgba(14, 14, 20, 0.88)', border: `1px solid ${theme.colors.darkBorder}`,
+      borderRadius: '12px', overflow: 'hidden', backdropFilter: 'blur(6px)',
+    }}>
+      <button
+        onClick={onHide}
+        style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%',
+          padding: '8px 10px', background: 'none', border: 'none', cursor: 'pointer',
+          color: theme.colors.light, fontFamily: theme.font.primary, fontSize: theme.size.tiny,
+          letterSpacing: '0.08em', minHeight: theme.tapTarget,
+        }}
+      >
+        <span>WINDREADER</span><span style={{ color: theme.colors.dim }}>✕</span>
+      </button>
+      {bands.length === 0
+        ? <div style={{ padding: '4px 10px 10px', fontSize: theme.size.tiny, color: theme.colors.dim }}>No readings yet</div>
+        : <WindreaderTable bands={bands} compact maxRows={7} />}
+    </div>
+  )
+}
+
 export function MapControls({ onRecenter }: MapControlsProps) {
   const [stampOpen, setStampOpen] = useState(false)
   const [overlayPicker, setOverlayPicker] = useState<'left' | 'right' | 'bottom' | null>(null)
@@ -207,6 +242,11 @@ export function MapControls({ onRecenter }: MapControlsProps) {
   const { mapLeft, mapRight, mapBottom, setMapLeft, setMapRight, setMapBottom } = useInstrumentStore()
   const { showMapOverlays, mapOrientation, setOrientation } = useMapSettingsStore()
   const layout = useResponsiveLayout()
+  const flightMode = useFlightModeStore(s => s.mode)
+  const { showMapPanel: showWindPanel, setSetting: setWindSetting } = useWindreaderStore()
+  const isLTA = flightMode === 'lta'
+  // Sit below the top-left overlay instrument when one is shown
+  const windPanelTop = showMapOverlays && mapLeft ? '120px' : '12px'
 
   // On tablet-portrait, the chevron toggle sits at bottom-center of the map area.
   // Push STAMP up to clear it.
@@ -234,6 +274,10 @@ export function MapControls({ onRecenter }: MapControlsProps) {
       {showMapOverlays && mapRight && <MapOverlayInstrument id={mapRight} position="top-right" onClick={() => setOverlayPicker('right')} />}
       {showMapOverlays && mapBottom && <MapOverlayInstrument id={mapBottom} position="bottom-right" onClick={() => setOverlayPicker('bottom')} />}
 
+      {isLTA && showWindPanel && (
+        <WindreaderOverlay top={windPanelTop} onHide={() => setWindSetting('showMapPanel', false)} />
+      )}
+
       {/* Bottom-left: D→ indicator + orientation toggle + recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
         <DirectToIndicator />
@@ -245,6 +289,9 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         >
           {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
         </button>
+        {isLTA && !showWindPanel && (
+          <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
+        )}
         <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
         {directTo && (
           <button

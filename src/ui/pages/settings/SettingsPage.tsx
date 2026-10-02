@@ -4,6 +4,8 @@ import { useInstrumentStore } from '../../../state/instrument-store'
 import { useTimelineStore } from '../../../state/timeline-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
+import { useWindreaderStore } from '../../../state/windreader-store'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { addEvent, bulkAddTrackPoints, deleteSession, getSession, getTrackPoints, getEvents, putSession } from '../../../data/db'
 import { toGPX, toOADSSession, downloadString, sessionFilename, type OADSEnvelope } from '../../../data/export'
@@ -31,6 +33,7 @@ type ImportStats = {
 const STAMP_EVENT_TYPES: StampEventType[] = [
   'session_start', 'session_end', 'takeoff', 'landing', 'engine_start', 'engine_shutdown',
   'checklist_complete', 'wing_layout', 'weather', 'waypoint', 'preflight', 'maneuver', 'custom',
+  'cold_inflation', 'hot_inflation', 'deflation', 'pibal', 'fuel_switch',
 ]
 
 function isStampEventType(value: unknown): value is StampEventType {
@@ -708,6 +711,8 @@ export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession, loadHistory } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
   const { showDirectionLine, directionLineMode, directionLineMinutes, setDirectionLineMode, setDirectionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
+  const { mode: flightMode, setMode: setFlightMode } = useFlightModeStore()
+  const windreader = useWindreaderStore()
   const [showInstrConfig, setShowInstrConfig] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
 
@@ -832,6 +837,50 @@ export function SettingsPage() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: theme.colors.dark, fontFamily: theme.font.primary }}>
+      <SectionHeader title="FLIGHT MODE" />
+      <Row label="Aircraft">
+        <Segmented
+          value={flightMode}
+          options={[{ value: 'powered', label: 'POWERED' }, { value: 'lta', label: 'BALLOON / LTA' }]}
+          onChange={setFlightMode}
+        />
+      </Row>
+
+      {flightMode === 'lta' && (
+        <>
+          <SectionHeader title="WINDREADER" />
+          <Row label="Altitude Band">
+            <Segmented
+              value={windreader.bandFt}
+              options={[{ value: 50, label: '50 FT' }, { value: 100, label: '100 FT' }, { value: 200, label: '200 FT' }]}
+              onChange={v => windreader.setSetting('bandFt', v)}
+            />
+          </Row>
+          <Row label="Speed Units">
+            <Segmented
+              value={windreader.units}
+              options={[{ value: 'kt', label: 'KT' }, { value: 'mph', label: 'MPH' }, { value: 'kmh', label: 'KM/H' }]}
+              onChange={v => windreader.setSetting('units', v)}
+            />
+          </Row>
+          <Row label="Panel on Map">
+            <Toggle value={windreader.showMapPanel} onToggle={() => windreader.setSetting('showMapPanel', !windreader.showMapPanel)} />
+          </Row>
+          <Row label="Wind Lines on Map">
+            <Toggle value={windreader.showMapLines} onToggle={() => windreader.setSetting('showMapLines', !windreader.showMapLines)} />
+          </Row>
+          {windreader.showMapLines && (
+            <Row label="Wind Line Length">
+              <Segmented
+                value={windreader.lineMinutes}
+                options={[{ value: 5, label: '5 MIN' }, { value: 10, label: '10 MIN' }, { value: 30, label: '30 MIN' }]}
+                onChange={v => windreader.setSetting('lineMinutes', v)}
+              />
+            </Row>
+          )}
+        </>
+      )}
+
       {session && sessionStatus === 'active' && (
         <>
           <SectionHeader title="CURRENT SESSION" />
@@ -858,14 +907,17 @@ export function SettingsPage() {
       </Row>
       {showDirectionLine && (
         <>
-          <Row label="Line Length">
-            <Segmented
-              value={directionLineMode}
-              options={[{ value: 'distance', label: '2 NM' }, { value: 'time', label: 'TIME' }]}
-              onChange={setDirectionLineMode}
-            />
-          </Row>
-          {directionLineMode === 'time' && (
+          {/* LTA always projects by time — a fixed 2 nm means little at balloon speeds */}
+          {flightMode === 'powered' && (
+            <Row label="Line Length">
+              <Segmented
+                value={directionLineMode}
+                options={[{ value: 'distance', label: '2 NM' }, { value: 'time', label: 'TIME' }]}
+                onChange={setDirectionLineMode}
+              />
+            </Row>
+          )}
+          {(directionLineMode === 'time' || flightMode === 'lta') && (
             <Row label="Look Ahead">
               <Segmented
                 value={directionLineMinutes}

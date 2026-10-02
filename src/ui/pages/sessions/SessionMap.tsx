@@ -3,7 +3,8 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../map/pmtiles-protocol'
 import { getTrackPoints } from '../../../data/db'
-import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
+import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { theme } from '../../theme'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import type { Session, StampEvent } from '../../../data/models'
@@ -117,7 +118,7 @@ export function SessionMap({ session, events }: SessionMapProps) {
       // Stamp markers
       for (const ev of events) {
         const color = EVENT_COLORS[ev.type]
-        const label = EVENT_LABELS[ev.type]
+        const label = eventLabel(ev.type, useFlightModeStore.getState().mode)
         const marker = new maplibregl.Marker({ element: makeStampEl(color, label), anchor: 'bottom' })
           .setLngLat([ev.lon, ev.lat])
           .addTo(m)

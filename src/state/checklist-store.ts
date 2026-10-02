@@ -3,6 +3,7 @@ import { listChecklists, putChecklist, deleteChecklist } from '../data/db'
 import { resetChecklist, toggleItem, isComplete, type ChecklistRunState } from '../data/logic/checklist-logic'
 import type { Checklist } from '../data/models'
 import { PPC_DEFAULT_CHECKLISTS } from '../data/defaults/ppc-checklists'
+import { LTA_DEFAULT_CHECKLISTS } from '../data/defaults/lta-checklists'
 import { useSessionStore } from './session-store'
 import { useGPSStore } from './gps-store'
 import { useTimelineStore } from './timeline-store'
@@ -36,6 +37,11 @@ export const useChecklistStore = create<ChecklistStore>((set, get) => ({
     let checklists = await listChecklists()
     if (checklists.length === 0) {
       await Promise.all(PPC_DEFAULT_CHECKLISTS.map(putChecklist))
+      checklists = await listChecklists()
+    }
+    // Existing installs predate LTA mode — add the balloon lists once
+    if (!checklists.some(c => c.aircraft === 'lta')) {
+      await Promise.all(LTA_DEFAULT_CHECKLISTS.map(putChecklist))
       checklists = await listChecklists()
     }
     set({ checklists, loading: false })

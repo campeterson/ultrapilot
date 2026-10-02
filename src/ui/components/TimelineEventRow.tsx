@@ -1,4 +1,5 @@
-import { EVENT_LABELS, EVENT_COLORS, buildEventDetail } from '../../data/logic/stamp-logic'
+import { eventLabel, EVENT_COLORS, buildEventDetail } from '../../data/logic/stamp-logic'
+import { useFlightModeStore } from '../../state/flight-mode-store'
 import { theme } from '../theme'
 import type { StampEvent, StampEventType } from '../../data/models'
 
@@ -16,6 +17,11 @@ const EVENT_ICONS: Record<StampEventType, string> = {
   preflight:          '◈',
   maneuver:           '↺',
   custom:             '★',
+  cold_inflation:     '◌',
+  hot_inflation:      '◉',
+  deflation:          '◡',
+  pibal:              '○',
+  fuel_switch:        '⇄',
 }
 
 function formatTimeHHMM(ts: number): string {
@@ -28,7 +34,8 @@ function formatTimeHHMM(ts: number): string {
 
 export function TimelineEventRow({ event }: { event: StampEvent }) {
   const color = EVENT_COLORS[event.type]
-  const label = EVENT_LABELS[event.type]
+  const mode = useFlightModeStore(s => s.mode)
+  const label = eventLabel(event.type, mode)
   const detail = buildEventDetail(event)
   const icon = EVENT_ICONS[event.type]
 

@@ -1,4 +1,4 @@
-import type { Checklist, ChecklistItem } from '../models'
+import type { Checklist, ChecklistItem, FlightMode } from '../models'
 
 export interface ChecklistRunState {
   checklistId: string
@@ -36,4 +36,9 @@ export function sortedItems(checklist: Checklist): ChecklistItem[] {
 export function newItem(text: string, existingItems: ChecklistItem[]): ChecklistItem {
   const maxOrder = existingItems.reduce((max, i) => Math.max(max, i.order), -1)
   return { id: crypto.randomUUID(), text, order: maxOrder + 1 }
+}
+
+/** Checklists belonging to a flight mode. Untagged (legacy) lists are powered. */
+export function checklistsForMode(checklists: Checklist[], mode: FlightMode): Checklist[] {
+  return checklists.filter(c => (c.aircraft ?? 'powered') === mode)
 }

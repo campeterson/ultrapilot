@@ -29,6 +29,8 @@ import { InstrumentsPage } from '../pages/instruments/InstrumentsPage'
 import { SettingsPage } from '../pages/settings/SettingsPage'
 import { TilesetsPage } from '../pages/tilesets/TilesetsPage'
 import { useTilesetsStore } from '../../state/tilesets-store'
+import { useFlightModeStore } from '../../state/flight-mode-store'
+import { WindreaderPage } from '../pages/windreader/WindreaderPage'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<NavTab>('map')
@@ -39,6 +41,15 @@ export function AppShell() {
   const layout = useResponsiveLayout()
   const { sessionStatus } = useSessionStore()
   const { showInstrumentStrip } = useMapSettingsStore()
+  const flightMode = useFlightModeStore(s => s.mode)
+
+  // Wind tab is LTA-only and Routes is powered-only — leave a tab that the
+  // new mode doesn't have
+  useEffect(() => {
+    if ((flightMode !== 'lta' && activeTab === 'wind') || (flightMode === 'lta' && activeTab === 'routes')) {
+      setActiveTab('map')
+    }
+  }, [flightMode, activeTab])
 
   // Start GPS on mount
   useGPS()
@@ -106,11 +117,12 @@ export function AppShell() {
     if (moreView === 'settings') return <SettingsPage />
 
     switch (activeTab) {
+      case 'wind': return flightMode === 'lta' ? <WindreaderPage /> : null
       case 'timeline': return <TimelinePage />
       case 'checklists': return <ChecklistsPage />
       case 'wx': return <WxPage />
       case 'waypoints': return <WaypointsPage />
-      case 'routes': return <RoutesPage />
+      case 'routes': return flightMode === 'powered' ? <RoutesPage /> : null
       default: return null
     }
   }

@@ -5,6 +5,8 @@ import { useSessionStore } from '../../state/session-store'
 import { useGPSStore } from '../../state/gps-store'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { theme } from '../theme'
+import { useFlightModeStore } from '../../state/flight-mode-store'
+import { isInstrumentAvailable } from '../../data/logic/instrument-logic'
 
 interface InstrumentButtonProps {
   id: InstrumentId | null
@@ -59,6 +61,10 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
   const resetMaxAGL = useInstrumentStore(s => s.resetMaxAGL)
   const [confirmZero, setConfirmZero] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const mode = useFlightModeStore(s => s.mode)
+  const groups = INSTRUMENT_GROUPS
+    .map(g => ({ ...g, ids: g.ids.filter(id => isInstrumentAvailable(id, mode)) }))
+    .filter(g => g.ids.length > 0)
 
   const canZero = !!session && !!position
 
@@ -123,7 +129,7 @@ export function InstrumentPickerModal({ current, includeNull, onSelect, onClose 
               onClose={onClose}
             />
           )}
-          {INSTRUMENT_GROUPS.map(group => (
+          {groups.map(group => (
             <div key={group.name}>
               <div style={{
                 fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em',

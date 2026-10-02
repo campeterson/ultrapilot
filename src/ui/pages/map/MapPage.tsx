@@ -10,12 +10,17 @@ import { useDirectToStore } from '../../../state/direct-to-store'
 import { useRouteStore } from '../../../state/route-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
+import { useWindreaderStore } from '../../../state/windreader-store'
+import { useWindBands } from '../../hooks/useWindBands'
+import { windLineLengthNM } from '../../../data/logic/windreader-logic'
+import { RELATION_COLORS } from '../windreader/WindreaderTable'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
-import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
+import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
@@ -115,6 +120,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
   const routeWaypoints = useWaypointStore(s => s.waypoints)
   const { loadDatabase: loadAirports, allAirports, loaded: airportsLoaded } = useAirportStore()
+  const flightMode = useFlightModeStore(s => s.mode)
+  const { showMapLines: showWindLines, lineMinutes: windLineMinutes } = useWindreaderStore()
+  const { bands: windBands } = useWindBands()
 
   const [selection, setSelection] = useState<MapSelection | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
@@ -148,6 +156,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
         ['route-waypoints',     emptyFC()],
         ['direct-to-source',    emptyFC()],
         ['direction-source',    emptyFC()],
+        ['wind-lines-source',   emptyFC()],
         ['rings-source',        emptyFC()],
         ['track-source',        emptyFC()],
         ['waypoints-source',    emptyFC()],
@@ -210,6 +219,27 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       // Direct-To line
       map.addLayer({ id: 'direct-to-line', type: 'line', source: 'direct-to-source',
         paint: { 'line-color': COLOR_MAGENTA, 'line-width': 2, 'line-opacity': 0.85, 'line-dasharray': [5, 3] } })
+
+      // Windreader wind lines (LTA) — one per altitude band, colored above/below
+      map.addLayer({ id: 'wind-lines-casing', type: 'line', source: 'wind-lines-source',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#000', 'line-width': ['case', ['get', 'current'], 6, 4.5], 'line-opacity': 0.5 } })
+      map.addLayer({ id: 'wind-lines', type: 'line', source: 'wind-lines-source',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'current'], 3.5, 2.5], 'line-opacity': 0.95 } })
+      map.addLayer({ id: 'wind-lines-labels', type: 'symbol', source: 'wind-lines-source',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Open Sans Regular'],
+          'text-size': 11,
+          'text-anchor': 'left',
+          'text-offset': [0.5, 0],
+          'text-allow-overlap': true,
+        },
+        paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5 } })
 
       // Direction projection line — white casing under a dark dashed line so it
       // reads on both the light basemap and darker terrain/water.
@@ -402,7 +432,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     const dirSrc = map.getSource('direction-source') as maplibregl.GeoJSONSource | undefined
     if (showDirectionLine && position.speed > 0.5) {
       const start = destinationPoint(position.lat, position.lon, track, 0.02)
-      const lengthNM = directionLineLengthNM(directionLineMode, position.speed, directionLineMinutes, DIR_LINE_NM)
+      const lengthNM = directionLineLengthNM(flightMode === 'lta' ? 'time' : directionLineMode, position.speed, directionLineMinutes, DIR_LINE_NM)
       const end = destinationPoint(position.lat, position.lon, track, lengthNM)
       dirSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[start[1], start[0]], [end[1], end[0]]] } })
     } else {
@@ -420,7 +450,33 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     } else {
       ringsSrc?.setData(emptyFC())
     }
-  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings])
+  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, flightMode])
+
+  // ── Windreader wind lines (LTA only) ────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    const src = map.getSource('wind-lines-source') as maplibregl.GeoJSONSource | undefined
+    if (flightMode !== 'lta' || !showWindLines || !position) {
+      src?.setData(emptyFC())
+      return
+    }
+    const features: GeoJSON.Feature[] = []
+    for (const b of windBands) {
+      if (b.speedKts === 0) continue
+      const end = destinationPoint(position.lat, position.lon, b.trackDeg, windLineLengthNM(b.speedKts, windLineMinutes))
+      const props = { color: RELATION_COLORS[b.relation], current: b.relation === 'current' }
+      features.push({
+        type: 'Feature', properties: props,
+        geometry: { type: 'LineString', coordinates: [[position.lon, position.lat], [end[1], end[0]]] },
+      })
+      features.push({
+        type: 'Feature', properties: { ...props, label: b.altMSLft.toLocaleString() },
+        geometry: { type: 'Point', coordinates: [end[1], end[0]] },
+      })
+    }
+    src?.setData({ type: 'FeatureCollection', features })
+  }, [flightMode, showWindLines, windLineMinutes, windBands, position])
 
   // ── React to orientation mode change ────────────────────────────────────────
   useEffect(() => {
@@ -564,7 +620,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
       const evtFeatures: GeoJSON.Feature[] = events.map(ev => ({
         type: 'Feature',
-        properties: { color: EVENT_COLORS[ev.type], label: EVENT_LABELS[ev.type] },
+        properties: { color: EVENT_COLORS[ev.type], label: eventLabel(ev.type, useFlightModeStore.getState().mode) },
         geometry: { type: 'Point', coordinates: [ev.lon, ev.lat] },
       }))
       evtSrc?.setData({ type: 'FeatureCollection', features: evtFeatures })

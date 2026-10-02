@@ -5,9 +5,12 @@ import { useInstrumentStore } from '../../state/instrument-store'
 import { useDirectToStore } from '../../state/direct-to-store'
 import { useRouteStore } from '../../state/route-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
+import { useFlightModeStore } from '../../state/flight-mode-store'
+import { useWindreaderStore } from '../../state/windreader-store'
 import { bulkAddTrackPoints } from '../../data/db'
-import { verticalSpeedFpm, msToKnots } from '../../data/logic/gps-logic'
+import { verticalSpeedFpm, msToKnots, metersToFeet } from '../../data/logic/gps-logic'
 import { deriveInstruments } from '../../data/logic/instrument-logic'
+import { computeBands, windAtCurrentLevel } from '../../data/logic/windreader-logic'
 import type { GPSPosition } from '../../data/models'
 
 const TRACK_INTERVAL_MS = 5_000
@@ -76,6 +79,17 @@ export function useGPS() {
             rolling,
             directTo,
           )
+          // Windreader (LTA only): in a balloon, drift = wind at this altitude,
+          // so WIND / WIND SPD come from the band you're in, not the powered estimate
+          if (useFlightModeStore.getState().mode === 'lta') {
+            const wr = useWindreaderStore.getState()
+            wr.ingest({ lat: pos.lat, lon: pos.lon, altMSL: pos.altMSL, ts: pos.ts }, currentSession.id)
+            const { samples, bandFt } = useWindreaderStore.getState()
+            const wind = windAtCurrentLevel(computeBands(samples, bandFt, metersToFeet(pos.altMSL)))
+            values.wdir = wind ? wind.dirDeg : null
+            values.wspd = wind ? wind.speedKts : null
+          }
+
           setValues(values)
           updateMaxAGL(values.agl)
 

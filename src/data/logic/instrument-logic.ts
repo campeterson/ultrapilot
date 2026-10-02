@@ -1,4 +1,4 @@
-import type { InstrumentId } from '../models'
+import type { FlightMode, InstrumentId } from '../models'
 import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM, crossTrackErrorNM, estimatedTimeEnrouteMin, estimateWind, type WindSample } from './gps-logic'
 
 export interface DirectToTarget {
@@ -104,9 +104,20 @@ const GREEN  = '#27ae60'
 const AMBER  = '#e67e22'
 const RED    = '#C0392B'
 
+/** Course-flying instruments a balloon can't use — hidden in LTA mode. */
+const HIDDEN_IN_MODE: Record<FlightMode, InstrumentId[]> = {
+  powered: [],
+  lta: ['hsi', 'xtk', 'ete'],
+}
+
+export function isInstrumentAvailable(id: InstrumentId, mode: FlightMode): boolean {
+  return !HIDDEN_IN_MODE[mode].includes(id)
+}
+
 /** Return a color string for an instrument value based on aviation-standard ranges.
  *  Returns cream (normal) for instruments with no meaningful range coloring. */
-export function getInstrumentColor(id: InstrumentId, values: InstrumentValues): string {
+export function getInstrumentColor(id: InstrumentId, values: InstrumentValues, mode: FlightMode = 'powered'): string {
+  if (mode === 'lta') return getLTAColor(id, values)
   switch (id) {
     case 'agl': {
       const v = values.agl
@@ -142,6 +153,17 @@ export function getInstrumentColor(id: InstrumentId, values: InstrumentValues): 
     default:
       return CREAM
   }
+}
+
+/** Balloons fly low and slow on purpose, so AGL and GS carry no warning
+ *  colors. Only a fast descent is flagged; climbs are left neutral. */
+function getLTAColor(id: InstrumentId, values: InstrumentValues): string {
+  if (id === 'vs') {
+    if (values.vs < -800) return RED
+    if (values.vs < -500) return AMBER
+  }
+  if (id === 'dte' && values.dte !== null && values.dte < 0.1) return GREEN
+  return CREAM
 }
 
 /** Format an instrument value for display */

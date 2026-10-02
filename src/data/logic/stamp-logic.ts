@@ -1,4 +1,4 @@
-import type { StampEvent, StampEventType } from '../models'
+import type { FlightMode, StampEvent, StampEventType } from '../models'
 
 /** Color coding for event types */
 export const EVENT_COLORS: Record<StampEventType, string> = {
@@ -15,6 +15,11 @@ export const EVENT_COLORS: Record<StampEventType, string> = {
   preflight: '#e67e22',
   maneuver: '#27ae60',
   custom: '#ccd',
+  cold_inflation: '#e67e22',
+  hot_inflation: '#e67e22',
+  deflation: '#e67e22',
+  pibal: '#3498db',
+  fuel_switch: '#9b59b6',
 }
 
 /** Human-readable labels */
@@ -32,9 +37,38 @@ export const EVENT_LABELS: Record<StampEventType, string> = {
   preflight: 'Preflight',
   maneuver: 'Maneuver',
   custom: 'Custom Event',
+  cold_inflation: 'Cold Inflation',
+  hot_inflation: 'Hot Inflation',
+  deflation: 'Deflation',
+  pibal: 'Pibal Release',
+  fuel_switch: 'Fuel Tank Switch',
 }
 
-/** Stamp types available to the user via the STAMP picker */
+/** Balloons lift off rather than take off. */
+const LTA_LABEL_OVERRIDES: Partial<Record<StampEventType, string>> = {
+  takeoff: 'Liftoff',
+}
+
+export function eventLabel(type: StampEventType, mode: FlightMode): string {
+  return (mode === 'lta' && LTA_LABEL_OVERRIDES[type]) || EVENT_LABELS[type]
+}
+
+/** Stamp types available to the user via the STAMP picker, per flight mode */
+export const LTA_STAMP_TYPES: StampEventType[] = [
+  'pibal',
+  'cold_inflation',
+  'hot_inflation',
+  'takeoff',
+  'fuel_switch',
+  'landing',
+  'deflation',
+  'custom',
+]
+
+export function userStampTypes(mode: FlightMode): StampEventType[] {
+  return mode === 'lta' ? LTA_STAMP_TYPES : USER_STAMP_TYPES
+}
+
 export const USER_STAMP_TYPES: StampEventType[] = [
   'preflight',
   'wing_layout',

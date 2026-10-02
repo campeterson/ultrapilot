@@ -1,23 +1,28 @@
 import { theme } from '../theme'
+import { useFlightModeStore } from '../../state/flight-mode-store'
+import type { FlightMode } from '../../data/models'
 
-export type NavTab = 'map' | 'timeline' | 'checklists' | 'wx' | 'waypoints' | 'routes' | 'more'
+export type NavTab = 'map' | 'wind' | 'timeline' | 'checklists' | 'wx' | 'waypoints' | 'routes' | 'more'
 
 interface NavBarProps {
   active: NavTab
   onSelect: (tab: NavTab) => void
 }
 
-const TABS: { id: NavTab; label: string; icon: string }[] = [
+const TABS: { id: NavTab; label: string; icon: string; modes?: FlightMode[] }[] = [
   { id: 'map', label: 'Map', icon: '◎' },
+  { id: 'wind', label: 'Wind', icon: '≋', modes: ['lta'] },
   { id: 'timeline', label: 'Timeline', icon: '◷' },
   { id: 'checklists', label: 'Lists', icon: '☑' },
   { id: 'wx', label: 'Wx/Apt', icon: '⛅' },
   { id: 'waypoints', label: 'Wpts', icon: '⌖' },
-  { id: 'routes', label: 'Routes', icon: '✈' },
+  { id: 'routes', label: 'Routes', icon: '✈', modes: ['powered'] },
   { id: 'more', label: 'More', icon: '⋯' },
 ]
 
 export function NavBar({ active, onSelect }: NavBarProps) {
+  const mode = useFlightModeStore(s => s.mode)
+  const tabs = TABS.filter(t => !t.modes || t.modes.includes(mode))
   return (
     <nav
       style={{
@@ -34,7 +39,7 @@ export function NavBar({ active, onSelect }: NavBarProps) {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {TABS.map(tab => {
+      {tabs.map(tab => {
         const isActive = active === tab.id
         return (
           <button

@@ -42,6 +42,12 @@ export type StampEventType =
   | 'preflight'
   | 'maneuver'
   | 'custom'
+  // Balloon / LTA
+  | 'cold_inflation'
+  | 'hot_inflation'
+  | 'deflation'
+  | 'pibal'
+  | 'fuel_switch'
 
 export interface StampEvent {
   id: string        // uuid
@@ -77,6 +83,8 @@ export interface Checklist {
   name: string
   category: ChecklistCategory
   items: ChecklistItem[]
+  /** Which flight mode this checklist belongs to. Missing = 'powered' (pre-LTA data). */
+  aircraft?: FlightMode
   createdAt: string  // ISO
   updatedAt: string  // ISO
 }
@@ -267,4 +275,33 @@ export interface Tileset {
   sizeBytes: number
   downloadedAt: string   // ISO
   sourceUrl: string
+}
+
+// ─── Flight Mode ─────────────────────────────────────────────────────────────
+
+/** 'powered' = PPC / ultralight (default). 'lta' = balloon / lighter-than-air. */
+export type FlightMode = 'powered' | 'lta'
+
+// ─── Windreader (LTA) ────────────────────────────────────────────────────────
+
+/** One measured drift vector. In a balloon, ground track/speed IS the wind at
+ *  that altitude, so each sample is a direct wind reading. */
+export interface WindreaderSample {
+  ts: number         // unix ms (end of the measurement interval)
+  altMSLft: number   // mean altitude over the interval
+  trackDeg: number   // direction of travel (wind blowing TOWARD), true
+  speedKts: number
+}
+
+export type WindreaderUnits = 'kt' | 'mph' | 'kmh'
+export type WindBandRelation = 'above' | 'current' | 'below'
+
+/** Averaged reading for one altitude band. */
+export interface WindBand {
+  altMSLft: number   // band center
+  trackDeg: number   // vector-averaged direction of travel
+  speedKts: number   // vector-averaged speed
+  count: number      // samples in the average (≤ max per band)
+  lastTs: number     // newest sample in this band
+  relation: WindBandRelation
 }

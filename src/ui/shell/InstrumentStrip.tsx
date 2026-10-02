@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../data/models'
-import { formatInstrumentValue, getInstrumentColor } from '../../data/logic/instrument-logic'
+import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../data/logic/instrument-logic'
+import { useFlightModeStore } from '../../state/flight-mode-store'
 import { theme } from '../theme'
 import { InstrumentPickerModal } from './InstrumentPickerModal'
 
@@ -10,6 +11,7 @@ export function InstrumentStrip() {
   const { strip, values, stripCount, setStrip } = useInstrumentStore()
   const layout = useResponsiveLayout()
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
+  const mode = useFlightModeStore(s => s.mode)
 
   function handlePick(newId: InstrumentId | null) {
     if (newId === null || pickerIndex === null) return
@@ -52,11 +54,13 @@ export function InstrumentStrip() {
       {visibleStrip.map((id, idx) => {
         // HSI is a composite SVG instrument — not suited for the text strip
         if (id === 'hsi') return null
+        // Course instruments are hidden in LTA mode (slot config is kept)
+        if (!isInstrumentAvailable(id, mode)) return null
 
         const label = INSTRUMENT_LABELS[id]
         const unit = INSTRUMENT_UNITS[id]
         const displayValue = values ? formatInstrumentValue(id, values) : '—'
-        const valueColor = values ? getInstrumentColor(id, values) : theme.colors.cream
+        const valueColor = values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
         // Find real strip index (not sliced index) for the picker
         const realIndex = strip.indexOf(id, idx)

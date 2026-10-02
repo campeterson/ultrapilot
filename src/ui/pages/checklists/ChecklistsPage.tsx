@@ -3,7 +3,8 @@ import { useChecklistStore } from '../../../state/checklist-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
-import { sortedItems, progressOf } from '../../../data/logic/checklist-logic'
+import { sortedItems, progressOf, checklistsForMode } from '../../../data/logic/checklist-logic'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { theme } from '../../theme'
 import type { Checklist, ChecklistCategory } from '../../../data/models'
 
@@ -181,7 +182,9 @@ function ChecklistRunner({ checklist }: { checklist: Checklist }) {
 }
 
 export function ChecklistsPage() {
-  const { checklists, loading, load, openRunner, activeChecklistId } = useChecklistStore()
+  const { checklists: allChecklists, loading, load, openRunner, activeChecklistId } = useChecklistStore()
+  const mode = useFlightModeStore(s => s.mode)
+  const checklists = checklistsForMode(allChecklists, mode)
 
   useEffect(() => { load() }, [])
 
@@ -223,7 +226,7 @@ export function ChecklistsPage() {
                 borderBottom: `1px solid ${theme.colors.darkBorder}`,
                 background: 'rgba(255,255,255,0.02)',
               }}>
-                {CATEGORY_LABELS[category]}
+                {mode === 'lta' && category === 'before_takeoff' ? 'Before Liftoff' : CATEGORY_LABELS[category]}
               </div>
               {items.map(cl => (
                 <ChecklistRow key={cl.id} checklist={cl} onOpen={() => openRunner(cl.id)} />

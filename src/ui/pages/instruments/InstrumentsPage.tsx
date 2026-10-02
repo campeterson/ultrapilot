@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useInstrumentStore } from '../../../state/instrument-store'
 import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
-import { formatInstrumentValue, getInstrumentColor } from '../../../data/logic/instrument-logic'
+import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { PAGE_LAYOUTS, type PageLayoutSlot, type SlotSize } from '../../../data/logic/instrument-layouts'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 import { theme } from '../../theme'
@@ -13,14 +14,17 @@ const SIZE_STYLE: Record<SlotSize, { value: string; label: string; padding: stri
   small:  { value: '18px',                label: theme.size.tiny,  padding: '8px 6px',   minHeight: '56px'  },
 }
 
-function SlotCard({ slot, id, onClick }: { slot: PageLayoutSlot; id: InstrumentId | undefined; onClick: () => void }) {
+function SlotCard({ slot, id: slotId, onClick }: { slot: PageLayoutSlot; id: InstrumentId | undefined; onClick: () => void }) {
   const { values } = useInstrumentStore()
+  const mode = useFlightModeStore(s => s.mode)
+  // Course instruments are hidden in LTA mode — slot shows as empty
+  const id = slotId && isInstrumentAvailable(slotId, mode) ? slotId : undefined
   const s = SIZE_STYLE[slot.size]
 
   const label = id ? INSTRUMENT_LABELS[id] : '+ Add'
   const unit = id ? INSTRUMENT_UNITS[id] : ''
   const displayValue = id && values ? formatInstrumentValue(id, values) : '—'
-  const valueColor = id && values ? getInstrumentColor(id, values) : theme.colors.cream
+  const valueColor = id && values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
   return (
     <button
