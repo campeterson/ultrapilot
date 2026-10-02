@@ -386,6 +386,31 @@ function Toggle({ value, onToggle }: { value: boolean; onToggle: () => void }) {
   )
 }
 
+function Segmented<T extends string | number>({ value, options, onChange }: {
+  value: T
+  options: { value: T; label: string }[]
+  onChange: (v: T) => void
+}) {
+  return (
+    <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', outline: `1px solid ${theme.colors.darkBorder}`, flexShrink: 0 }}>
+      {options.map(o => (
+        <button
+          key={String(o.value)}
+          onClick={() => onChange(o.value)}
+          style={{
+            minWidth: theme.tapTarget, minHeight: theme.tapTarget, padding: '0 10px', border: 'none',
+            background: o.value === value ? theme.colors.red : theme.colors.darkCard,
+            color: o.value === value ? '#fff' : theme.colors.light,
+            fontFamily: theme.font.primary, fontSize: theme.size.small, cursor: 'pointer',
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ── Slot Button ────────────────────────────────────────────────────────────────
 
 function SlotButton({
@@ -682,7 +707,7 @@ function PageLayoutPicker() {
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession, loadHistory } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
-  const { showDirectionLine, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
+  const { showDirectionLine, directionLineMode, directionLineMinutes, setDirectionLineMode, setDirectionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
   const [showInstrConfig, setShowInstrConfig] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
 
@@ -831,6 +856,26 @@ export function SettingsPage() {
       <Row label="Direction Line">
         <Toggle value={showDirectionLine} onToggle={() => toggle('showDirectionLine')} />
       </Row>
+      {showDirectionLine && (
+        <>
+          <Row label="Line Length">
+            <Segmented
+              value={directionLineMode}
+              options={[{ value: 'distance', label: '2 NM' }, { value: 'time', label: 'TIME' }]}
+              onChange={setDirectionLineMode}
+            />
+          </Row>
+          {directionLineMode === 'time' && (
+            <Row label="Look Ahead">
+              <Segmented
+                value={directionLineMinutes}
+                options={[{ value: 5, label: '5 MIN' }, { value: 10, label: '10 MIN' }, { value: 30, label: '30 MIN' }]}
+                onChange={setDirectionLineMinutes}
+              />
+            </Row>
+          )}
+        </>
+      )}
       <Row label="Distance Rings (0.5 / 1 / 2 nm)">
         <Toggle value={showDistanceRings} onToggle={() => toggle('showDistanceRings')} />
       </Row>

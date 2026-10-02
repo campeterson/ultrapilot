@@ -201,3 +201,14 @@ export function destinationPoint(lat: number, lon: number, bearingDeg: number, d
   const λ2 = λ1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(φ1), Math.cos(d) - Math.sin(φ1) * Math.sin(φ2))
   return [φ2 * RAD_TO_DEG, ((λ2 * RAD_TO_DEG) + 540) % 360 - 180]
 }
+
+/**
+ * Length of the map direction (track projection) line in nautical miles.
+ * 'distance' → fixed nm ahead; 'time' → distance covered in `minutes` at the
+ * current groundspeed (speedMs in m/s, as reported by the Geolocation API).
+ */
+export function directionLineLengthNM(mode: 'distance' | 'time', speedMs: number, minutes: number, fixedNM: number): number {
+  if (mode === 'distance') return fixedNM
+  const kt = speedMs * 1.943844
+  return kt * (minutes / 60)
+}

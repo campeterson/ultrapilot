@@ -11,7 +11,7 @@ import { useRouteStore } from '../../../state/route-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
 import { getTrackPoints, getEvents } from '../../../data/db'
-import { destinationPoint } from '../../../data/logic/gps-logic'
+import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
@@ -19,7 +19,7 @@ import { EVENT_COLORS, EVENT_LABELS } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
-const DIR_LINE_NM = 1.5
+const DIR_LINE_NM = 2          // distance mode: fixed 2 nm ahead
 const RING_RADII_M = [926, 1852, 3704] // 0.5, 1, 2 nm
 const AIRPORT_MIN_ZOOM = 8
 
@@ -110,7 +110,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { position, smoothedTrack } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
-  const { showDirectionLine, showDistanceRings, mapOrientation } = useMapSettingsStore()
+  const { showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, mapOrientation } = useMapSettingsStore()
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
   const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
   const routeWaypoints = useWaypointStore(s => s.waypoints)
@@ -211,9 +211,13 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       map.addLayer({ id: 'direct-to-line', type: 'line', source: 'direct-to-source',
         paint: { 'line-color': COLOR_MAGENTA, 'line-width': 2, 'line-opacity': 0.85, 'line-dasharray': [5, 3] } })
 
-      // Direction projection line
+      // Direction projection line — white casing under a dark dashed line so it
+      // reads on both the light basemap and darker terrain/water.
+      map.addLayer({ id: 'direction-line-casing', type: 'line', source: 'direction-source',
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#fff', 'line-width': 5, 'line-opacity': 0.9 } })
       map.addLayer({ id: 'direction-line', type: 'line', source: 'direction-source',
-        paint: { 'line-color': theme.colors.cream, 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [3, 3] } })
+        paint: { 'line-color': theme.colors.dark, 'line-width': 2.5, 'line-opacity': 0.95, 'line-dasharray': [3, 2] } })
 
       // Live track (green breadcrumb)
       map.addLayer({ id: 'track-line', type: 'line', source: 'track-source',
@@ -398,7 +402,8 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     const dirSrc = map.getSource('direction-source') as maplibregl.GeoJSONSource | undefined
     if (showDirectionLine && position.speed > 0.5) {
       const start = destinationPoint(position.lat, position.lon, track, 0.02)
-      const end = destinationPoint(position.lat, position.lon, track, DIR_LINE_NM)
+      const lengthNM = directionLineLengthNM(directionLineMode, position.speed, directionLineMinutes, DIR_LINE_NM)
+      const end = destinationPoint(position.lat, position.lon, track, lengthNM)
       dirSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[start[1], start[0]], [end[1], end[0]]] } })
     } else {
       dirSrc?.setData(emptyFC())
@@ -415,7 +420,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     } else {
       ringsSrc?.setData(emptyFC())
     }
-  }, [position, smoothedTrack, mapOrientation, showDirectionLine, showDistanceRings])
+  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings])
 
   // ── React to orientation mode change ────────────────────────────────────────
   useEffect(() => {
