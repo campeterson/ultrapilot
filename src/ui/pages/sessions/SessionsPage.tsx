@@ -7,14 +7,14 @@ import { trackEvent as analyticsTrack } from '../../../lib/analytics'
 import { formatNM } from '../../../data/logic/gps-logic'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { downloadString, sessionFilename, toGPX, toOADSAll, toOADSSession } from '../../../data/export'
-import type { Session, StampEvent } from '../../../data/models'
+import type { Session } from '../../../data/models'
 import { TimelineEventRow } from '../../components/TimelineEventRow'
 import { SessionMap } from './SessionMap'
 import { ReplayBar, ReplayReadouts } from './ReplayBar'
 import { useReplayStore } from '../../../state/replay-store'
 import { lastEventIndexAt } from '../../../data/logic/replay-logic'
 import { formatImportStats } from '../../../data/import'
-import { useReplayOnMainMap } from '../../hooks/useReplayOnMainMap'
+import { useReplayScreen } from '../../hooks/useReplayScreen'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -135,8 +135,9 @@ function YearSeparator({ year }: { year: number }) {
 // ─── Session detail ───────────────────────────────────────────────────────────
 
 function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack: () => void; onTrash: () => void }) {
-  const [events, setEvents] = useState<StampEvent[]>([])
-  const [loading, setLoading] = useState(true)
+  // Stamps load with the replay track; "loading" until this session's data is in
+  const events = useReplayStore(s => s.events)
+  const loading = useReplayStore(s => s.loading || s.sessionId !== session.id)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const trashSessionById = useSessionStore(s => s.trashSessionById)
 
@@ -145,16 +146,12 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
   const recording = useSessionStore(s => s.sessionStatus === 'active')
   const canReplay = hasTrack && !recording
   const seek = useReplayStore(s => s.seek)
-  // Tablets replay on the main map, so the panel drops its own map
-  const replayOnMain = useReplayOnMainMap()
+  // Tablets show the session map in the map area, so the panel drops its own
+  const replayScreen = useReplayScreen()
   // Re-renders only when the replay passes a new stamp, not every frame
   const currentEventIdx = useReplayStore(s => (s.active ? lastEventIndexAt(events, s.t) : -1))
 
   useEffect(() => {
-    getEvents(session.id).then(evs => {
-      setEvents(evs.sort((a, b) => a.ts - b.ts))
-      setLoading(false)
-    })
     const replay = useReplayStore.getState()
     replay.load(session)
     return () => replay.unload()
@@ -244,7 +241,7 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
       </div>
 
       {/* Map — top half (phones, or while a live session hides history on the main map) */}
-      {!replayOnMain && (
+      {!replayScreen && (
         <div style={{ flexBasis: '45%', flexShrink: 0, minHeight: '220px', position: 'relative', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
           {!loading && <SessionMap session={session} events={events} />}
         </div>

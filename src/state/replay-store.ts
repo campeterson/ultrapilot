@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import { getTrackPoints } from '../data/db'
+import { getTrackPoints, getEvents } from '../data/db'
 import { prepareReplay, skipGap, type ReplayTrack, type ReplaySpeed } from '../data/logic/replay-logic'
 import { buildWindSamples } from '../data/logic/windreader-logic'
-import type { Session, WindreaderSample } from '../data/models'
+import type { Session, StampEvent, WindreaderSample } from '../data/models'
 import { useFlightModeStore } from './flight-mode-store'
 import { useSessionStore } from './session-store'
 
@@ -13,6 +13,9 @@ function isRecording(): boolean {
 
 interface ReplayStore {
   sessionId: string | null
+  /** Session open in the detail view, and its stamps (sorted by time) */
+  session: Session | null
+  events: StampEvent[]
   originAltMSL: number
   track: ReplayTrack | null
   loading: boolean
@@ -38,6 +41,8 @@ interface ReplayStore {
 
 export const useReplayStore = create<ReplayStore>((set, get) => ({
   sessionId: null,
+  session: null,
+  events: [],
   originAltMSL: 0,
   track: null,
   loading: false,
@@ -48,18 +53,18 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   speed: 30,
 
   load: async (session) => {
-    set({ sessionId: session.id, originAltMSL: session.originAltMSL, track: null, windSamples: null, loading: true, active: false, playing: false })
-    const points = await getTrackPoints(session.id)
+    set({ sessionId: session.id, session, events: [], originAltMSL: session.originAltMSL, track: null, windSamples: null, loading: true, active: false, playing: false })
+    const [points, events] = await Promise.all([getTrackPoints(session.id), getEvents(session.id)])
     if (get().sessionId !== session.id) return  // user moved on
     const track = prepareReplay(points)
     // Sessions record their mode since v1.6.1; older / imported ones follow
     // whatever mode the app is in now
     const isLTA = (session.aircraft ?? useFlightModeStore.getState().mode) === 'lta'
     const windSamples = track && isLTA ? buildWindSamples(track.points) : null
-    set({ track, windSamples, loading: false, t: track?.startTs ?? 0 })
+    set({ track, windSamples, events: [...events].sort((a, b) => a.ts - b.ts), loading: false, t: track?.startTs ?? 0 })
   },
 
-  unload: () => set({ sessionId: null, track: null, windSamples: null, active: false, playing: false, t: 0 }),
+  unload: () => set({ sessionId: null, session: null, events: [], track: null, windSamples: null, active: false, playing: false, t: 0 }),
 
   play: () => {
     const { track, t } = get()

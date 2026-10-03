@@ -32,6 +32,8 @@ import { TilesetsPage } from '../pages/tilesets/TilesetsPage'
 import { useTilesetsStore } from '../../state/tilesets-store'
 import { useFlightModeStore } from '../../state/flight-mode-store'
 import { WindreaderPage } from '../pages/windreader/WindreaderPage'
+import { ReplayScreen } from '../pages/sessions/ReplayScreen'
+import { useReplayScreen } from '../hooks/useReplayScreen'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<NavTab>('map')
@@ -43,6 +45,8 @@ export function AppShell() {
   const { sessionStatus } = useSessionStore()
   const { showInstrumentStrip } = useMapSettingsStore()
   const flightMode = useFlightModeStore(s => s.mode)
+  // Tablet: an open session's map replaces the live map in the map area
+  const replayScreen = useReplayScreen()
 
   // Wind tab is LTA-only and Routes is powered-only — leave a tab that the
   // new mode doesn't have
@@ -143,7 +147,13 @@ export function AppShell() {
 
       <PanelLayout
         layout={layout}
-        mapContent={<MapPage showControls={layout !== 'phone' || (activeTab === 'map' && moreView === null)} />}
+        mapContent={
+          <>
+            {/* Live map stays mounted under the replay screen */}
+            <MapPage showControls={!replayScreen && (layout !== 'phone' || (activeTab === 'map' && moreView === null))} />
+            {replayScreen && <ReplayScreen />}
+          </>
+        }
         panelContent={panelContent}
         panelOpen={effectivePanelOpen}
         onTogglePanel={() => setPanelOpen(v => !v)}
