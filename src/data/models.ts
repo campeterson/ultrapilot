@@ -11,6 +11,8 @@ export interface Session {
   totalDistanceNM: number
   deviceInfo: string
   deletedAt?: string | null  // ISO; set when soft-deleted to trash
+  /** Flight mode when the session started. Missing on older / imported sessions. */
+  aircraft?: FlightMode
 }
 
 // ─── Track Points ─────────────────────────────────────────────────────────────
@@ -294,7 +296,8 @@ export interface WindreaderSample {
 }
 
 export type WindreaderUnits = 'kt' | 'mph' | 'kmh'
-export type WindBandRelation = 'above' | 'current' | 'below'
+/** 'none' = no reference altitude (e.g. a whole-flight wind profile). */
+export type WindBandRelation = 'above' | 'current' | 'below' | 'none'
 
 /** Averaged reading for one altitude band. */
 export interface WindBand {

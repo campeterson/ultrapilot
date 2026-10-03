@@ -48,6 +48,7 @@ function normalizeSession(input: unknown): Session | null {
     totalDistanceNM: coerceFinite(s.totalDistanceNM),
     deviceInfo: typeof s.deviceInfo === 'string' ? s.deviceInfo : 'imported',
     deletedAt: null,
+    aircraft: s.aircraft === 'lta' || s.aircraft === 'powered' ? s.aircraft : undefined,
   }
 }
 

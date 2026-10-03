@@ -7,6 +7,7 @@ export const RELATION_COLORS: Record<WindBandRelation, string> = {
   above: theme.colors.blue,
   current: theme.colors.cream,
   below: theme.colors.amber,
+  none: theme.colors.light,
 }
 
 function DriftArrow({ deg, color, size }: { deg: number; color: string; size: number }) {
@@ -22,6 +23,8 @@ interface Props {
   /** Compact = map overlay: tighter rows, only the bands nearest your altitude. */
   compact?: boolean
   maxRows?: number
+  /** Clock for the age column — the replay time when replaying, else now. */
+  nowTs?: number
 }
 
 /** Show at most `max` bands, centered on the current one. */
@@ -32,9 +35,9 @@ function windowAroundCurrent(bands: WindBand[], max: number): WindBand[] {
   return bands.slice(start, start + max)
 }
 
-export function WindreaderTable({ bands, compact = false, maxRows }: Props) {
+export function WindreaderTable({ bands, compact = false, maxRows, nowTs }: Props) {
   const units = useWindreaderStore(s => s.units)
-  const now = Date.now()
+  const now = nowTs ?? Date.now()
   const rows = maxRows ? windowAroundCurrent(bands, maxRows) : bands
   const pad = compact ? '4px 8px' : '10px 16px'
   const font = compact ? theme.size.small : theme.size.body

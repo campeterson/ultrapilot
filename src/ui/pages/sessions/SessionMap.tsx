@@ -1,9 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../map/pmtiles-protocol'
 import { useReplayStore } from '../../../state/replay-store'
 import { frameAt, trailCoords } from '../../../data/logic/replay-logic'
+import { windLineLengthNM } from '../../../data/logic/windreader-logic'
+import { destinationPoint } from '../../../data/logic/gps-logic'
+import { useWindreaderStore } from '../../../state/windreader-store'
+import { useReplayWindBands } from '../../hooks/useReplayWindBands'
+import { WindreaderTable, RELATION_COLORS } from '../windreader/WindreaderTable'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { theme } from '../../theme'
@@ -55,6 +60,9 @@ export function SessionMap({ session, events }: SessionMapProps) {
   const replayT = useReplayStore(s => s.t)
   const playing = useReplayStore(s => s.playing)
   const originAlt = useReplayStore(s => s.originAltMSL)
+  const wind = useReplayWindBands()
+  const windLineMinutes = useWindreaderStore(s => s.lineMinutes)
+  const [windPanelOpen, setWindPanelOpen] = useState(true)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -81,6 +89,19 @@ export function SessionMap({ session, events }: SessionMapProps) {
         paint: { 'line-color': '#000', 'line-width': 6, 'line-opacity': 0.35 } })
       map.addLayer({ id: 'replay-trail-line', type: 'line', source: 'replay-trail',
         paint: { 'line-color': theme.colors.trackGreen, 'line-width': 4 } })
+      // LTA replay: windreader wind lines from the replay aircraft
+      map.addSource('replay-wind', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({ id: 'replay-wind-casing', type: 'line', source: 'replay-wind',
+        filter: ['==', ['geometry-type'], 'LineString'], layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#000', 'line-width': ['case', ['get', 'current'], 6, 4.5], 'line-opacity': 0.5 } })
+      map.addLayer({ id: 'replay-wind-lines', type: 'line', source: 'replay-wind',
+        filter: ['==', ['geometry-type'], 'LineString'], layout: { 'line-cap': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'current'], 3.5, 2.5] } })
+      map.addLayer({ id: 'replay-wind-labels', type: 'symbol', source: 'replay-wind',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Regular'], 'text-size': 11,
+          'text-anchor': 'left', 'text-offset': [0.5, 0], 'text-allow-overlap': true },
+        paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5 } })
     })
     // Panning by hand stops the replay camera from following
     map.on('dragstart', () => { followRef.current = false })
@@ -196,13 +217,70 @@ export function SessionMap({ session, events }: SessionMapProps) {
     }
   }, [track, replayActive, replayT, playing, originAlt])
 
+  // ── LTA replay: wind lines from the aircraft, one per altitude band ─────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    const src = map.getSource('replay-wind') as maplibregl.GeoJSONSource | undefined
+    if (!wind || !track || !replayActive) {
+      src?.setData({ type: 'FeatureCollection', features: [] })
+      return
+    }
+    const f = frameAt(track, replayT, originAlt)
+    const features: GeoJSON.Feature[] = []
+    for (const b of wind.bands) {
+      if (b.speedKts === 0) continue
+      const end = destinationPoint(f.lat, f.lon, b.trackDeg, windLineLengthNM(b.speedKts, windLineMinutes))
+      const props = { color: RELATION_COLORS[b.relation], current: b.relation === 'current' }
+      features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: [[f.lon, f.lat], [end[1], end[0]]] } })
+      features.push({ type: 'Feature', properties: { ...props, label: b.altMSLft.toLocaleString() }, geometry: { type: 'Point', coordinates: [end[1], end[0]] } })
+    }
+    src?.setData({ type: 'FeatureCollection', features })
+  }, [wind, track, replayActive, replayT, originAlt, windLineMinutes])
+
   // Pressing play again re-enables follow
   useEffect(() => { if (playing) followRef.current = true }, [playing])
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: '100%', height: '100%', background: theme.colors.darkCard }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%', background: theme.colors.darkCard }} />
+      {wind && wind.bands.length > 0 && (
+        windPanelOpen ? (
+          <div style={{
+            position: 'absolute', top: '8px', left: '8px', zIndex: 5, width: '200px',
+            maxHeight: 'calc(100% - 16px)', overflowY: 'auto',
+            background: 'rgba(14, 14, 20, 0.88)', border: `1px solid ${theme.colors.darkBorder}`,
+            borderRadius: '10px', backdropFilter: 'blur(6px)',
+          }}>
+            <button
+              onClick={() => setWindPanelOpen(false)}
+              style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%',
+                padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer',
+                color: theme.colors.light, fontFamily: theme.font.primary, fontSize: theme.size.tiny,
+                letterSpacing: '0.08em', minHeight: theme.tapTarget,
+              }}
+            >
+              <span>{replayActive ? 'WINDREADER' : 'FLIGHT WINDS'}</span><span style={{ color: theme.colors.dim }}>✕</span>
+            </button>
+            {/* Replaying: the 5 bands around the replay altitude. Otherwise the whole profile. */}
+            <WindreaderTable bands={wind.bands} compact maxRows={replayActive ? 5 : undefined} nowTs={wind.nowTs} />
+          </div>
+        ) : (
+          <button
+            onClick={() => setWindPanelOpen(true)}
+            aria-label="Show Windreader"
+            style={{
+              position: 'absolute', top: '8px', left: '8px', zIndex: 5,
+              width: theme.tapTarget, height: theme.tapTarget, borderRadius: '50%',
+              border: `1px solid ${theme.colors.darkBorder}`, background: 'rgba(14, 14, 20, 0.88)',
+              color: theme.colors.cream, fontSize: '18px', cursor: 'pointer',
+            }}
+          >
+            ≋
+          </button>
+        )
+      )}
+    </div>
   )
 }

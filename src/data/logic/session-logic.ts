@@ -1,11 +1,12 @@
-import type { Session, StampEvent } from '../models'
+import type { FlightMode, Session, StampEvent } from '../models'
 import { haversineNM } from './gps-logic'
 
 /** Create a new Session record from a GPS fix */
 export function createSession(
   lat: number,
   lon: number,
-  altMSLm: number
+  altMSLm: number,
+  aircraft: FlightMode = 'powered',
 ): Session {
   const now = new Date().toISOString()
   return {
@@ -18,6 +19,7 @@ export function createSession(
     maxAGL: 0,
     totalDistanceNM: 0,
     deviceInfo: navigator.userAgent.slice(0, 120),
+    aircraft,
   }
 }
 

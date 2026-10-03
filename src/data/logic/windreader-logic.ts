@@ -105,7 +105,7 @@ export function computeBands(
 
   return bands.map((b, i) => ({
     ...b,
-    relation: i === currentIdx ? 'current' : currentAltMSLft !== null && b.altMSLft > currentAltMSLft ? 'above' : 'below',
+    relation: currentAltMSLft === null ? 'none' : i === currentIdx ? 'current' : b.altMSLft > currentAltMSLft ? 'above' : 'below',
   }))
 }
 
@@ -137,4 +137,32 @@ export function windAtCurrentLevel(bands: WindBand[]): { dirDeg: number; speedKt
   const cur = bands.find(b => b.relation === 'current')
   if (!cur) return null
   return { dirDeg: (cur.trackDeg + 180) % 360, speedKts: cur.speedKts }
+}
+
+/** Rebuild windreader samples from a recorded track (for replay). Uses the
+ *  same anchor/interval rules as live sampling, so 5 s app recordings map 1:1
+ *  and 1 Hz GPX tracks are thinned to one sample per ≥5 s. Sorted by ts. */
+export function buildWindSamples(fixes: WindreaderFix[]): WindreaderSample[] {
+  const out: WindreaderSample[] = []
+  let anchor: WindreaderFix | null = null
+  for (const fix of fixes) {
+    if (!anchor) { anchor = fix; continue }
+    const dt = fix.ts - anchor.ts
+    if (dt < WINDREADER_MIN_INTERVAL_MS) continue
+    const sample = makeSample(anchor, fix)
+    if (sample) out.push(sample)
+    anchor = fix   // after a sample, or after a too-long gap: restart here
+  }
+  return out
+}
+
+/** Samples recorded at or before t (samples sorted by ts). */
+export function samplesUpTo(samples: WindreaderSample[], t: number): WindreaderSample[] {
+  let lo = 0, hi = samples.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (samples[mid].ts <= t) lo = mid + 1
+    else hi = mid
+  }
+  return samples.slice(0, lo)
 }

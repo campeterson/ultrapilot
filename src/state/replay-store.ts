@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import { getTrackPoints } from '../data/db'
 import { prepareReplay, skipGap, type ReplayTrack, type ReplaySpeed } from '../data/logic/replay-logic'
-import type { Session } from '../data/models'
+import { buildWindSamples } from '../data/logic/windreader-logic'
+import type { Session, WindreaderSample } from '../data/models'
+import { useFlightModeStore } from './flight-mode-store'
 
 interface ReplayStore {
   sessionId: string | null
   originAltMSL: number
   track: ReplayTrack | null
   loading: boolean
+  /** Windreader samples rebuilt from the track — LTA sessions only, else null. */
+  windSamples: WindreaderSample[] | null
 
   /** True once the user has started or scrubbed a replay (map dims the full track). */
   active: boolean
@@ -31,20 +35,25 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   originAltMSL: 0,
   track: null,
   loading: false,
+  windSamples: null,
   active: false,
   playing: false,
   t: 0,
   speed: 30,
 
   load: async (session) => {
-    set({ sessionId: session.id, originAltMSL: session.originAltMSL, track: null, loading: true, active: false, playing: false })
+    set({ sessionId: session.id, originAltMSL: session.originAltMSL, track: null, windSamples: null, loading: true, active: false, playing: false })
     const points = await getTrackPoints(session.id)
     if (get().sessionId !== session.id) return  // user moved on
     const track = prepareReplay(points)
-    set({ track, loading: false, t: track?.startTs ?? 0 })
+    // Sessions record their mode since v1.6.1; older / imported ones follow
+    // whatever mode the app is in now
+    const isLTA = (session.aircraft ?? useFlightModeStore.getState().mode) === 'lta'
+    const windSamples = track && isLTA ? buildWindSamples(track.points) : null
+    set({ track, windSamples, loading: false, t: track?.startTs ?? 0 })
   },
 
-  unload: () => set({ sessionId: null, track: null, active: false, playing: false, t: 0 }),
+  unload: () => set({ sessionId: null, track: null, windSamples: null, active: false, playing: false, t: 0 }),
 
   play: () => {
     const { track, t } = get()

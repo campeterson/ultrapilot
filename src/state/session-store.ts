@@ -3,6 +3,7 @@ import { putSession, getSession, listSessions, listDeletedSessions, deleteSessio
 import { parseSessionFile, type ImportStats } from '../data/import'
 import { createSession, endSession, computeTrackDistanceNM } from '../data/logic/session-logic'
 import type { Session } from '../data/models'
+import { useFlightModeStore } from './flight-mode-store'
 
 interface SessionStore {
   // Active session
@@ -63,7 +64,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   trackBuffer: [],
 
   startSession: async (lat, lon, altMSLm) => {
-    const s = createSession(lat, lon, altMSLm)
+    const s = createSession(lat, lon, altMSLm, useFlightModeStore.getState().mode)
     await putSession(s)
     localStorage.setItem('ultrapilot_lastSession', s.id)
     set({ session: s, sessionStatus: 'active' })
