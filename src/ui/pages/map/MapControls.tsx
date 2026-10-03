@@ -17,9 +17,12 @@ import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useWindBands } from '../../hooks/useWindBands'
 import { WindreaderTable } from '../windreader/WindreaderTable'
+import { ReplayWindPanel } from '../sessions/ReplayWindPanel'
 
 interface MapControlsProps {
   onRecenter: () => void
+  /** A session replay is playing on this map — swap the live windreader for the replay's */
+  replayOnMain?: boolean
 }
 
 const btnBase: React.CSSProperties = {
@@ -233,7 +236,7 @@ function WindreaderOverlay({ top, onHide }: { top: string; onHide: () => void })
   )
 }
 
-export function MapControls({ onRecenter }: MapControlsProps) {
+export function MapControls({ onRecenter, replayOnMain = false }: MapControlsProps) {
   const [stampOpen, setStampOpen] = useState(false)
   const [overlayPicker, setOverlayPicker] = useState<'left' | 'right' | 'bottom' | null>(null)
   const { session, sessionStatus } = useSessionStore()
@@ -274,7 +277,9 @@ export function MapControls({ onRecenter }: MapControlsProps) {
       {showMapOverlays && mapRight && <MapOverlayInstrument id={mapRight} position="top-right" onClick={() => setOverlayPicker('right')} />}
       {showMapOverlays && mapBottom && <MapOverlayInstrument id={mapBottom} position="bottom-right" onClick={() => setOverlayPicker('bottom')} />}
 
-      {isLTA && showWindPanel && (
+      {replayOnMain ? (
+        <ReplayWindPanel top={windPanelTop} left="12px" />
+      ) : isLTA && showWindPanel && (
         <WindreaderOverlay top={windPanelTop} onHide={() => setWindSetting('showMapPanel', false)} />
       )}
 
@@ -289,7 +294,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         >
           {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
         </button>
-        {isLTA && !showWindPanel && (
+        {isLTA && !showWindPanel && !replayOnMain && (
           <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
         )}
         <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>

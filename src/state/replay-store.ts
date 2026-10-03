@@ -4,6 +4,12 @@ import { prepareReplay, skipGap, type ReplayTrack, type ReplaySpeed } from '../d
 import { buildWindSamples } from '../data/logic/windreader-logic'
 import type { Session, WindreaderSample } from '../data/models'
 import { useFlightModeStore } from './flight-mode-store'
+import { useSessionStore } from './session-store'
+
+/** Replay is disabled while a live session records — the pilot is flying. */
+function isRecording(): boolean {
+  return useSessionStore.getState().sessionStatus === 'active'
+}
 
 interface ReplayStore {
   sessionId: string | null
@@ -57,7 +63,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
   play: () => {
     const { track, t } = get()
-    if (!track) return
+    if (!track || isRecording()) return
     // Restart from the top if we're parked at the end
     const start = t >= track.endTs ? track.startTs : t
     set({ active: true, playing: true, t: start })
@@ -69,7 +75,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
   seek: (t) => {
     const { track } = get()
-    if (!track) return
+    if (!track || isRecording()) return
     set({ active: true, t: Math.min(Math.max(t, track.startTs), track.endTs) })
   },
 
@@ -87,3 +93,11 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     set({ t: next })
   },
 }))
+
+// Starting a live session stops any replay in progress
+useSessionStore.subscribe((state, prev) => {
+  if (state.sessionStatus === 'active' && prev.sessionStatus !== 'active') {
+    const r = useReplayStore.getState()
+    if (r.active || r.playing) r.stop()
+  }
+})

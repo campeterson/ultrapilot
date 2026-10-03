@@ -13,8 +13,10 @@ import { useWeatherStore } from '../../../state/weather-store'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useWindBands } from '../../hooks/useWindBands'
-import { windLineLengthNM } from '../../../data/logic/windreader-logic'
-import { RELATION_COLORS } from '../windreader/WindreaderTable'
+import { windLineFeatures, addReplayLayers, renderReplay } from './replay-layers'
+import { useReplayStore } from '../../../state/replay-store'
+import { useReplayWindBands } from '../../hooks/useReplayWindBands'
+import { useReplayOnMainMap } from '../../hooks/useReplayOnMainMap'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
@@ -124,6 +126,20 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { showMapLines: showWindLines, lineMinutes: windLineMinutes } = useWindreaderStore()
   const { bands: windBands } = useWindBands()
 
+  // Tablet replay plays here (the panel keeps the controls). While it does,
+  // the map stops chasing live GPS and live track-up rotation.
+  const replayOnMain = useReplayOnMainMap()
+  const replayOnMainRef = useRef(false)
+  replayOnMainRef.current = replayOnMain
+  const replayAircraftRef = useRef<maplibregl.Marker | null>(null)
+  const replayFollowRef = useRef(true)
+  const replayTrack = useReplayStore(s => s.track)
+  const replayActive = useReplayStore(s => s.active)
+  const replayT = useReplayStore(s => s.t)
+  const replayPlaying = useReplayStore(s => s.playing)
+  const replayOriginAlt = useReplayStore(s => s.originAltMSL)
+  const replayWind = useReplayWindBands()
+
   const [selection, setSelection] = useState<MapSelection | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
   const [wpName, setWpName] = useState('')
@@ -171,6 +187,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       // History track
       map.addLayer({ id: 'history-track', type: 'line', source: 'history-source',
         paint: { 'line-color': COLOR_TRACK, 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [3, 3] } })
+
+      // Replay of the selected history session (tablet)
+      addReplayLayers(map, 'replay')
 
       // History event dots
       map.addLayer({ id: 'history-events-layer', type: 'circle', source: 'history-events',
@@ -334,7 +353,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       }
     })
 
-    map.on('dragstart', () => { autoFollowRef.current = false })
+    map.on('dragstart', () => { autoFollowRef.current = false; replayFollowRef.current = false })
     map.on('moveend', () => saveMapState(map))
 
     mapRef.current = map
@@ -419,11 +438,11 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
     // Track Up: rotate map to keep aircraft heading toward top. Gated on a
     // smoothed track existing (so we don't rotate on GPS jitter at rest).
-    if (mapOrientation === 'track-up' && smoothedTrack !== null) {
+    if (mapOrientation === 'track-up' && smoothedTrack !== null && !replayOnMainRef.current) {
       map.setBearing(track)
     }
 
-    if (autoFollowRef.current) {
+    if (autoFollowRef.current && !replayOnMainRef.current) {
       map.setCenter(lngLat)
     }
 
@@ -457,26 +476,36 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     const map = mapRef.current
     if (!map || !mapLoadedRef.current) return
     const src = map.getSource('wind-lines-source') as maplibregl.GeoJSONSource | undefined
-    if (flightMode !== 'lta' || !showWindLines || !position) {
+    if (flightMode !== 'lta' || !showWindLines || !position || replayOnMain) {
       src?.setData(emptyFC())
       return
     }
-    const features: GeoJSON.Feature[] = []
-    for (const b of windBands) {
-      if (b.speedKts === 0) continue
-      const end = destinationPoint(position.lat, position.lon, b.trackDeg, windLineLengthNM(b.speedKts, windLineMinutes))
-      const props = { color: RELATION_COLORS[b.relation], current: b.relation === 'current' }
-      features.push({
-        type: 'Feature', properties: props,
-        geometry: { type: 'LineString', coordinates: [[position.lon, position.lat], [end[1], end[0]]] },
-      })
-      features.push({
-        type: 'Feature', properties: { ...props, label: b.altMSLft.toLocaleString() },
-        geometry: { type: 'Point', coordinates: [end[1], end[0]] },
-      })
-    }
-    src?.setData({ type: 'FeatureCollection', features })
-  }, [flightMode, showWindLines, windLineMinutes, windBands, position])
+    src?.setData(windLineFeatures(windBands, position.lat, position.lon, windLineMinutes))
+  }, [flightMode, showWindLines, windLineMinutes, windBands, position, replayOnMain])
+
+  // ── Replay on the main map (tablet) ─────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    if (!replayActive) replayFollowRef.current = true
+    renderReplay(map, 'replay', replayAircraftRef, {
+      track: replayTrack, active: replayOnMain && replayActive, t: replayT,
+      originAltMSL: replayOriginAlt, playing: replayPlaying,
+      windBands: replayWind?.bands ?? null, windMinutes: windLineMinutes,
+      baseLayerId: 'history-track', baseOpacity: 0.6, follow: replayFollowRef.current,
+    })
+  }, [replayOnMain, replayTrack, replayActive, replayT, replayPlaying, replayOriginAlt, replayWind, windLineMinutes])
+
+  useEffect(() => { if (replayPlaying) replayFollowRef.current = true }, [replayPlaying])
+
+  // Replays are drawn north-up; restore track-up rotation afterwards
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (replayOnMain) map.rotateTo(0, { duration: 300 })
+    else if (mapOrientation === 'track-up') map.setBearing(currentTrackRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayOnMain])
 
   // ── React to orientation mode change ────────────────────────────────────────
   useEffect(() => {
@@ -677,7 +706,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {showControls && <MapControls onRecenter={handleRecenter} />}
+      {showControls && <MapControls onRecenter={handleRecenter} replayOnMain={replayOnMain} />}
 
       {/* Light-dismiss overlay */}
       {selection && !wpForm && (

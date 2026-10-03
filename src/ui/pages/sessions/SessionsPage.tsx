@@ -14,6 +14,7 @@ import { ReplayBar, ReplayReadouts } from './ReplayBar'
 import { useReplayStore } from '../../../state/replay-store'
 import { lastEventIndexAt } from '../../../data/logic/replay-logic'
 import { formatImportStats } from '../../../data/import'
+import { useReplayOnMainMap } from '../../hooks/useReplayOnMainMap'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -141,7 +142,11 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
 
   const replayActive = useReplayStore(s => s.active)
   const hasTrack = useReplayStore(s => !!s.track)
+  const recording = useSessionStore(s => s.sessionStatus === 'active')
+  const canReplay = hasTrack && !recording
   const seek = useReplayStore(s => s.seek)
+  // Tablets replay on the main map, so the panel drops its own map
+  const replayOnMain = useReplayOnMainMap()
   // Re-renders only when the replay passes a new stamp, not every frame
   const currentEventIdx = useReplayStore(s => (s.active ? lastEventIndexAt(events, s.t) : -1))
 
@@ -238,12 +243,19 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         </button>
       </div>
 
-      {/* Map — top half */}
-      <div style={{ flexBasis: '45%', flexShrink: 0, minHeight: '220px', position: 'relative', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
-        {!loading && <SessionMap session={session} events={events} />}
-      </div>
+      {/* Map — top half (phones, or while a live session hides history on the main map) */}
+      {!replayOnMain && (
+        <div style={{ flexBasis: '45%', flexShrink: 0, minHeight: '220px', position: 'relative', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
+          {!loading && <SessionMap session={session} events={events} />}
+        </div>
+      )}
 
-      {hasTrack && <ReplayBar />}
+      {canReplay && <ReplayBar />}
+      {hasTrack && recording && (
+        <div style={{ padding: '10px 16px', fontSize: theme.size.small, color: theme.colors.dim, borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
+          Replay is unavailable while a session is recording.
+        </div>
+      )}
 
       {/* Summary cards — swapped for live readouts while replaying */}
       {replayActive ? <ReplayReadouts /> : (
@@ -272,9 +284,9 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         {events.map((ev, i) => (
           <div
             key={ev.id}
-            onClick={hasTrack ? () => seek(ev.ts) : undefined}
+            onClick={canReplay ? () => seek(ev.ts) : undefined}
             style={{
-              cursor: hasTrack ? 'pointer' : undefined,
+              cursor: canReplay ? 'pointer' : undefined,
               background: i === currentEventIdx ? theme.colors.redDim : undefined,
               borderLeft: `3px solid ${i === currentEventIdx ? theme.colors.red : 'transparent'}`,
             }}
