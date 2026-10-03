@@ -46,6 +46,14 @@ export function SessionMap({ session, events }: SessionMapProps) {
   const aircraftRef = useRef<maplibregl.Marker | null>(null)
   // Follow the replay aircraft until the user pans; the button resumes it
   const [follow, setFollow] = useState(true)
+  // True while a finger or mouse button is down on the map. Re-centering then
+  // would cancel the gesture before MapLibre recognises it as a drag — which
+  // made one-finger panning feel locked on phones.
+  const pressedRef = useRef(false)
+  const removeListenersRef = useRef<(() => void) | null>(null)
+  // Bumped when a user gesture ends, so a paused-but-following replay re-centers
+  // after a pinch-zoom (no replay ticks arrive while paused)
+  const [gestureEnd, setGestureEnd] = useState(0)
   const track = useReplayStore(s => s.track)
   const replayActive = useReplayStore(s => s.active)
   const replayT = useReplayStore(s => s.t)
@@ -74,9 +82,34 @@ export function SessionMap({ session, events }: SessionMapProps) {
         paint: { 'line-color': theme.colors.trackGreen, 'line-width': 3, 'line-opacity': 0.9 } })
       addReplayLayers(map, 'replay')
     })
-    // Panning by hand stops following (pinch/scroll zoom keeps it). Only
-    // user drags fire dragstart — our own jumpTo doesn't.
-    map.on('dragstart', () => setFollow(false))
+    // A one-finger (or mouse) pan stops following. Two-finger gestures are
+    // pinch-zoom, which keeps following. Only user drags fire dragstart.
+    map.on('dragstart', (e) => {
+      const ev = e.originalEvent as TouchEvent | MouseEvent | undefined
+      if (ev && 'touches' in ev && ev.touches.length > 1) return
+      setFollow(false)
+    })
+    // Our own jumpTo has no originalEvent, so this can't loop
+    map.on('moveend', (e) => { if (e.originalEvent) setGestureEnd(n => n + 1) })
+    const press = () => { pressedRef.current = true }
+    const release = (e: TouchEvent | MouseEvent) => {
+      if ('touches' in e && e.touches.length > 0) return  // other fingers still down
+      pressedRef.current = false
+      setGestureEnd(n => n + 1)
+    }
+    const canvas = map.getCanvasContainer()
+    canvas.addEventListener('touchstart', press, { passive: true })
+    canvas.addEventListener('mousedown', press)
+    window.addEventListener('touchend', release, { passive: true })
+    window.addEventListener('touchcancel', release, { passive: true })
+    window.addEventListener('mouseup', release)
+    removeListenersRef.current = () => {
+      canvas.removeEventListener('touchstart', press)
+      canvas.removeEventListener('mousedown', press)
+      window.removeEventListener('touchend', release)
+      window.removeEventListener('touchcancel', release)
+      window.removeEventListener('mouseup', release)
+    }
 
     mapRef.current = map
 
@@ -85,6 +118,8 @@ export function SessionMap({ session, events }: SessionMapProps) {
 
     return () => {
       ro.disconnect()
+      removeListenersRef.current?.()
+      removeListenersRef.current = null
       aircraftRef.current?.remove()
       aircraftRef.current = null
       for (const m of markersRef.current) m.remove()
@@ -145,9 +180,9 @@ export function SessionMap({ session, events }: SessionMapProps) {
     renderReplay(map, 'replay', aircraftRef, {
       track, active: replayActive, t: replayT, originAltMSL: originAlt,
       windBands: wind?.bands ?? null, windMinutes: windLineMinutes,
-      baseLayerId: 'track-line', baseOpacity: 0.9, follow,
+      baseLayerId: 'track-line', baseOpacity: 0.9, follow: follow && !pressedRef.current,
     })
-  }, [track, replayActive, replayT, originAlt, wind, windLineMinutes, follow])
+  }, [track, replayActive, replayT, originAlt, wind, windLineMinutes, follow, gestureEnd])
 
   // Each new replay starts out following
   useEffect(() => { if (!replayActive) setFollow(true) }, [replayActive])

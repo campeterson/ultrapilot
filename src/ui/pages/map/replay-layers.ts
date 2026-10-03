@@ -102,5 +102,8 @@ export function renderReplay(
 
   // Follow: hold the aircraft at the center every frame (also while paused or
   // scrubbing). jumpTo, not easeTo — overlapping animations at ~20 fps stutter.
-  if (s.follow) map.jumpTo({ center: [f.lon, f.lat] })
+  // Any camera call also stops MapLibre's active gesture handlers, so never
+  // re-center while the map is moving (drag, pinch, +/- zoom animation);
+  // the caller also holds off while a finger/mouse is down — see SessionMap.
+  if (s.follow && !map.isMoving()) map.jumpTo({ center: [f.lon, f.lat] })
 }
