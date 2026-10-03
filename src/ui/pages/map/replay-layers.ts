@@ -59,13 +59,12 @@ export interface ReplayRenderState {
   active: boolean
   t: number
   originAltMSL: number
-  playing: boolean
   windBands: WindBand[] | null
   windMinutes: number
   /** Base track layer to dim while replaying, and its normal opacity */
   baseLayerId: string
   baseOpacity: number
-  /** Re-center when the aircraft nears the edge */
+  /** Keep the aircraft centered (until the user pans the map) */
   follow: boolean
 }
 
@@ -101,13 +100,7 @@ export function renderReplay(
   }
   aircraftRef.current.setLngLat([f.lon, f.lat]).setRotation(f.trackDeg)
 
-  // Re-center only near the edge — constant panning makes the map unreadable
-  if (s.playing && s.follow) {
-    const p = map.project([f.lon, f.lat])
-    const c = map.getContainer()
-    const mx = c.clientWidth * 0.15, my = c.clientHeight * 0.15
-    if (p.x < mx || p.y < my || p.x > c.clientWidth - mx || p.y > c.clientHeight - my) {
-      map.easeTo({ center: [f.lon, f.lat], duration: 400 })
-    }
-  }
+  // Follow: hold the aircraft at the center every frame (also while paused or
+  // scrubbing). jumpTo, not easeTo — overlapping animations at ~20 fps stutter.
+  if (s.follow) map.jumpTo({ center: [f.lon, f.lat] })
 }

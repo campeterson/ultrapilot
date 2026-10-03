@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../map/pmtiles-protocol'
@@ -44,11 +44,11 @@ export function SessionMap({ session, events }: SessionMapProps) {
   const markersRef = useRef<maplibregl.Marker[]>([])
   const mapLoadedRef = useRef(false)
   const aircraftRef = useRef<maplibregl.Marker | null>(null)
-  const followRef = useRef(true)
+  // Follow the replay aircraft until the user pans; the button resumes it
+  const [follow, setFollow] = useState(true)
   const track = useReplayStore(s => s.track)
   const replayActive = useReplayStore(s => s.active)
   const replayT = useReplayStore(s => s.t)
-  const playing = useReplayStore(s => s.playing)
   const originAlt = useReplayStore(s => s.originAltMSL)
   const wind = useReplayWindBands()
   const windLineMinutes = useWindreaderStore(s => s.lineMinutes)
@@ -74,8 +74,9 @@ export function SessionMap({ session, events }: SessionMapProps) {
         paint: { 'line-color': theme.colors.trackGreen, 'line-width': 3, 'line-opacity': 0.9 } })
       addReplayLayers(map, 'replay')
     })
-    // Panning by hand stops the replay camera from following
-    map.on('dragstart', () => { followRef.current = false })
+    // Panning by hand stops following (pinch/scroll zoom keeps it). Only
+    // user drags fire dragstart — our own jumpTo doesn't.
+    map.on('dragstart', () => setFollow(false))
 
     mapRef.current = map
 
@@ -141,21 +142,37 @@ export function SessionMap({ session, events }: SessionMapProps) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoadedRef.current) return
-    if (!replayActive) followRef.current = true
     renderReplay(map, 'replay', aircraftRef, {
-      track, active: replayActive, t: replayT, originAltMSL: originAlt, playing,
+      track, active: replayActive, t: replayT, originAltMSL: originAlt,
       windBands: wind?.bands ?? null, windMinutes: windLineMinutes,
-      baseLayerId: 'track-line', baseOpacity: 0.9, follow: followRef.current,
+      baseLayerId: 'track-line', baseOpacity: 0.9, follow,
     })
-  }, [track, replayActive, replayT, playing, originAlt, wind, windLineMinutes])
+  }, [track, replayActive, replayT, originAlt, wind, windLineMinutes, follow])
 
-  // Pressing play again re-enables follow
-  useEffect(() => { if (playing) followRef.current = true }, [playing])
+  // Each new replay starts out following
+  useEffect(() => { if (!replayActive) setFollow(true) }, [replayActive])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%', background: theme.colors.darkCard }} />
       <ReplayWindPanel />
+      {replayActive && !follow && (
+        <button
+          onClick={() => setFollow(true)}
+          title="Follow aircraft"
+          aria-label="Follow aircraft"
+          style={{
+            position: 'absolute', right: '10px', bottom: '36px', zIndex: 5,
+            width: theme.tapTarget, height: theme.tapTarget, borderRadius: '50%',
+            border: `1px solid ${theme.colors.darkBorder}`, background: 'rgba(14, 14, 20, 0.88)',
+            color: theme.colors.cream, fontSize: '18px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: theme.font.primary,
+          }}
+        >
+          ▲
+        </button>
+      )}
     </div>
   )
 }
