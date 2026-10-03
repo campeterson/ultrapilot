@@ -49,6 +49,8 @@ export function InstrumentStrip() {
         zIndex: 100,
         backdropFilter: 'blur(8px)',
         paddingTop: 'env(safe-area-inset-top)',
+        paddingLeft: theme.safeLeft,
+        paddingRight: theme.safeRight,
       }}
     >
       {visibleStrip.map((id, idx) => {

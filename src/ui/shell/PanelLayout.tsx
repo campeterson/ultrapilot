@@ -30,7 +30,7 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
   // Map stays mounted beneath; panel overlays it when open.
   if (layout === 'phone') {
     return (
-      <div style={{ position: 'fixed', top, bottom, left: 0, right: 0 }}>
+      <div style={{ position: 'fixed', top, bottom, left: theme.safeLeft, right: theme.safeRight }}>
         {/* Map always mounted so Leaflet isn't destroyed on tab switch */}
         <div style={{ position: 'absolute', inset: 0 }}>
           {mapContent}
@@ -54,7 +54,7 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
   if (layout === 'tablet-portrait') {
     return (
       <div style={{
-        position: 'fixed', top, bottom, left: 0, right: 0,
+        position: 'fixed', top, bottom, left: theme.safeLeft, right: theme.safeRight,
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
@@ -100,7 +100,7 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, onTog
   // Map always on left; panel slides in from right.
   return (
     <div style={{
-      position: 'fixed', top, bottom, left: 0, right: 0,
+      position: 'fixed', top, bottom, left: theme.safeLeft, right: theme.safeRight,
       display: 'flex',
     }}>
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>

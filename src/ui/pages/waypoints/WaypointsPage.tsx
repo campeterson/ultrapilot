@@ -282,7 +282,7 @@ export function WaypointsPage() {
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'center',
-            paddingTop: '60px',
+            paddingTop: 'calc(60px + env(safe-area-inset-top, 0px))',
             paddingBottom: theme.safeNavHeight,
             overflowY: 'auto',
             zIndex: 300,

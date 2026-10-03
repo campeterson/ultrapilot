@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
@@ -10,6 +10,10 @@ import { downloadString, sessionFilename, toGPX, toOADSAll, toOADSSession } from
 import type { Session, StampEvent } from '../../../data/models'
 import { TimelineEventRow } from '../../components/TimelineEventRow'
 import { SessionMap } from './SessionMap'
+import { ReplayBar, ReplayReadouts } from './ReplayBar'
+import { useReplayStore } from '../../../state/replay-store'
+import { lastEventIndexAt } from '../../../data/logic/replay-logic'
+import { formatImportStats } from '../../../data/import'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -135,11 +139,20 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
   const [confirmDelete, setConfirmDelete] = useState(false)
   const trashSessionById = useSessionStore(s => s.trashSessionById)
 
+  const replayActive = useReplayStore(s => s.active)
+  const hasTrack = useReplayStore(s => !!s.track)
+  const seek = useReplayStore(s => s.seek)
+  // Re-renders only when the replay passes a new stamp, not every frame
+  const currentEventIdx = useReplayStore(s => (s.active ? lastEventIndexAt(events, s.t) : -1))
+
   useEffect(() => {
     getEvents(session.id).then(evs => {
-      setEvents(evs)
+      setEvents(evs.sort((a, b) => a.ts - b.ts))
       setLoading(false)
     })
+    const replay = useReplayStore.getState()
+    replay.load(session)
+    return () => replay.unload()
   }, [session.id])
 
   async function handleTrash() {
@@ -230,7 +243,10 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         {!loading && <SessionMap session={session} events={events} />}
       </div>
 
-      {/* Summary cards */}
+      {hasTrack && <ReplayBar />}
+
+      {/* Summary cards — swapped for live readouts while replaying */}
+      {replayActive ? <ReplayReadouts /> : (
       <div style={{ display: 'flex', gap: '8px', padding: '12px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
         {[
           { label: 'FLIGHT', value: formatElapsed(flightMs) },
@@ -243,8 +259,9 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
           </div>
         ))}
       </div>
+      )}
 
-      {/* Event list */}
+      {/* Event list — tap a stamp to jump the replay there */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {loading && (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>Loading…</div>
@@ -252,7 +269,19 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         {!loading && events.length === 0 && (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>No events recorded.</div>
         )}
-        {events.map(ev => <TimelineEventRow key={ev.id} event={ev} />)}
+        {events.map((ev, i) => (
+          <div
+            key={ev.id}
+            onClick={hasTrack ? () => seek(ev.ts) : undefined}
+            style={{
+              cursor: hasTrack ? 'pointer' : undefined,
+              background: i === currentEventIdx ? theme.colors.redDim : undefined,
+              borderLeft: `3px solid ${i === currentEventIdx ? theme.colors.red : 'transparent'}`,
+            }}
+          >
+            <TimelineEventRow event={ev} />
+          </div>
+        ))}
       </div>
 
       {confirmDelete && (
@@ -451,6 +480,29 @@ export function SessionsPage() {
   const consumeJustEndedSessionId = useSessionStore(s => s.consumeJustEndedSessionId)
   const [selected, setSelected] = useState<Session | null>(null)
   const [showTrash, setShowTrash] = useState(false)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
+  const importFile = useSessionStore(s => s.importFile)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const { stats, importedIds } = await importFile(file.name, await file.text(), n =>
+        confirm(`${n} session${n === 1 ? '' : 's'} already exist. Replace duplicates?`))
+      setImportStatus(formatImportStats(stats))
+      analyticsTrack('session_imported')
+      // A single imported flight opens straight into its detail (ready to replay)
+      if (importedIds.length === 1) {
+        const imported = useSessionStore.getState().sessions.find(s => s.id === importedIds[0])
+        if (imported) handleSelect(imported)
+      }
+    } catch (err) {
+      setImportStatus(`Import failed: ${err instanceof Error ? err.message : 'unknown error'}`)
+    }
+    setTimeout(() => setImportStatus(null), 6000)
+  }
 
   useEffect(() => { loadHistory() }, [loadHistory])
 
@@ -516,6 +568,24 @@ export function SessionsPage() {
       }}>
         <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Sessions</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".gpx,.json,application/gpx+xml,application/json,text/xml"
+            style={{ display: 'none' }}
+            onChange={handleImport}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              background: 'none', border: 'none', color: theme.colors.light,
+              cursor: 'pointer', fontFamily: theme.font.primary,
+              fontSize: theme.size.small, padding: '6px 4px', minHeight: theme.tapTarget,
+              textDecoration: 'underline',
+            }}
+          >
+            Import
+          </button>
           <button
             onClick={handleExportAll}
             disabled={sessions.length === 0}
@@ -542,6 +612,16 @@ export function SessionsPage() {
         </div>
       </div>
 
+      {importStatus && (
+        <div style={{
+          padding: '10px 16px', background: theme.colors.darkCard,
+          borderBottom: `1px solid ${theme.colors.darkBorder}`,
+          fontSize: theme.size.small, color: theme.colors.cream,
+        }}>
+          {importStatus}
+        </div>
+      )}
+
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loadingSessions && (
           <div style={{ padding: '24px', textAlign: 'center', color: theme.colors.dim, fontSize: theme.size.body }}>Loading…</div>
@@ -550,7 +630,7 @@ export function SessionsPage() {
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: '32px', marginBottom: '12px' }}>◷</div>
             <div style={{ color: theme.colors.dim, fontSize: theme.size.body }}>No sessions yet.</div>
-            <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginTop: '6px' }}>Tap Start Session on the map.</div>
+            <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginTop: '6px' }}>Tap Start Session on the map, or Import a GPX file.</div>
           </div>
         )}
         {sessions.map((s, index) => {

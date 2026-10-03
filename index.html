@@ -23,10 +23,17 @@
         height: 100%;
         width: 100%;
         overflow: hidden;
+        overscroll-behavior: none;
         background: #141418;
         color: #FDF6E3;
         font-family: 'B612', monospace;
       }
+      /* Pin the document so iOS can't scroll/rubber-band it. Otherwise, after
+         the keyboard closes, an installed PWA can stay scrolled up with the
+         whole UI shoved under the status bar / notch. */
+      html, body { position: fixed; inset: 0; -webkit-text-size-adjust: 100%; }
+      /* iOS scrolls (and zooms) the page when focusing inputs under 16px */
+      input, textarea, select { font-size: max(16px, 1em) !important; }
       /* Leaflet needs this to be explicit */
       .leaflet-container { background: #1a1a22; }
     </style>

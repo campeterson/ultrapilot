@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { putSession, getSession, listSessions, listDeletedSessions, deleteSession, softDeleteSession, restoreSession, bulkAddTrackPoints, getTrackPoints } from '../data/db'
+import { putSession, getSession, listSessions, listDeletedSessions, deleteSession, softDeleteSession, restoreSession, bulkAddTrackPoints, getTrackPoints, addEvent } from '../data/db'
+import { parseSessionFile, type ImportStats } from '../data/import'
 import { createSession, endSession, computeTrackDistanceNM } from '../data/logic/session-logic'
 import type { Session } from '../data/models'
 
@@ -34,6 +35,9 @@ interface SessionStore {
   trashSessionById: (id: string) => Promise<void>
   restoreSessionById: (id: string) => Promise<void>
   deleteSessionById: (id: string) => Promise<void>
+  /** Import a GPX / OADS / UltraPilot JSON file. `confirmReplace` is asked
+   *  once when sessions with the same id already exist. */
+  importFile: (fileName: string, text: string, confirmReplace: (count: number) => boolean) => Promise<{ stats: ImportStats; importedIds: string[] }>
 
   // Track point buffer (flushed periodically to DB)
   trackBuffer: { sessionId: string; ts: number; lat: number; lon: number; altMSL: number; speed: number; heading: number; accuracy: number }[]
@@ -119,6 +123,39 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await deleteSession(id)
     const [sessions, deletedSessions] = await Promise.all([listSessions(), listDeletedSessions()])
     set({ sessions, deletedSessions })
+  },
+
+  importFile: async (fileName, text, confirmReplace) => {
+    const payloads = parseSessionFile(fileName, text)
+    const stats: ImportStats = { imported: 0, replaced: 0, skippedDuplicates: 0, skippedInvalid: 0 }
+    const byId = new Map<string, (typeof payloads)[number]>()
+    for (const p of payloads) {
+      if (!p.session.id) { stats.skippedInvalid += 1; continue }
+      if (byId.has(p.session.id)) stats.skippedInvalid += 1
+      byId.set(p.session.id, p)
+    }
+    const unique = Array.from(byId.values())
+    const existing = new Set<string>()
+    for (const p of unique) {
+      if (await getSession(p.session.id)) existing.add(p.session.id)
+    }
+    const replace = existing.size > 0 && confirmReplace(existing.size)
+
+    const importedIds: string[] = []
+    for (const p of unique) {
+      const exists = existing.has(p.session.id)
+      if (exists && !replace) { stats.skippedDuplicates += 1; continue }
+      if (exists) { await deleteSession(p.session.id); stats.replaced += 1 }
+      await putSession(p.session)
+      await bulkAddTrackPoints(p.trackPoints)
+      for (const ev of p.events) await addEvent(ev)
+      stats.imported += 1
+      importedIds.push(p.session.id)
+    }
+
+    const sessions = await listSessions()
+    set({ sessions })
+    return { stats, importedIds }
   },
 
   pushTrackPoint: (pt) => {

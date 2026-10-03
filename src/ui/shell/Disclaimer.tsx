@@ -27,8 +27,15 @@ export function Disclaimer() {
         WebkitBackdropFilter: 'blur(6px)',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
+        // margin:auto on the card centers it without clipping its top under
+        // the notch when it's taller than the screen (phone landscape)
+        alignItems: 'flex-start',
         padding: '24px',
+        paddingTop: 'max(24px, env(safe-area-inset-top))',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(24px, env(safe-area-inset-left))',
+        paddingRight: 'max(24px, env(safe-area-inset-right))',
+        overflowY: 'auto',
       }}
     >
       <div
@@ -38,6 +45,7 @@ export function Disclaimer() {
           borderRadius: '16px',
           maxWidth: '480px',
           width: '100%',
+          margin: 'auto',
           padding: '28px 28px 24px',
           boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
         }}

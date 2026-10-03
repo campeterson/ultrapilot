@@ -19,8 +19,8 @@ export function UpdateBanner() {
     <div
       style={{
         position: 'fixed',
-        left: '12px',
-        right: '12px',
+        left: `calc(12px + ${theme.safeLeft})`,
+        right: `calc(12px + ${theme.safeRight})`,
         bottom: `calc(12px + env(safe-area-inset-bottom, 0px))`,
         background: theme.colors.darkCard,
         border: `1px solid ${theme.colors.red}`,

@@ -36,6 +36,9 @@ export const theme = {
   // Safe-area-aware heights for use in inline styles
   safeNavHeight: 'calc(60px + env(safe-area-inset-bottom, 0px))',
   safeStripHeight: 'calc(58px + env(safe-area-inset-top, 0px))',  // was 52px
+  // Landscape notch / rounded corners (≈47px each side on iPhone 12+)
+  safeLeft: 'env(safe-area-inset-left, 0px)',
+  safeRight: 'env(safe-area-inset-right, 0px)',
 } as const
 
 export type Theme = typeof theme

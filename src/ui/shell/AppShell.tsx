@@ -9,6 +9,7 @@ import { Disclaimer } from './Disclaimer'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
 import { useWakeLock } from '../hooks/useWakeLock'
+import { useIOSScrollReset } from '../hooks/useIOSScrollReset'
 import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
 import { useRouteStore } from '../../state/route-store'
@@ -53,6 +54,7 @@ export function AppShell() {
 
   // Start GPS on mount
   useGPS()
+  useIOSScrollReset()
 
   // Register downloaded offline tilesets with the PMTiles protocol so the map
   // can render pmtiles://<id> sources. Idempotent — the store guards on init.

@@ -480,7 +480,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        paddingTop: '40px', paddingBottom: theme.safeNavHeight, overflowY: 'auto',
+        paddingTop: 'calc(40px + env(safe-area-inset-top, 0px))', paddingBottom: theme.safeNavHeight, overflowY: 'auto',
         zIndex: 300,
       }}
     >

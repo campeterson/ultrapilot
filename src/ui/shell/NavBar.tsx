@@ -37,6 +37,8 @@ export function NavBar({ active, onSelect }: NavBarProps) {
         alignItems: 'stretch',
         zIndex: 200,
         paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: theme.safeLeft,
+        paddingRight: theme.safeRight,
       }}
     >
       {tabs.map(tab => {
