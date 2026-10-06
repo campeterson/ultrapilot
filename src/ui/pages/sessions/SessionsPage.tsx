@@ -498,7 +498,7 @@ export function SessionsPage() {
     e.target.value = ''
     if (!file) return
     try {
-      const { stats, importedIds } = await importFile(file.name, await file.text(), n =>
+      const { stats, importedIds } = await importFile(file.name, await file.arrayBuffer(), n =>
         confirm(`${n} session${n === 1 ? '' : 's'} already exist. Replace duplicates?`))
       setImportStatus(formatImportStats(stats))
       analyticsTrack('session_imported')
@@ -580,7 +580,7 @@ export function SessionsPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".gpx,.json,application/gpx+xml,application/json,text/xml"
+            accept=".gpx,.kml,.kmz,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/json,text/xml"
             style={{ display: 'none' }}
             onChange={handleImport}
           />
@@ -639,7 +639,7 @@ export function SessionsPage() {
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: '32px', marginBottom: '12px' }}>◷</div>
             <div style={{ color: theme.colors.dim, fontSize: theme.size.body }}>No sessions yet.</div>
-            <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginTop: '6px' }}>Tap Start Session on the map, or Import a GPX file.</div>
+            <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginTop: '6px' }}>Tap Start Session on the map, or Import a GPX or KML file.</div>
           </div>
         )}
         {sessions.map((s, index) => {

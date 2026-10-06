@@ -1,9 +1,10 @@
-// Session file import — parses GPX, OADS and UltraPilot JSON into session
+// Session file import — parses GPX, KML/KMZ, OADS and UltraPilot JSON into session
 // payloads. Pure parsing only; writing to IndexedDB happens in session-store.
 import type { Session, StampEvent, StampEventType, TrackPoint } from './models'
 import type { OADSEnvelope } from './export'
 import { computeTrackDistanceNM } from './logic/session-logic'
 import { bearing, haversineNM } from './logic/gps-logic'
+import { isZip, listZipEntries, readZipEntry } from './zip'
 
 export type SessionImportPayload = {
   session: Session
@@ -229,7 +230,7 @@ export function parseSessionJson(raw: unknown): SessionImportPayload[] {
   throw new Error('Unsupported session file format')
 }
 
-function parseGpxEventType(name: string): StampEventType {
+function parseWaypointEventType(name: string): StampEventType {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, '_')
   return isStampEventType(normalized) ? normalized : 'custom'
 }
@@ -241,59 +242,33 @@ function childText(node: Element, localName: string): string | null {
 }
 
 /** Below this, speed between fixes is GPS jitter — keep the previous track. */
-const GPX_MIN_TRACK_SPEED_MS = 0.5
+const MIN_TRACK_SPEED_MS = 0.5
 
-export function parseSessionGpx(text: string): SessionImportPayload {
-  const doc = new DOMParser().parseFromString(text, 'application/xml')
-  if (doc.getElementsByTagName('parsererror').length > 0) {
-    throw new Error('Invalid GPX XML')
-  }
+/** A fix read from a GPX/KML file. ts is NaN when the file has no time for it;
+ *  speed (m/s) and heading are NaN when the file doesn't carry them. */
+type RawTrackPoint = { lat: number; lon: number; ts: number; altMSL: number; speed: number; heading: number }
+type RawWaypoint = { lat: number; lon: number; ts: number; altMSL: number; name: string | null; desc: string | null }
 
-  // Track points from every <trk>/<trkseg>. Route-only files (<rtept>) have no
-  // timestamps, so they can't become a flight.
-  const trkpts = Array.from(doc.getElementsByTagNameNS('*', 'trkpt'))
-  if (trkpts.length === 0) {
-    throw new Error(doc.getElementsByTagNameNS('*', 'rtept').length > 0
-      ? 'GPX contains a route, not a recorded track'
-      : 'GPX has no track points')
-  }
-
-  let missingTime = 0
-  const rawPoints = trkpts
-    .map((node, index) => {
-      const lat = coerceFinite(node.getAttribute('lat'), NaN)
-      const lon = coerceFinite(node.getAttribute('lon'), NaN)
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
-      const timeText = childText(node, 'time')
-      const parsedTime = timeText ? Date.parse(timeText) : NaN
-      if (!Number.isFinite(parsedTime)) missingTime++
-      const speedText = childText(node, 'speed')
-      const courseText = childText(node, 'course')
-      return {
-        lat,
-        lon,
-        ts: Number.isFinite(parsedTime) ? parsedTime : index * 1000,
-        altMSL: coerceFinite(childText(node, 'ele')),
-        speed: speedText !== null ? coerceFinite(speedText, NaN) : NaN,     // m/s per GPX spec
-        heading: courseText !== null ? coerceFinite(courseText, NaN) : NaN,
-      }
-    })
-    .filter((pt): pt is NonNullable<typeof pt> => !!pt)
-
-  if (rawPoints.length === 0) throw new Error('GPX track points are invalid')
-  if (missingTime === rawPoints.length) {
-    throw new Error('GPX track has no timestamps — it can\'t be replayed as a flight')
+/** Turn raw fixes + waypoints from a GPX/KML file into a session payload.
+ *  Derives missing speed/course from the points themselves. */
+function buildTrackPayload(
+  rawPoints: RawTrackPoint[],
+  waypoints: RawWaypoint[],
+  format: 'GPX' | 'KML',
+): SessionImportPayload {
+  const timed = rawPoints.filter(p => Number.isFinite(p.ts))
+  if (timed.length === 0) {
+    throw new Error(`${format} track has no timestamps — it can't be replayed as a flight`)
   }
 
   // Sort by time and drop exact-duplicate timestamps (common when merging segments)
-  rawPoints.sort((a, b) => a.ts - b.ts)
-  const pts = rawPoints.filter((p, i) => i === 0 || p.ts !== rawPoints[i - 1].ts)
+  timed.sort((a, b) => a.ts - b.ts)
+  const pts = timed.filter((p, i) => i === 0 || p.ts !== timed[i - 1].ts)
 
   const startMs = pts[0].ts
   const endMs = pts[pts.length - 1].ts
   const sessionId = new Date(startMs).toISOString()
 
-  // Fill missing speed / course from the points themselves
   let lastTrack = 0
   const trackPoints: TrackPoint[] = pts.map((pt, i) => {
     const prev = pts[Math.max(0, i - 1)]
@@ -303,7 +278,7 @@ export function parseSessionGpx(text: string): SessionImportPayload {
     const dtS = (b.ts - a.ts) / 1000
     const derivedSpeed = dtS > 0 ? (haversineNM(a.lat, a.lon, b.lat, b.lon) * 1852) / dtS : 0
     const speed = Number.isFinite(pt.speed) ? pt.speed : derivedSpeed
-    if (derivedSpeed > GPX_MIN_TRACK_SPEED_MS) lastTrack = bearing(a.lat, a.lon, b.lat, b.lon)
+    if (derivedSpeed > MIN_TRACK_SPEED_MS) lastTrack = bearing(a.lat, a.lon, b.lat, b.lon)
     const heading = Number.isFinite(pt.heading) ? pt.heading : lastTrack
     return { sessionId, ts: pt.ts, lat: pt.lat, lon: pt.lon, altMSL: pt.altMSL, speed, heading, accuracy: 0 }
   })
@@ -322,42 +297,191 @@ export function parseSessionGpx(text: string): SessionImportPayload {
     originAltMSL: originAlt,
     maxAGL,
     totalDistanceNM: distanceNM,
-    deviceInfo: 'imported-gpx',
+    deviceInfo: format === 'GPX' ? 'imported-gpx' : 'imported-kml',
     deletedAt: null,
   }
 
-  const events: StampEvent[] = Array.from(doc.getElementsByTagNameNS('*', 'wpt'))
-    .map((node, index): StampEvent | null => {
-      const lat = coerceFinite(node.getAttribute('lat'), NaN)
-      const lon = coerceFinite(node.getAttribute('lon'), NaN)
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
-      const name = childText(node, 'name') ?? 'custom'
-      const type = parseGpxEventType(name)
-      const desc = childText(node, 'desc')
-      const timeText = childText(node, 'time')
-      const parsedTime = timeText ? Date.parse(timeText) : NaN
-      return {
-        id: `${sessionId}-wpt-${index}`,
-        sessionId,
-        ts: Number.isFinite(parsedTime) ? parsedTime : startMs,
-        type,
-        lat,
-        lon,
-        altMSL: coerceFinite(childText(node, 'ele')),
-        altAGL: 0,
-        speed: 0,
-        // Unknown waypoint names (other apps' POIs) keep their name as the note
-        note: desc ?? (type === 'custom' && name !== 'custom' ? name : null),
-      }
-    })
-    .filter((ev): ev is StampEvent => !!ev)
+  const events: StampEvent[] = waypoints.map((wp, index) => {
+    const name = wp.name ?? 'custom'
+    const type = parseWaypointEventType(name)
+    return {
+      id: `${sessionId}-wpt-${index}`,
+      sessionId,
+      ts: Number.isFinite(wp.ts) ? wp.ts : startMs,
+      type,
+      lat: wp.lat,
+      lon: wp.lon,
+      altMSL: wp.altMSL,
+      altAGL: 0,
+      speed: 0,
+      // Unknown waypoint names (other apps' POIs) keep their name as the note
+      note: wp.desc ?? (type === 'custom' && name !== 'custom' ? name : null),
+    }
+  })
 
   return { session, trackPoints, events }
 }
 
-/** Parse any supported session file by name + contents. */
-export function parseSessionFile(fileName: string, text: string): SessionImportPayload[] {
-  if (fileName.toLowerCase().endsWith('.gpx') || text.trimStart().startsWith('<')) {
+function parseTime(text: string | null): number {
+  return text ? Date.parse(text.trim()) : NaN
+}
+
+export function parseSessionGpx(text: string): SessionImportPayload {
+  const doc = new DOMParser().parseFromString(text, 'application/xml')
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    throw new Error('Invalid GPX XML')
+  }
+
+  // Track points from every <trk>/<trkseg>. Route-only files (<rtept>) have no
+  // timestamps, so they can't become a flight.
+  const trkpts = Array.from(doc.getElementsByTagNameNS('*', 'trkpt'))
+  if (trkpts.length === 0) {
+    throw new Error(doc.getElementsByTagNameNS('*', 'rtept').length > 0
+      ? 'GPX contains a route, not a recorded track'
+      : 'GPX has no track points')
+  }
+
+  const rawPoints = trkpts
+    .map((node): RawTrackPoint | null => {
+      const lat = coerceFinite(node.getAttribute('lat'), NaN)
+      const lon = coerceFinite(node.getAttribute('lon'), NaN)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+      const speedText = childText(node, 'speed')
+      const courseText = childText(node, 'course')
+      return {
+        lat,
+        lon,
+        ts: parseTime(childText(node, 'time')),
+        altMSL: coerceFinite(childText(node, 'ele')),
+        speed: speedText !== null ? coerceFinite(speedText, NaN) : NaN,     // m/s per GPX spec
+        heading: courseText !== null ? coerceFinite(courseText, NaN) : NaN,
+      }
+    })
+    .filter((pt): pt is RawTrackPoint => !!pt)
+  if (rawPoints.length === 0) throw new Error('GPX track points are invalid')
+
+  const waypoints = Array.from(doc.getElementsByTagNameNS('*', 'wpt'))
+    .map((node): RawWaypoint | null => {
+      const lat = coerceFinite(node.getAttribute('lat'), NaN)
+      const lon = coerceFinite(node.getAttribute('lon'), NaN)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+      return {
+        lat,
+        lon,
+        ts: parseTime(childText(node, 'time')),
+        altMSL: coerceFinite(childText(node, 'ele')),
+        name: childText(node, 'name'),
+        desc: childText(node, 'desc'),
+      }
+    })
+    .filter((wp): wp is RawWaypoint => !!wp)
+
+  return buildTrackPayload(rawPoints, waypoints, 'GPX')
+}
+
+/** Direct children with this local name (KML nests Placemarks inside
+ *  Folders, so descendant searches would cross into other Placemarks). */
+function directChild(node: Element, localName: string): Element | null {
+  for (const child of Array.from(node.children)) {
+    if (child.localName === localName) return child
+  }
+  return null
+}
+
+/** KML descriptions are often HTML — keep just the text. */
+function plainText(text: string | null): string | null {
+  if (!text) return null
+  const stripped = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  return stripped || null
+}
+
+/** Parse a KML flight. Tracks come from <gx:Track> (Google Earth, ForeFlight,
+ *  FlightAware…) or KML 2.3 <Track>, paired <when>/<coord> elements; altitude
+ *  is meters. Point Placemarks become stamp events. Plain <LineString> paths
+ *  have no times, so like GPX routes they can't become a flight. */
+export function parseSessionKml(text: string): SessionImportPayload {
+  const doc = new DOMParser().parseFromString(text, 'application/xml')
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    throw new Error('Invalid KML XML')
+  }
+
+  const tracks = Array.from(doc.getElementsByTagNameNS('*', 'Track'))
+  if (tracks.length === 0) {
+    throw new Error(doc.getElementsByTagNameNS('*', 'LineString').length > 0
+      ? 'KML contains a path without timestamps, not a recorded track'
+      : 'KML has no track')
+  }
+
+  const rawPoints: RawTrackPoint[] = []
+  for (const track of tracks) {
+    const whens = Array.from(track.children).filter(c => c.localName === 'when')
+    const coords = Array.from(track.children).filter(c => c.localName === 'coord')
+    const n = Math.min(whens.length, coords.length)
+    for (let i = 0; i < n; i++) {
+      // gx:coord is space-separated "lon lat alt"
+      const [lon, lat, alt] = (coords[i].textContent ?? '').trim().split(/\s+/).map(Number)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+      rawPoints.push({
+        lat,
+        lon,
+        ts: parseTime(whens[i].textContent),
+        altMSL: Number.isFinite(alt) ? alt : 0,
+        speed: NaN,
+        heading: NaN,
+      })
+    }
+  }
+  if (rawPoints.length === 0) throw new Error('KML track points are invalid')
+
+  const waypoints = Array.from(doc.getElementsByTagNameNS('*', 'Placemark'))
+    .map((pm): RawWaypoint | null => {
+      if (pm.getElementsByTagNameNS('*', 'Track').length > 0) return null
+      const point = pm.getElementsByTagNameNS('*', 'Point')[0]
+      if (!point) return null
+      // Point <coordinates> is comma-separated "lon,lat[,alt]"
+      const [lon, lat, alt] = (childText(point, 'coordinates') ?? '').trim().split(',').map(Number)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+      const timeStamp = directChild(pm, 'TimeStamp')
+      return {
+        lat,
+        lon,
+        ts: parseTime(timeStamp ? childText(timeStamp, 'when') : null),
+        altMSL: Number.isFinite(alt) ? alt : 0,
+        name: directChild(pm, 'name')?.textContent?.trim() || null,
+        desc: plainText(directChild(pm, 'description')?.textContent ?? null),
+      }
+    })
+    .filter((wp): wp is RawWaypoint => !!wp)
+
+  return buildTrackPayload(rawPoints, waypoints, 'KML')
+}
+
+/** Pull the main KML document out of a KMZ (zip). By convention it's doc.kml
+ *  at the root; otherwise the first .kml in the archive. */
+async function kmzToKml(bytes: ArrayBuffer): Promise<string> {
+  const kmls = listZipEntries(bytes).filter(e => e.name.toLowerCase().endsWith('.kml'))
+  const main = kmls.find(e => e.name.toLowerCase() === 'doc.kml')
+    ?? kmls.find(e => !e.name.includes('/'))
+    ?? kmls[0]
+  if (!main) throw new Error('KMZ contains no KML file')
+  return new TextDecoder().decode(await readZipEntry(bytes, main))
+}
+
+function looksLikeKml(text: string): boolean {
+  return /<kml[\s>]/.test(text.slice(0, 2000))
+}
+
+/** Parse any supported session file (GPX, KML, KMZ, OADS, UltraPilot JSON). */
+export async function parseSessionFile(fileName: string, bytes: ArrayBuffer): Promise<SessionImportPayload[]> {
+  const lower = fileName.toLowerCase()
+  if (lower.endsWith('.kmz') || isZip(bytes)) {
+    return [parseSessionKml(await kmzToKml(bytes))]
+  }
+  const text = new TextDecoder().decode(bytes)
+  if (lower.endsWith('.kml') || looksLikeKml(text)) {
+    return [parseSessionKml(text)]
+  }
+  if (lower.endsWith('.gpx') || text.trimStart().startsWith('<')) {
     return [parseSessionGpx(text)]
   }
   const rawJson = JSON.parse(text)

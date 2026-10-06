@@ -36,9 +36,9 @@ interface SessionStore {
   trashSessionById: (id: string) => Promise<void>
   restoreSessionById: (id: string) => Promise<void>
   deleteSessionById: (id: string) => Promise<void>
-  /** Import a GPX / OADS / UltraPilot JSON file. `confirmReplace` is asked
+  /** Import a GPX / KML / KMZ / OADS / UltraPilot JSON file. `confirmReplace` is asked
    *  once when sessions with the same id already exist. */
-  importFile: (fileName: string, text: string, confirmReplace: (count: number) => boolean) => Promise<{ stats: ImportStats; importedIds: string[] }>
+  importFile: (fileName: string, bytes: ArrayBuffer, confirmReplace: (count: number) => boolean) => Promise<{ stats: ImportStats; importedIds: string[] }>
 
   // Track point buffer (flushed periodically to DB)
   trackBuffer: { sessionId: string; ts: number; lat: number; lon: number; altMSL: number; speed: number; heading: number; accuracy: number }[]
@@ -126,8 +126,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set({ sessions, deletedSessions })
   },
 
-  importFile: async (fileName, text, confirmReplace) => {
-    const payloads = parseSessionFile(fileName, text)
+  importFile: async (fileName, bytes, confirmReplace) => {
+    const payloads = await parseSessionFile(fileName, bytes)
     const stats: ImportStats = { imported: 0, replaced: 0, skippedDuplicates: 0, skippedInvalid: 0 }
     const byId = new Map<string, (typeof payloads)[number]>()
     for (const p of payloads) {

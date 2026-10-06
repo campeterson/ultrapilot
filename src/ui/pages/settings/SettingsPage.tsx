@@ -422,7 +422,7 @@ export function SettingsPage() {
     e.target.value = ''
     if (!file) return
     try {
-      const { stats } = await importFile(file.name, await file.text(), n =>
+      const { stats } = await importFile(file.name, await file.arrayBuffer(), n =>
         confirm(`${n} session${n === 1 ? '' : 's'} already exist. Replace duplicates?`))
       setImportStatus(formatImportStats(stats))
     } catch (err) {
@@ -549,7 +549,7 @@ export function SettingsPage() {
       <input
         id="session-import-input"
         type="file"
-        accept=".json,.gpx,application/json,application/gpx+xml,text/xml"
+        accept=".json,.gpx,.kml,.kmz,application/json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,text/xml"
         style={{ display: 'none' }}
         onChange={handleImportSessionFile}
       />
