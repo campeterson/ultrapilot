@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { makeSample, addSample, WINDREADER_MAX_INTERVAL_MS, type WindreaderFix } from '../data/logic/windreader-logic'
+import { addSample, holdSample, pushFix, WINDREADER_STEP_MS, type WindreaderFix } from '../data/logic/windreader-logic'
 import type { WindreaderSample, WindreaderUnits } from '../data/models'
 
 const SETTINGS_KEY = 'ultrapilot_windreaderSettings'
@@ -16,8 +16,11 @@ interface Settings {
   showMapPanel: boolean
 }
 
+/** v2 (1.8.0): default band went 100 → 50 ft. */
+const SETTINGS_VERSION = 2
+
 const DEFAULT_SETTINGS: Settings = {
-  bandFt: 100,
+  bandFt: 50,
   units: 'kt',
   showMapLines: true,
   lineMinutes: 10,
@@ -27,7 +30,13 @@ const DEFAULT_SETTINGS: Settings = {
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed }
+      // Settings saved before v2 always carried the old 100 ft default
+      if (parsed.settingsVersion !== SETTINGS_VERSION) settings.bandFt = DEFAULT_SETTINGS.bandFt
+      return settings
+    }
   } catch {}
   return { ...DEFAULT_SETTINGS }
 }
@@ -47,7 +56,9 @@ interface WindreaderStore extends Settings {
   /** Session the samples belong to. A new session starts a fresh windreader. */
   sessionId: string | null
   samples: WindreaderSample[]
-  lastFix: WindreaderFix | null
+  /** Rolling buffer of recent fixes for the hold check (not persisted). */
+  recentFixes: WindreaderFix[]
+  lastSampleTs: number
 
   ingest: (fix: WindreaderFix, sessionId: string) => void
   clear: () => void
@@ -60,33 +71,32 @@ export const useWindreaderStore = create<WindreaderStore>((set, get) => ({
   ...loadSettings(),
   sessionId: initialData.sessionId,
   samples: initialData.samples,
-  lastFix: null,
+  recentFixes: [],
+  lastSampleTs: 0,
 
   ingest: (fix, sessionId) => {
     const s = get()
     if (s.sessionId !== sessionId) {
-      set({ sessionId, samples: [], lastFix: fix })
+      set({ sessionId, samples: [], recentFixes: [fix], lastSampleTs: 0 })
       persistData(sessionId, [])
       return
     }
-    if (!s.lastFix || fix.ts < s.lastFix.ts) {
-      set({ lastFix: fix })
-      return
-    }
-    // Wait until a full sampling interval has elapsed since the anchor fix
-    const sample = makeSample(s.lastFix, fix)
+    const recentFixes = pushFix(s.recentFixes, fix)
+    // A restarted buffer (dropout) also restarts the sample cadence
+    const lastSampleTs = recentFixes.length === 1 ? 0 : s.lastSampleTs
+    // Only a level held for WINDREADER_HOLD_MS yields a reading
+    const sample = fix.ts - lastSampleTs >= WINDREADER_STEP_MS ? holdSample(recentFixes) : null
     if (sample) {
       const samples = addSample(s.samples, sample, s.bandFt)
-      set({ samples, lastFix: fix })
+      set({ samples, recentFixes, lastSampleTs: fix.ts })
       persistData(sessionId, samples)
-    } else if (fix.ts - s.lastFix.ts > WINDREADER_MAX_INTERVAL_MS) {
-      // Interval was too long (dropout) — restart from this fix
-      set({ lastFix: fix })
+    } else {
+      set({ recentFixes, lastSampleTs })
     }
   },
 
   clear: () => {
-    set({ samples: [], lastFix: null })
+    set({ samples: [], recentFixes: [], lastSampleTs: 0 })
     persistData(get().sessionId, [])
   },
 
@@ -94,7 +104,7 @@ export const useWindreaderStore = create<WindreaderStore>((set, get) => ({
     set({ [key]: value } as Partial<WindreaderStore>)
     const { bandFt, units, showMapLines, lineMinutes, showMapPanel } = get()
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ bandFt, units, showMapLines, lineMinutes, showMapPanel }))
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ bandFt, units, showMapLines, lineMinutes, showMapPanel, settingsVersion: SETTINGS_VERSION }))
     } catch {}
   },
 }))

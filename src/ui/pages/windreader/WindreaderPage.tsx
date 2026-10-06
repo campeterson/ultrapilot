@@ -43,7 +43,7 @@ export function WindreaderPage() {
         {bands.length === 0 ? (
           <div style={{ padding: '32px 20px', color: theme.colors.dim, fontSize: theme.size.body, lineHeight: 1.6, textAlign: 'center' }}>
             {session
-              ? 'No readings yet. Each altitude band fills in as you drift through it — a sample every 5 seconds.'
+              ? 'No readings yet. A band fills in once you hold its altitude with steady drift for about 15 seconds.'
               : 'Start a session to begin reading winds.'}
           </div>
         ) : (
@@ -56,8 +56,10 @@ export function WindreaderPage() {
             <span style={{ color: RELATION_COLORS.current }}>■ your level</span>
             <span style={{ color: RELATION_COLORS.below }}>■ below you</span>
           </div>
-          TRK is the direction you drift <em>toward</em> (true). Each row is the vector
-          average of the last 20 five-second samples in that band. "min" is how long since
+          TRK is the direction you drift <em>toward</em> (true). A reading is only taken
+          after you've held a level (within 50 ft) with steady drift for about 15 seconds,
+          then every 5 seconds while you stay. Each row is the vector average of the last
+          20 readings in that band. "min" is how long since
           that band was last sampled; older rows may no longer be accurate.
         </div>
       </div>
