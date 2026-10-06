@@ -3,6 +3,8 @@ import { useReplayStore } from '../../../state/replay-store'
 import { useReplayClock } from '../../hooks/useReplayClock'
 import { frameAt, nextReplaySpeed } from '../../../data/logic/replay-logic'
 import { formatDeg } from '../../../data/logic/gps-logic'
+import { altitudeText, speedText, verticalSpeedText } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 
 function formatClock(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
@@ -28,17 +30,17 @@ export function ReplayReadouts() {
   const track = useReplayStore(s => s.track)
   const t = useReplayStore(s => s.t)
   const originAlt = useReplayStore(s => s.originAltMSL)
+  const units = useUnits()
   if (!track) return null
   const f = frameAt(track, t, originAlt)
-  const vs = Math.round(f.vsFpm)
 
   const cells = [
     { label: 'TIME', value: formatClock(f.ts) },
-    { label: 'GND SPD', value: `${Math.round(f.gsKts)} kt` },
+    { label: 'GND SPD', value: speedText(f.gsKts, units.speed) },
     { label: 'TRACK', value: formatDeg(f.trackDeg) },
-    { label: 'MSL', value: `${Math.round(f.altMSLft)} ft` },
-    { label: 'AGL', value: `${Math.round(f.aglFt)} ft` },
-    { label: 'V/S', value: `${vs > 0 ? '+' : ''}${vs} fpm` },
+    { label: 'MSL', value: altitudeText(f.altMSLft, units.altitude) },
+    { label: 'AGL', value: altitudeText(f.aglFt, units.altitude) },
+    { label: 'V/S', value: verticalSpeedText(f.vsFpm, units.vertical) },
   ]
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', padding: '8px 12px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>

@@ -1,6 +1,7 @@
 import { theme } from '../../theme'
-import { useWindreaderStore } from '../../../state/windreader-store'
-import { convertSpeed, ageMinutes, WINDREADER_UNIT_LABELS } from '../../../data/logic/windreader-logic'
+import { ageMinutes } from '../../../data/logic/windreader-logic'
+import { ALTITUDE_LABELS, SPEED_LABELS, formatAltitude, formatSpeed } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 import type { WindBand, WindBandRelation } from '../../../data/models'
 
 export const RELATION_COLORS: Record<WindBandRelation, string> = {
@@ -36,7 +37,7 @@ function windowAroundCurrent(bands: WindBand[], max: number): WindBand[] {
 }
 
 export function WindreaderTable({ bands, compact = false, maxRows, nowTs }: Props) {
-  const units = useWindreaderStore(s => s.units)
+  const units = useUnits()
   const now = nowTs ?? Date.now()
   const rows = maxRows ? windowAroundCurrent(bands, maxRows) : bands
   const pad = compact ? '4px 8px' : '10px 16px'
@@ -51,9 +52,9 @@ export function WindreaderTable({ bands, compact = false, maxRows, nowTs }: Prop
         padding: pad, fontSize: theme.size.tiny, color: theme.colors.dim, letterSpacing: '0.06em',
         borderBottom: `1px solid ${theme.colors.darkBorder}`,
       }}>
-        <span style={{ textAlign: 'right' }}>ALT ft</span>
+        <span style={{ textAlign: 'right' }}>ALT {ALTITUDE_LABELS[units.altitude]}</span>
         <span style={{ textAlign: 'right' }}>TRK °</span>
-        <span style={{ textAlign: 'right' }}>{WINDREADER_UNIT_LABELS[units]}</span>
+        <span style={{ textAlign: 'right' }}>{SPEED_LABELS[units.speed]}</span>
         <span style={{ textAlign: 'right' }}>min</span>
       </div>
       {rows.map(b => {
@@ -72,12 +73,12 @@ export function WindreaderTable({ bands, compact = false, maxRows, nowTs }: Prop
               fontWeight: isCurrent ? 700 : 400,
             }}
           >
-            <span style={cell}>{b.altMSLft.toLocaleString()}</span>
+            <span style={cell}>{Number(formatAltitude(b.altMSLft, units.altitude)).toLocaleString()}</span>
             <span style={{ ...cell, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
               {!calm && <DriftArrow deg={b.trackDeg} color={color} size={compact ? 14 : 18} />}
               {calm ? 'CALM' : Math.round(b.trackDeg).toString().padStart(3, '0')}
             </span>
-            <span style={cell}>{Math.round(convertSpeed(b.speedKts, units))}</span>
+            <span style={cell}>{formatSpeed(b.speedKts, units.speed)}</span>
             <span style={{ ...cell, color: theme.colors.dim }}>{ageMinutes(b.lastTs, now)}</span>
           </div>
         )

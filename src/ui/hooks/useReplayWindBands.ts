@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useReplayStore } from '../../state/replay-store'
-import { useWindreaderStore } from '../../state/windreader-store'
+import { useWindBandFt } from './useUnits'
 import { computeBands, samplesUpTo } from '../../data/logic/windreader-logic'
 import { frameAt } from '../../data/logic/replay-logic'
 import type { WindBand } from '../../data/models'
@@ -15,7 +15,7 @@ export function useReplayWindBands(): { bands: WindBand[]; nowTs: number } | nul
   const active = useReplayStore(s => s.active)
   const t = useReplayStore(s => s.t)
   const originAlt = useReplayStore(s => s.originAltMSL)
-  const bandFt = useWindreaderStore(s => s.bandFt)
+  const bandFt = useWindBandFt()
 
   return useMemo(() => {
     if (!samples || !track) return null

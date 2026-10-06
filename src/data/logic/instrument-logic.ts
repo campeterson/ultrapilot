@@ -1,5 +1,9 @@
-import type { FlightMode, InstrumentId } from '../models'
-import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, formatNM, crossTrackErrorNM, estimatedTimeEnrouteMin, estimateWind, type WindSample } from './gps-logic'
+import type { FlightMode, InstrumentId, UnitPrefs } from '../models'
+import { haversineNM, bearing, computeAGLft, msToKnots, metersToFeet, formatDeg, crossTrackErrorNM, estimatedTimeEnrouteMin, estimateWind, type WindSample } from './gps-logic'
+import {
+  formatAltitude, formatDistance, formatSpeed, formatVerticalSpeed,
+  ALTITUDE_LABELS, DISTANCE_LABELS, SPEED_LABELS, VERTICAL_LABELS,
+} from './units-logic'
 
 export interface DirectToTarget {
   lat: number
@@ -166,23 +170,42 @@ function getLTAColor(id: InstrumentId, values: InstrumentValues): string {
   return CREAM
 }
 
-/** Format an instrument value for display */
-export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues): string {
+/** Unit label shown under an instrument value, in the chosen display units. */
+export function instrumentUnit(id: InstrumentId, units: UnitPrefs): string {
+  switch (id) {
+    case 'gs': case 'avgs': case 'wspd':
+      return SPEED_LABELS[units.speed]
+    case 'agl': case 'msl': case 'maxalt':
+      return ALTITUDE_LABELS[units.altitude]
+    case 'vs': case 'avgvs':
+      return VERTICAL_LABELS[units.vertical]
+    case 'dist': case 'dte': case 'xtk':
+      return DISTANCE_LABELS[units.distance]
+    case 'hdg': case 'brg': case 'wdir': case 'dtk':
+      return '°'
+    case 'ete':
+      return 'min'
+    default:
+      return ''
+  }
+}
+
+/** Format an instrument value for display, in the chosen display units.
+ *  Values themselves are always ft / kt / nm / fpm. */
+export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues, units: UnitPrefs): string {
   switch (id) {
     case 'gs':
-      return Math.round(values.gs).toString()
+      return formatSpeed(values.gs, units.speed)
     case 'agl':
-      return Math.round(values.agl).toString()
+      return formatAltitude(values.agl, units.altitude)
     case 'msl':
-      return Math.round(values.msl).toString()
-    case 'vs': {
-      const v = Math.round(values.vs)
-      return v > 0 ? `+${v}` : v.toString()
-    }
+      return formatAltitude(values.msl, units.altitude)
+    case 'vs':
+      return formatVerticalSpeed(values.vs, units.vertical)
     case 'hdg':
       return formatDeg(values.hdg)
     case 'dist':
-      return formatNM(values.dist)
+      return formatDistance(values.dist, units.distance)
     case 'brg':
       return formatDeg(values.brg)
     case 'etime':
@@ -192,17 +215,15 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
     case 'tod':
       return formatClock(values.tod)
     case 'maxalt':
-      return Math.round(values.maxalt).toString()
+      return formatAltitude(values.maxalt, units.altitude)
     case 'avgs':
-      return Math.round(values.avgs).toString()
-    case 'avgvs': {
-      const v = Math.round(values.avgvs)
-      return v > 0 ? `+${v}` : v.toString()
-    }
+      return formatSpeed(values.avgs, units.speed)
+    case 'avgvs':
+      return formatVerticalSpeed(values.avgvs, units.vertical)
     case 'wdir':
       return values.wdir !== null ? formatDeg(values.wdir) : '---'
     case 'wspd':
-      return values.wspd !== null ? Math.round(values.wspd).toString() : '---'
+      return values.wspd !== null ? formatSpeed(values.wspd, units.speed) : '---'
     case 'dtk':
       return values.dtk !== null ? formatDeg(values.dtk) : '---'
     case 'dtk_arrow': {
@@ -215,9 +236,9 @@ export function formatInstrumentValue(id: InstrumentId, values: InstrumentValues
       return formatDeg(rel)
     }
     case 'dte':
-      return values.dte !== null ? formatNM(values.dte) : '---'
+      return values.dte !== null ? formatDistance(values.dte, units.distance) : '---'
     case 'xtk':
-      return values.xtk !== null ? values.xtk.toFixed(2) : '---'
+      return values.xtk !== null ? formatDistance(values.xtk, units.distance, 2) : '---'
     case 'ete':
       return values.ete !== null ? Math.round(values.ete).toString() : '---'
     case 'hsi':

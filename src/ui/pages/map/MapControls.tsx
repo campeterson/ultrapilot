@@ -7,9 +7,10 @@ import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useTimelineStore, buildStamp } from '../../../state/timeline-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
-import { computeAGLft, bearing as getBearing, haversineNM, formatNM } from '../../../data/logic/gps-logic'
-import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
-import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
+import { computeAGLft, bearing as getBearing, haversineNM } from '../../../data/logic/gps-logic'
+import { formatDistance, distanceText, DISTANCE_LABELS } from '../../../data/logic/units-logic'
+import { formatInstrumentValue, instrumentUnit, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
+import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 import { StampModal } from './StampModal'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 import { HSIInstrument } from './HSIInstrument'
@@ -17,6 +18,7 @@ import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useWindBands } from '../../hooks/useWindBands'
 import { WindreaderTable } from '../windreader/WindreaderTable'
+import { useUnits } from '../../hooks/useUnits'
 
 interface MapControlsProps {
   onRecenter: () => void
@@ -90,8 +92,9 @@ function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; pos
   const { values } = useInstrumentStore()
   const mode = useFlightModeStore(s => s.mode)
   const label = INSTRUMENT_LABELS[id]
-  const unit = INSTRUMENT_UNITS[id]
-  const displayValue = values ? formatInstrumentValue(id, values) : '—'
+  const units = useUnits()
+  const unit = instrumentUnit(id, units)
+  const displayValue = values ? formatInstrumentValue(id, values, units) : '—'
   const valueColor = values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
   const isArrow = id === 'brg_arrow' || id === 'dtk_arrow'
@@ -149,7 +152,7 @@ function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; pos
           </div>
           <div style={{ fontSize: theme.size.small, fontFamily: theme.font.mono, color: theme.colors.dim, lineHeight: 1 }}>
             {id === 'brg_arrow'
-              ? (values ? `${formatNM(values.dist)} nm` : '---')
+              ? (values ? distanceText(values.dist, units.distance) : '---')
               : (hasValue ? `${Math.round(bearingDeg)}°` : '---')}
           </div>
         </div>
@@ -172,6 +175,7 @@ function MapOverlayInstrument({ id, position, onClick }: { id: InstrumentId; pos
 function DirectToIndicator() {
   const { target: directTo } = useDirectToStore()
   const { position } = useGPSStore()
+  const units = useUnits()
 
   if (!directTo || !position) return null
 
@@ -199,9 +203,9 @@ function DirectToIndicator() {
         <ArrowSVG color={theme.colors.magenta} size={32} />
       </div>
       <div style={{ fontSize: '32px', fontWeight: 700, color: theme.colors.magenta, fontFamily: theme.font.mono, lineHeight: 1 }}>
-        {dist.toFixed(1)}
+        {formatDistance(dist, units.distance)}
       </div>
-      <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '4px', lineHeight: 1 }}>nm</div>
+      <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '4px', lineHeight: 1 }}>{DISTANCE_LABELS[units.distance]}</div>
     </div>
   )
 }

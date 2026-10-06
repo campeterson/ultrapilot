@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useInstrumentStore } from '../../../state/instrument-store'
-import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../../data/models'
-import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
+import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
+import { formatInstrumentValue, instrumentUnit, getInstrumentColor, isInstrumentAvailable } from '../../../data/logic/instrument-logic'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { PAGE_LAYOUTS, type PageLayoutSlot, type SlotSize } from '../../../data/logic/instrument-layouts'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 import { theme } from '../../theme'
+import { useUnits } from '../../hooks/useUnits'
 
 const SIZE_STYLE: Record<SlotSize, { value: string; label: string; padding: string; minHeight: string }> = {
   hero:   { value: theme.size.heroValue, label: theme.size.small, padding: '18px 12px', minHeight: '110px' },
@@ -22,8 +23,9 @@ function SlotCard({ slot, id: slotId, onClick }: { slot: PageLayoutSlot; id: Ins
   const s = SIZE_STYLE[slot.size]
 
   const label = id ? INSTRUMENT_LABELS[id] : '+ Add'
-  const unit = id ? INSTRUMENT_UNITS[id] : ''
-  const displayValue = id && values ? formatInstrumentValue(id, values) : '—'
+  const units = useUnits()
+  const unit = id ? instrumentUnit(id, units) : ''
+  const displayValue = id && values ? formatInstrumentValue(id, values, units) : '—'
   const valueColor = id && values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
   return (

@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
-import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, type InstrumentId } from '../../data/models'
-import { formatInstrumentValue, getInstrumentColor, isInstrumentAvailable } from '../../data/logic/instrument-logic'
+import { INSTRUMENT_LABELS, type InstrumentId } from '../../data/models'
+import { formatInstrumentValue, instrumentUnit, getInstrumentColor, isInstrumentAvailable } from '../../data/logic/instrument-logic'
 import { useFlightModeStore } from '../../state/flight-mode-store'
 import { theme } from '../theme'
+import { useUnits } from '../hooks/useUnits'
 import { InstrumentPickerModal } from './InstrumentPickerModal'
 
 export function InstrumentStrip() {
   const { strip, values, stripCount, setStrip } = useInstrumentStore()
+  const units = useUnits()
   const layout = useResponsiveLayout()
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
   const mode = useFlightModeStore(s => s.mode)
@@ -60,8 +62,8 @@ export function InstrumentStrip() {
         if (!isInstrumentAvailable(id, mode)) return null
 
         const label = INSTRUMENT_LABELS[id]
-        const unit = INSTRUMENT_UNITS[id]
-        const displayValue = values ? formatInstrumentValue(id, values) : '—'
+        const unit = instrumentUnit(id, units)
+        const displayValue = values ? formatInstrumentValue(id, values, units) : '—'
         const valueColor = values ? getInstrumentColor(id, values, mode) : theme.colors.cream
 
         // Find real strip index (not sliced index) for the picker

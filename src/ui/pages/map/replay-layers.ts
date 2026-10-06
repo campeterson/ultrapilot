@@ -6,7 +6,8 @@ import { frameAt, trailCoords, type ReplayTrack } from '../../../data/logic/repl
 import { windLineLengthNM } from '../../../data/logic/windreader-logic'
 import { destinationPoint } from '../../../data/logic/gps-logic'
 import { RELATION_COLORS } from '../windreader/WindreaderTable'
-import type { WindBand } from '../../../data/models'
+import { formatAltitude } from '../../../data/logic/units-logic'
+import type { AltitudeUnit, WindBand } from '../../../data/models'
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
@@ -42,14 +43,14 @@ export function addReplayLayers(map: maplibregl.Map, prefix: string) {
 }
 
 /** One line per altitude band from (lat, lon), length = distance in `minutes`. */
-export function windLineFeatures(bands: WindBand[], lat: number, lon: number, minutes: number): GeoJSON.FeatureCollection {
+export function windLineFeatures(bands: WindBand[], lat: number, lon: number, minutes: number, altitude: AltitudeUnit): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   for (const b of bands) {
     if (b.speedKts === 0) continue
     const end = destinationPoint(lat, lon, b.trackDeg, windLineLengthNM(b.speedKts, minutes))
     const props = { color: RELATION_COLORS[b.relation], current: b.relation === 'current' }
     features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: [[lon, lat], [end[1], end[0]]] } })
-    features.push({ type: 'Feature', properties: { ...props, label: b.altMSLft.toLocaleString() }, geometry: { type: 'Point', coordinates: [end[1], end[0]] } })
+    features.push({ type: 'Feature', properties: { ...props, label: Number(formatAltitude(b.altMSLft, altitude)).toLocaleString() }, geometry: { type: 'Point', coordinates: [end[1], end[0]] } })
   }
   return { type: 'FeatureCollection', features }
 }
@@ -61,6 +62,7 @@ export interface ReplayRenderState {
   originAltMSL: number
   windBands: WindBand[] | null
   windMinutes: number
+  altitudeUnit: AltitudeUnit
   /** Base track layer to dim while replaying, and its normal opacity */
   baseLayerId: string
   baseOpacity: number
@@ -91,7 +93,7 @@ export function renderReplay(
   if (hasBase) map.setPaintProperty(s.baseLayerId, 'line-opacity', 0.3)
   const f = frameAt(s.track, s.t, s.originAltMSL)
   trailSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trailCoords(s.track, f) } })
-  windSrc?.setData(s.windBands ? windLineFeatures(s.windBands, f.lat, f.lon, s.windMinutes) : EMPTY)
+  windSrc?.setData(s.windBands ? windLineFeatures(s.windBands, f.lat, f.lon, s.windMinutes, s.altitudeUnit) : EMPTY)
 
   if (!aircraftRef.current) {
     aircraftRef.current = new maplibregl.Marker({ element: makeAircraftEl(), anchor: 'center', rotationAlignment: 'map' })

@@ -16,7 +16,17 @@ import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
 import { PAGE_LAYOUTS, PAGE_LAYOUT_IDS, type PageLayoutId } from '../../../data/logic/instrument-layouts'
 import { LayoutThumbnail } from '../instruments/LayoutThumbnail'
+import { useUnitsStore } from '../../../state/units-store'
+import { useUnits } from '../../hooks/useUnits'
+import { AVIATION_UNITS, METRIC_UNITS, distanceText } from '../../../data/logic/units-logic'
+import { bandSizeLabel, type WindreaderBandStep } from '../../../data/logic/windreader-logic'
+import type { UnitPrefs } from '../../../data/models'
 
+const BAND_STEPS: WindreaderBandStep[] = [1, 2, 4]
+
+function sameUnits(a: UnitPrefs, b: UnitPrefs): boolean {
+  return a.altitude === b.altitude && a.speed === b.speed && a.distance === b.distance && a.vertical === b.vertical
+}
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -381,6 +391,9 @@ export function SettingsPage() {
   const { showDirectionLine, directionLineMode, directionLineMinutes, setDirectionLineMode, setDirectionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
   const { mode: flightMode, setMode: setFlightMode } = useFlightModeStore()
   const windreader = useWindreaderStore()
+  const units = useUnits()
+  const { setUnit, setAll: setAllUnits } = useUnitsStore()
+  const unitPreset = sameUnits(units, METRIC_UNITS) ? 'metric' : sameUnits(units, AVIATION_UNITS) ? 'aviation' : 'custom'
   const [showInstrConfig, setShowInstrConfig] = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
 
@@ -442,21 +455,51 @@ export function SettingsPage() {
         />
       </Row>
 
+      <SectionHeader title="UNITS" />
+      <Row label="Preset">
+        <Segmented
+          value={unitPreset}
+          options={[{ value: 'aviation', label: 'AVIATION' }, { value: 'metric', label: 'METRIC' }]}
+          onChange={v => setAllUnits(v === 'metric' ? METRIC_UNITS : AVIATION_UNITS)}
+        />
+      </Row>
+      <Row label="Altitude">
+        <Segmented
+          value={units.altitude}
+          options={[{ value: 'ft', label: 'FT' }, { value: 'm', label: 'M' }]}
+          onChange={v => setUnit('altitude', v)}
+        />
+      </Row>
+      <Row label="Speed">
+        <Segmented
+          value={units.speed}
+          options={[{ value: 'kt', label: 'KT' }, { value: 'mph', label: 'MPH' }, { value: 'kmh', label: 'KM/H' }, { value: 'ms', label: 'M/S' }]}
+          onChange={v => setUnit('speed', v)}
+        />
+      </Row>
+      <Row label="Distance">
+        <Segmented
+          value={units.distance}
+          options={[{ value: 'nm', label: 'NM' }, { value: 'sm', label: 'SM' }, { value: 'km', label: 'KM' }]}
+          onChange={v => setUnit('distance', v)}
+        />
+      </Row>
+      <Row label="Vertical Speed">
+        <Segmented
+          value={units.vertical}
+          options={[{ value: 'fpm', label: 'FPM' }, { value: 'ms', label: 'M/S' }]}
+          onChange={v => setUnit('vertical', v)}
+        />
+      </Row>
+
       {flightMode === 'lta' && (
         <>
           <SectionHeader title="WINDREADER" />
           <Row label="Altitude Band">
             <Segmented
-              value={windreader.bandFt}
-              options={[{ value: 50, label: '50 FT' }, { value: 100, label: '100 FT' }, { value: 200, label: '200 FT' }]}
-              onChange={v => windreader.setSetting('bandFt', v)}
-            />
-          </Row>
-          <Row label="Speed Units">
-            <Segmented
-              value={windreader.units}
-              options={[{ value: 'kt', label: 'KT' }, { value: 'mph', label: 'MPH' }, { value: 'kmh', label: 'KM/H' }]}
-              onChange={v => windreader.setSetting('units', v)}
+              value={windreader.bandStep}
+              options={BAND_STEPS.map(step => ({ value: step, label: bandSizeLabel(step, units.altitude).toUpperCase() }))}
+              onChange={v => windreader.setSetting('bandStep', v)}
             />
           </Row>
           <Row label="Panel on Map">
@@ -508,7 +551,7 @@ export function SettingsPage() {
             <Row label="Line Length">
               <Segmented
                 value={directionLineMode}
-                options={[{ value: 'distance', label: '2 NM' }, { value: 'time', label: 'TIME' }]}
+                options={[{ value: 'distance', label: units.distance === 'nm' ? '2 NM' : distanceText(2, units.distance).toUpperCase() }, { value: 'time', label: 'TIME' }]}
                 onChange={setDirectionLineMode}
               />
             </Row>

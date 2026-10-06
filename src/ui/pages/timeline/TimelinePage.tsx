@@ -6,6 +6,8 @@ import { useGPSStore } from '../../../state/gps-store'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { computeAGLft } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
+import { altitudeText } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 import { StampModal } from '../map/StampModal'
 import { TimelineEventRow } from '../../components/TimelineEventRow'
 import type { StampEvent, StampEventType } from '../../../data/models'
@@ -21,6 +23,7 @@ function formatElapsed(ms: number): string {
 }
 
 function SummaryCards({ events, maxAGLft, sessionStart }: { events: StampEvent[]; maxAGLft: number; sessionStart: number }) {
+  const units = useUnits()
   const flightMs = computeFlightTimeMs(events)
   const sessMs = Date.now() - sessionStart
 
@@ -29,7 +32,7 @@ function SummaryCards({ events, maxAGLft, sessionStart }: { events: StampEvent[]
       {[
         { label: 'FLIGHT', value: formatElapsed(flightMs) },
         { label: 'SESSION', value: formatElapsed(sessMs) },
-        { label: 'MAX AGL', value: `${Math.round(maxAGLft)} ft` },
+        { label: 'MAX AGL', value: altitudeText(maxAGLft, units.altitude) },
       ].map(card => (
         <div
           key={card.label}

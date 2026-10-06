@@ -1,3 +1,5 @@
+import { useUnits } from '../../hooks/useUnits'
+import { distanceText } from '../../../data/logic/units-logic'
 interface HSIProps {
   /** Current ground track, degrees (0–360) */
   hdg: number
@@ -184,6 +186,7 @@ function AircraftSymbol() {
 
 export function HSIInstrument({ hdg, dtk, xtk, brg, dist, size = 160 }: HSIProps) {
   const hasCourse = dtk !== null
+  const units = useUnits()
 
   return (
     <svg
@@ -216,7 +219,7 @@ export function HSIInstrument({ hdg, dtk, xtk, brg, dist, size = 160 }: HSIProps
         fill={C.rose}
         fontFamily="B612 Mono, monospace"
       >
-        {dist.toFixed(1)} nm
+        {distanceText(dist, units.distance)}
       </text>
     </svg>
   )

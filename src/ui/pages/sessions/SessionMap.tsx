@@ -5,6 +5,7 @@ import '../map/pmtiles-protocol'
 import { useReplayStore } from '../../../state/replay-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useReplayWindBands } from '../../hooks/useReplayWindBands'
+import { useUnitsStore } from '../../../state/units-store'
 import { addReplayLayers, renderReplay } from '../map/replay-layers'
 import { ReplayWindPanel } from './ReplayWindPanel'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
@@ -60,6 +61,7 @@ export function SessionMap({ session, events }: SessionMapProps) {
   const originAlt = useReplayStore(s => s.originAltMSL)
   const wind = useReplayWindBands()
   const windLineMinutes = useWindreaderStore(s => s.lineMinutes)
+  const altitudeUnit = useUnitsStore(s => s.altitude)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -179,10 +181,10 @@ export function SessionMap({ session, events }: SessionMapProps) {
     if (!map || !mapLoadedRef.current) return
     renderReplay(map, 'replay', aircraftRef, {
       track, active: replayActive, t: replayT, originAltMSL: originAlt,
-      windBands: wind?.bands ?? null, windMinutes: windLineMinutes,
+      windBands: wind?.bands ?? null, windMinutes: windLineMinutes, altitudeUnit,
       baseLayerId: 'track-line', baseOpacity: 0.9, follow: follow && !pressedRef.current,
     })
-  }, [track, replayActive, replayT, originAlt, wind, windLineMinutes, follow, gestureEnd])
+  }, [track, replayActive, replayT, originAlt, wind, windLineMinutes, altitudeUnit, follow, gestureEnd])
 
   // Each new replay starts out following
   useEffect(() => { if (!replayActive) setFollow(true) }, [replayActive])

@@ -3,10 +3,14 @@ import { useWindreaderStore } from '../../../state/windreader-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useWindBands } from '../../hooks/useWindBands'
 import { WindreaderTable, RELATION_COLORS } from './WindreaderTable'
+import { useUnits } from '../../hooks/useUnits'
+import { altitudeText } from '../../../data/logic/units-logic'
+import { bandSizeLabel } from '../../../data/logic/windreader-logic'
 
 export function WindreaderPage() {
   const { bands, currentAltFt } = useWindBands()
-  const { bandFt, clear } = useWindreaderStore()
+  const { bandStep, clear } = useWindreaderStore()
+  const units = useUnits()
   const { session } = useSessionStore()
 
   function handleClear() {
@@ -22,7 +26,7 @@ export function WindreaderPage() {
         <div>
           <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, letterSpacing: '0.04em' }}>WINDREADER</div>
           <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '2px' }}>
-            {currentAltFt !== null ? `You: ${Math.round(currentAltFt).toLocaleString()} ft MSL · ` : ''}{bandFt} ft bands
+            {currentAltFt !== null ? `You: ${altitudeText(currentAltFt, units.altitude)} MSL · ` : ''}{bandSizeLabel(bandStep, units.altitude)} bands
           </div>
         </div>
         <button
@@ -57,7 +61,7 @@ export function WindreaderPage() {
             <span style={{ color: RELATION_COLORS.below }}>■ below you</span>
           </div>
           TRK is the direction you drift <em>toward</em> (true). A reading is only taken
-          after you've held a level (within 50 ft) with steady drift for about 15 seconds,
+          after you've held a level (within {units.altitude === 'm' ? '15 m' : '50 ft'}) with steady drift for about 15 seconds,
           then every 5 seconds while you stay. Each row is the vector average of the last
           20 readings in that band. "min" is how long since
           that band was last sampled; older rows may no longer be accurate.

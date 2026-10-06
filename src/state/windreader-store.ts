@@ -1,27 +1,28 @@
 import { create } from 'zustand'
-import { addSample, holdSample, pushFix, WINDREADER_STEP_MS, type WindreaderFix } from '../data/logic/windreader-logic'
-import type { WindreaderSample, WindreaderUnits } from '../data/models'
+import { addSample, bandSizeFt, holdSample, pushFix, WINDREADER_STEP_MS, type WindreaderBandStep, type WindreaderFix } from '../data/logic/windreader-logic'
+import type { WindreaderSample } from '../data/models'
+import { useUnitsStore } from './units-store'
 
 const SETTINGS_KEY = 'ultrapilot_windreaderSettings'
 const DATA_KEY = 'ultrapilot_windreaderData'
 
-export type WindreaderBandFt = 50 | 100 | 200
 export type WindLineMinutes = 5 | 10 | 30
 
 interface Settings {
-  bandFt: WindreaderBandFt
-  units: WindreaderUnits
+  /** Band size: 1 = 50 ft / 15 m, 2 = 100 ft / 30 m, 4 = 200 ft / 60 m. */
+  bandStep: WindreaderBandStep
   showMapLines: boolean
   lineMinutes: WindLineMinutes
   showMapPanel: boolean
 }
 
-/** v2 (1.8.0): default band went 100 → 50 ft. */
-const SETTINGS_VERSION = 2
+/** v2 (1.8.0): default band went 100 → 50 ft.
+ *  v3 (1.9.0): bandFt → bandStep; speed units moved to the app-wide units store. */
+const SETTINGS_VERSION = 3
+const STEP_FROM_FT: Record<number, WindreaderBandStep> = { 50: 1, 100: 2, 200: 4 }
 
 const DEFAULT_SETTINGS: Settings = {
-  bandFt: 50,
-  units: 'kt',
+  bandStep: 1,
   showMapLines: true,
   lineMinutes: 10,
   showMapPanel: true,
@@ -32,10 +33,12 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      const settings: Settings = { ...DEFAULT_SETTINGS, ...parsed }
-      // Settings saved before v2 always carried the old 100 ft default
-      if (parsed.settingsVersion !== SETTINGS_VERSION) settings.bandFt = DEFAULT_SETTINGS.bandFt
-      return settings
+      const { showMapLines, lineMinutes, showMapPanel } = { ...DEFAULT_SETTINGS, ...parsed }
+      let bandStep: WindreaderBandStep = parsed.bandStep ?? DEFAULT_SETTINGS.bandStep
+      // v2 stored bandFt; before v2 it always carried the old 100 ft default
+      if (parsed.settingsVersion === 2) bandStep = STEP_FROM_FT[parsed.bandFt] ?? DEFAULT_SETTINGS.bandStep
+      else if (parsed.settingsVersion !== SETTINGS_VERSION) bandStep = DEFAULT_SETTINGS.bandStep
+      return { bandStep, showMapLines, lineMinutes, showMapPanel }
     }
   } catch {}
   return { ...DEFAULT_SETTINGS }
@@ -87,7 +90,7 @@ export const useWindreaderStore = create<WindreaderStore>((set, get) => ({
     // Only a level held for WINDREADER_HOLD_MS yields a reading
     const sample = fix.ts - lastSampleTs >= WINDREADER_STEP_MS ? holdSample(recentFixes) : null
     if (sample) {
-      const samples = addSample(s.samples, sample, s.bandFt)
+      const samples = addSample(s.samples, sample, bandSizeFt(s.bandStep, useUnitsStore.getState().altitude))
       set({ samples, recentFixes, lastSampleTs: fix.ts })
       persistData(sessionId, samples)
     } else {
@@ -102,9 +105,9 @@ export const useWindreaderStore = create<WindreaderStore>((set, get) => ({
 
   setSetting: (key, value) => {
     set({ [key]: value } as Partial<WindreaderStore>)
-    const { bandFt, units, showMapLines, lineMinutes, showMapPanel } = get()
+    const { bandStep, showMapLines, lineMinutes, showMapPanel } = get()
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ bandFt, units, showMapLines, lineMinutes, showMapPanel, settingsVersion: SETTINGS_VERSION }))
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ bandStep, showMapLines, lineMinutes, showMapPanel, settingsVersion: SETTINGS_VERSION }))
     } catch {}
   },
 }))

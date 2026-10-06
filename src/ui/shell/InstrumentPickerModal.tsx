@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { INSTRUMENT_LABELS, INSTRUMENT_UNITS, INSTRUMENT_DESCRIPTIONS, INSTRUMENT_GROUPS, type InstrumentId } from '../../data/models'
+import { INSTRUMENT_LABELS, INSTRUMENT_DESCRIPTIONS, INSTRUMENT_GROUPS, type InstrumentId } from '../../data/models'
 import { useSessionStore } from '../../state/session-store'
 import { useGPSStore } from '../../state/gps-store'
 import { useInstrumentStore } from '../../state/instrument-store'
 import { theme } from '../theme'
 import { useFlightModeStore } from '../../state/flight-mode-store'
-import { isInstrumentAvailable } from '../../data/logic/instrument-logic'
+import { isInstrumentAvailable, instrumentUnit } from '../../data/logic/instrument-logic'
+import { useUnits } from '../hooks/useUnits'
 
 interface InstrumentButtonProps {
   id: InstrumentId | null
@@ -18,7 +19,8 @@ interface InstrumentButtonProps {
 
 function InstrumentButton({ id, current, showDetails, onSelect, onClose }: InstrumentButtonProps) {
   const label = id ? INSTRUMENT_LABELS[id] : 'Off'
-  const unit = id ? INSTRUMENT_UNITS[id] : ''
+  const units = useUnits()
+  const unit = id ? instrumentUnit(id, units) : ''
   const desc = id ? INSTRUMENT_DESCRIPTIONS[id] : ''
   const isActive = id === current
   return (

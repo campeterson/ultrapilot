@@ -3,6 +3,8 @@ import { useWeatherStore } from '../../../state/weather-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { theme } from '../../theme'
+import { distanceText } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 import { useState } from 'react'
 
 function MetarCard() {
@@ -88,6 +90,7 @@ function MetarCard() {
 
 function NearbyAirports() {
   const { nearby, loadDatabase, refreshNearby, loading } = useAirportStore()
+  const units = useUnits()
   const { position } = useGPSStore()
 
   // Auto-load on mount
@@ -133,7 +136,7 @@ function NearbyAirports() {
               <span style={{ fontSize: theme.size.small, color: theme.colors.dim, marginLeft: '8px' }}>{ap.name}</span>
             </div>
             <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono, marginTop: '2px' }}>
-              {ap.distNM.toFixed(1)} nm · {ap.bearingLabel}
+              {distanceText(ap.distNM, units.distance)} · {ap.bearingLabel}
             </div>
           </div>
           <button

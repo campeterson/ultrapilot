@@ -13,6 +13,8 @@ import { useWeatherStore } from '../../../state/weather-store'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useWindBands } from '../../hooks/useWindBands'
+import { useUnits } from '../../hooks/useUnits'
+import { altitudeText, distanceRingRadiiM } from '../../../data/logic/units-logic'
 import { windLineFeatures } from './replay-layers'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
@@ -24,7 +26,6 @@ import type { Airport, Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
 const DIR_LINE_NM = 2          // distance mode: fixed 2 nm ahead
-const RING_RADII_M = [926, 1852, 3704] // 0.5, 1, 2 nm
 const AIRPORT_MIN_ZOOM = 8
 
 // Aviation color constants per docs/04-MAP_CONVENTIONS.md
@@ -122,7 +123,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const flightMode = useFlightModeStore(s => s.mode)
   const { showMapLines: showWindLines, lineMinutes: windLineMinutes } = useWindreaderStore()
   const { bands: windBands } = useWindBands()
-
+  const units = useUnits()
 
   const [selection, setSelection] = useState<MapSelection | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
@@ -444,13 +445,13 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     if (showDistanceRings) {
       const fc: GeoJSON.FeatureCollection = {
         type: 'FeatureCollection',
-        features: RING_RADII_M.map(r => circlePolygon(position.lat, position.lon, r)),
+        features: distanceRingRadiiM(units.distance).map(r => circlePolygon(position.lat, position.lon, r)),
       }
       ringsSrc?.setData(fc)
     } else {
       ringsSrc?.setData(emptyFC())
     }
-  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, flightMode])
+  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, flightMode, units.distance])
 
   // ── Windreader wind lines (LTA only) ────────────────────────────────────────
   useEffect(() => {
@@ -461,8 +462,8 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       src?.setData(emptyFC())
       return
     }
-    src?.setData(windLineFeatures(windBands, position.lat, position.lon, windLineMinutes))
-  }, [flightMode, showWindLines, windLineMinutes, windBands, position])
+    src?.setData(windLineFeatures(windBands, position.lat, position.lon, windLineMinutes, units.altitude))
+  }, [flightMode, showWindLines, windLineMinutes, windBands, position, units.altitude])
 
 
   // ── React to orientation mode change ────────────────────────────────────────
@@ -732,7 +733,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
                 <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontSize: '16px', fontWeight: 700, color: theme.colors.cyan, fontFamily: theme.font.mono }}>{selection.airport.id}</span>
-                    <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono }}>{selection.airport.elev} ft MSL</span>
+                    <span style={{ fontSize: theme.size.tiny, color: theme.colors.dim, fontFamily: theme.font.mono }}>{altitudeText(selection.airport.elev, units.altitude)} MSL</span>
                   </div>
                   <div style={{ fontSize: theme.size.small, color: theme.colors.light, marginTop: '2px', lineHeight: 1.3 }}>{selection.airport.name}</div>
                 </>

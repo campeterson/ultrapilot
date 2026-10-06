@@ -163,31 +163,6 @@ export const INSTRUMENT_LABELS: Record<InstrumentId, string> = {
   hsi: 'HSI',
 }
 
-export const INSTRUMENT_UNITS: Record<InstrumentId, string> = {
-  gs: 'kt',
-  agl: 'ft',
-  msl: 'ft',
-  vs: 'fpm',
-  hdg: '°',
-  dist: 'nm',
-  brg: '°',
-  brg_arrow: '',
-  etime: '',
-  sess: '',
-  tod: '',
-  maxalt: 'ft',
-  avgs: 'kt',
-  avgvs: 'fpm',
-  wdir: '°',
-  wspd: 'kt',
-  dtk: '°',
-  dtk_arrow: '',
-  dte: 'nm',
-  xtk: 'nm',
-  ete: 'min',
-  hsi: '',
-}
-
 export const INSTRUMENT_DESCRIPTIONS: Record<InstrumentId, string> = {
   gs: 'Ground speed',
   agl: 'Height above origin',
@@ -295,7 +270,21 @@ export interface WindreaderSample {
   speedKts: number
 }
 
-export type WindreaderUnits = 'kt' | 'mph' | 'kmh'
+// ─── Display units ───────────────────────────────────────────────────────────
+// Everything is stored in ft / kt / nm / fpm (positions in m, m/s);
+// these only change what's shown.
+
+export type AltitudeUnit = 'ft' | 'm'
+export type SpeedUnit = 'kt' | 'mph' | 'kmh' | 'ms'
+export type DistanceUnit = 'nm' | 'sm' | 'km'
+export type VerticalSpeedUnit = 'fpm' | 'ms'
+
+export interface UnitPrefs {
+  altitude: AltitudeUnit
+  speed: SpeedUnit
+  distance: DistanceUnit
+  vertical: VerticalSpeedUnit
+}
 /** 'none' = no reference altitude (e.g. a whole-flight wind profile). */
 export type WindBandRelation = 'above' | 'current' | 'below' | 'none'
 

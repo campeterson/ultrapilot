@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
+import { distanceText } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 import { useRouteStore } from '../../../state/route-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useGPSStore } from '../../../state/gps-store'
@@ -418,6 +420,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
   onSave: (name: string, waypointIds: string[]) => Promise<void>
   onClose: () => void
 }) {
+  const units = useUnits()
   const [name, setName] = useState(editRoute?.name ?? `Route ${Date.now().toString().slice(-4)}`)
   const [selectedIds, setSelectedIds] = useState<string[]>(editRoute?.waypointIds ?? [])
   const [error, setError] = useState<string | null>(null)
@@ -589,7 +592,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
                       <span style={{ color: theme.colors.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ap.name}</span>
                     </div>
                     <span style={{ color: theme.colors.dim, fontSize: theme.size.small, flexShrink: 0, fontFamily: theme.font.mono }}>
-                      {ap.distNM.toFixed(1)} nm
+                      {distanceText(ap.distNM, units.distance)}
                     </span>
                   </button>
                 ))}

@@ -4,7 +4,8 @@ import { theme } from '../../theme'
 import { useSessionStore } from '../../../state/session-store'
 import { getEvents, getTrackPoints } from '../../../data/db'
 import { trackEvent as analyticsTrack } from '../../../lib/analytics'
-import { formatNM } from '../../../data/logic/gps-logic'
+import { altitudeText, distanceText } from '../../../data/logic/units-logic'
+import { useUnits } from '../../hooks/useUnits'
 import { computeFlightTimeMs } from '../../../data/logic/session-logic'
 import { downloadString, sessionFilename, toGPX, toOADSAll, toOADSSession } from '../../../data/export'
 import type { Session } from '../../../data/models'
@@ -68,6 +69,7 @@ function allSessionsFilename(ext: string): string {
 
 function SessionRow({ session, onSelect }: { session: Session; onSelect: () => void }) {
   const { day, month } = formatSessionDateParts(session.startTime)
+  const units = useUnits()
   const maxAGLft = Math.round(session.maxAGL * 3.28084)
   const durationHours = formatDurationHoursDecimal(session.startTime, session.endTime)
 
@@ -100,8 +102,8 @@ function SessionRow({ session, onSelect }: { session: Session; onSelect: () => v
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono }}>
           {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          {` · ${formatNM(session.totalDistanceNM)} nm`}
-          {maxAGLft > 0 ? ` · ${maxAGLft} ft AGL` : ''}
+          {` · ${distanceText(session.totalDistanceNM, units.distance)}`}
+          {maxAGLft > 0 ? ` · ${altitudeText(maxAGLft, units.altitude)} AGL` : ''}
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -175,6 +177,7 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
     downloadString(JSON.stringify(oads, null, 2), sessionFilename(session, 'oads.json'), 'application/json')
   }
 
+  const units = useUnits()
   const maxAGLft = Math.round(session.maxAGL * 3.28084)
   const flightMs = computeFlightTimeMs(events)
   const sessMs = session.endTime
@@ -260,7 +263,7 @@ function SessionDetail({ session, onBack, onTrash }: { session: Session; onBack:
         {[
           { label: 'FLIGHT', value: formatElapsed(flightMs) },
           { label: 'SESSION', value: formatElapsed(sessMs) },
-          { label: 'MAX AGL', value: `${maxAGLft} ft` },
+          { label: 'MAX AGL', value: altitudeText(maxAGLft, units.altitude) },
         ].map(card => (
           <div key={card.label} style={{ flex: 1, background: theme.colors.darkCard, borderRadius: '8px', padding: '10px 8px', textAlign: 'center' }}>
             <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, letterSpacing: '0.06em', marginBottom: '4px' }}>{card.label}</div>
@@ -373,6 +376,7 @@ function TrashRow({
   onRestore: () => void
   onDelete: () => void
 }) {
+  const units = useUnits()
   const maxAGLft = Math.round(session.maxAGL * 3.28084)
   const duration = formatDuration(session.startTime, session.endTime)
 
@@ -390,7 +394,7 @@ function TrashRow({
           {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           {' · '}
           {duration}
-          {maxAGLft > 0 ? ` · ${maxAGLft} ft AGL` : ''}
+          {maxAGLft > 0 ? ` · ${altitudeText(maxAGLft, units.altitude)} AGL` : ''}
         </div>
       </div>
       <button

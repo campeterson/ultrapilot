@@ -7,10 +7,11 @@ import { useRouteStore } from '../../state/route-store'
 import { useMapSettingsStore } from '../../state/map-settings-store'
 import { useFlightModeStore } from '../../state/flight-mode-store'
 import { useWindreaderStore } from '../../state/windreader-store'
+import { useUnitsStore } from '../../state/units-store'
 import { bulkAddTrackPoints } from '../../data/db'
 import { verticalSpeedFpm, msToKnots, metersToFeet } from '../../data/logic/gps-logic'
 import { deriveInstruments } from '../../data/logic/instrument-logic'
-import { computeBands, windAtCurrentLevel } from '../../data/logic/windreader-logic'
+import { bandSizeFt, computeBands, windAtCurrentLevel } from '../../data/logic/windreader-logic'
 import type { GPSPosition } from '../../data/models'
 
 const TRACK_INTERVAL_MS = 5_000
@@ -84,7 +85,8 @@ export function useGPS() {
           if (useFlightModeStore.getState().mode === 'lta') {
             const wr = useWindreaderStore.getState()
             wr.ingest({ lat: pos.lat, lon: pos.lon, altMSL: pos.altMSL, ts: pos.ts }, currentSession.id)
-            const { samples, bandFt } = useWindreaderStore.getState()
+            const { samples, bandStep } = useWindreaderStore.getState()
+            const bandFt = bandSizeFt(bandStep, useUnitsStore.getState().altitude)
             const wind = windAtCurrentLevel(computeBands(samples, bandFt, metersToFeet(pos.altMSL)))
             values.wdir = wind ? wind.dirDeg : null
             values.wspd = wind ? wind.speedKts : null

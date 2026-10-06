@@ -1,5 +1,21 @@
-import type { WindreaderSample, WindBand, WindreaderUnits } from '../models'
+import type { AltitudeUnit, WindreaderSample, WindBand } from '../models'
 import { haversineNM, bearing, metersToFeet } from './gps-logic'
+
+/** Band size as a multiple of the base step: 50 ft, or 15 m in metric. */
+export type WindreaderBandStep = 1 | 2 | 4
+const BAND_BASE_FT = 50
+const BAND_BASE_M = 15
+
+/** Band height in feet. Metric bands are round meters (15 / 30 / 60 m), so
+ *  band centers land on whole meters when shown in m. */
+export function bandSizeFt(step: WindreaderBandStep, altitude: AltitudeUnit): number {
+  return altitude === 'm' ? metersToFeet(BAND_BASE_M * step) : BAND_BASE_FT * step
+}
+
+/** Band size label, e.g. "50 ft" / "15 m". */
+export function bandSizeLabel(step: WindreaderBandStep, altitude: AltitudeUnit): string {
+  return altitude === 'm' ? `${BAND_BASE_M * step} m` : `${BAND_BASE_FT * step} ft`
+}
 
 /** Samples kept per altitude band — matches Balloon Navigator's "last 20". */
 export const WINDREADER_SAMPLES_PER_BAND = 20
@@ -163,18 +179,6 @@ export function computeBands(
     ...b,
     relation: currentAltMSLft === null ? 'none' : i === currentIdx ? 'current' : b.altMSLft > currentAltMSLft ? 'above' : 'below',
   }))
-}
-
-export function convertSpeed(kts: number, units: WindreaderUnits): number {
-  if (units === 'mph') return kts * 1.150779
-  if (units === 'kmh') return kts * 1.852
-  return kts
-}
-
-export const WINDREADER_UNIT_LABELS: Record<WindreaderUnits, string> = {
-  kt: 'kt',
-  mph: 'mph',
-  kmh: 'km/h',
 }
 
 /** Whole minutes since a band's newest sample. */
