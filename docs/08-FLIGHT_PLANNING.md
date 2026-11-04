@@ -1,6 +1,6 @@
 # Flight Planning (What-If Drift)
 
-A pre-flight "what if" tool. The variables are **where** (up to 3 launch sites) and
+A pre-flight "what if" tool. The variables are **where** (up to 5 launch sites) and
 **when** (a date and hour, usually tomorrow morning). For each site it fetches a
 wind forecast and plots constant-altitude drift tracks on the map.
 
@@ -15,7 +15,7 @@ sites or drift tracks.
    (on airports the elevation is filled in). Elevation is optional; leave it blank
    to use the forecast model's terrain height.
 2. **Choose sites**: tap a site on the plan map or in the list. A chosen site is a
-   numbered dot in its site color. Max 3.
+   numbered dot in its site color. Max 5.
 3. **Date / time / model / altitudes**, then *Get forecast*.
 4. **Plan map + drift options** (modelled on isitwindy's Drift Track card):
    - All chosen sites and their tracks on one map. It re-frames when the sites,
@@ -25,7 +25,7 @@ sites or drift tracks.
      hours after, all on the hour.
    - **Cruise alt**, **Duration** (30–120 min), and **Compare altitudes**. On:
      every altitude is drawn, colored by altitude. Off: only the cruise altitude,
-     one track per site colored by site, so three sites compare cleanly.
+     one track per site colored by site, so several sites compare cleanly.
 5. **Per-site card**: track length (along the path), crow line, bearing with a
    compass point, and cruise altitude, then wind and drift at every altitude.
 
@@ -114,8 +114,27 @@ Provider (Settings → Satellite imagery):
 | MapTiler Satellite | worldwide | free MapTiler key | TileJSON `satellite-v2` |
 
 Keys are stored only on the device. Viewed tiles are cached by the service worker
-(`ultrapilot-satellite-v1`, 6000 tiles / 60 days), so areas looked at at home still
-show offline at the field. There is no bulk download of imagery for a region.
+(`ultrapilot-satellite-v1`, 6000 tiles / 60 days).
+
+### Download for offline (Settings → Satellite imagery)
+
+For flying with no connection (e.g. a Wi-Fi-only iPad):
+
+1. On Wi-Fi, choose launch sites in the Flight Plan (or it uses every saved site).
+2. Pick a radius (3 / 5 / 10 nm) — the tile count and size estimate update.
+3. **Download imagery**: zooms 9–16 around each site go into the same cache the map
+   reads, so the map uses them offline. Already-saved tiles are skipped; failed
+   tiles are counted — run again to retry. Persistent storage is requested so the
+   browser doesn't evict them under storage pressure.
+4. **Check saved** reports per site how many tiles are on the device (aim for 100%).
+
+Downloaded tiles aren't subject to the 6000-tile / 60-day runtime limit. *Clear
+saved imagery* removes them all. On iOS, use the app from the Home Screen: Safari
+tabs can lose saved data after 7 days without a visit. Open the app once while
+online and relaunch it before going offline, so the service worker is in control.
+
+Files: `src/data/logic/tile-logic.ts`, `src/data/satellite-cache.ts`,
+`src/state/offline-imagery-store.ts`, `src/ui/pages/settings/OfflineImagery.tsx`.
 
 Files: `src/data/logic/basemap-logic.ts`, `src/state/basemap-store.ts`,
 `src/ui/pages/map/useSatelliteLayer.ts`, `BasemapToggle.tsx`,

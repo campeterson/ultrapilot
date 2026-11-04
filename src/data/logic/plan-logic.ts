@@ -5,7 +5,7 @@ import { hourAt, siteGroundFt, windAt } from './forecast-logic'
 import { driftTrack, type DriftTrack } from './drift-logic'
 import { zoneAt } from './zone-logic'
 
-export const MAX_PLAN_SITES = 3
+export const MAX_PLAN_SITES = 5
 
 export interface PlanLevel {
   /** Index into the altitude set — drives color so levels match across sites. */

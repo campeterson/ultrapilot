@@ -1,6 +1,10 @@
 // Satellite imagery providers for the raster layer drawn over the street
 // basemap. Pure: builds tile source descriptions, no map or fetch.
 
+/** Cache Storage name for satellite tiles. Must match the runtime-caching
+ *  cacheName in vite.config.ts, so downloaded tiles serve the map offline. */
+export const SATELLITE_CACHE = 'ultrapilot-satellite-v1'
+
 export type SatelliteProvider = 'usgs' | 'esri' | 'maptiler'
 /** The app's maps, each with its own Map / Satellite choice. */
 export type MapView = 'flight' | 'plan' | 'zones'
