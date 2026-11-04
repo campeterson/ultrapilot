@@ -12,6 +12,7 @@ import { toGPX, toOADSSession, downloadString, sessionFilename } from '../../../
 import { formatImportStats } from '../../../data/import'
 import { theme } from '../../theme'
 import { SatelliteSettings } from './SatelliteSettings'
+import { OfflineImagery } from './OfflineImagery'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 // INSTRUMENT_LABELS used in InstrumentConfigurator below
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
@@ -574,6 +575,7 @@ export function SettingsPage() {
 
       <SectionHeader title="SATELLITE IMAGERY" />
       <SatelliteSettings />
+      <OfflineImagery />
 
       <SectionHeader title="INSTRUMENTS" />
       <Row label="Top Strip">

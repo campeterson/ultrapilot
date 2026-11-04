@@ -12,7 +12,7 @@ import { buttonStyle, sectionStyle, sectionTitle } from './plan-styles'
 
 type FormState = { site?: LaunchSite; initial?: { lat: number; lon: number } } | null
 
-/** Saved launch sites; tap to include in the plan (up to three). */
+/** Saved launch sites; tap to include in the plan (up to five). */
 export function LaunchSiteList() {
   const { sites, remove } = useLaunchSiteStore()
   const { selectedSiteIds, toggleSite } = useFlightPlanStore()
