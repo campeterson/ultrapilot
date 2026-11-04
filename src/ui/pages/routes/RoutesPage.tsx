@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { distanceText } from '../../../data/logic/units-logic'
 import { useUnits } from '../../hooks/useUnits'
 import { useRouteStore } from '../../../state/route-store'
@@ -31,6 +32,7 @@ const labelStyle: React.CSSProperties = {
 }
 
 export function RoutesPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const { routes, loading, active, load, createRoute, removeRoute, activateRoute, deactivateRoute, setPreview, shareRoute, shareAll, importFile } = useRouteStore()
   const { waypoints, load: loadWaypoints } = useWaypointStore()
   const position = useGPSStore(s => s.position)
@@ -88,7 +90,7 @@ export function RoutesPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       {/* Header */}
       <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>Routes</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>{hasTitleBar ? '' : 'Routes'}</span>
         {/* Hidden file input for import */}
         <input
           id="route-import-input"

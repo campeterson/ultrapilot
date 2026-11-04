@@ -10,7 +10,7 @@ The app follows the responsive panel pattern established by Garmin Pilot. The ma
 - Tapping **Map** shows the full-screen map with floating instruments and controls
 - Tapping any other tab (Timeline, Checklists, Wx/Apt) **replaces the entire content area** with that view — the map is hidden
 - Tapping **Map** again returns to the full-screen map
-- The instrument strip remains visible at the top in all views
+- The instrument strip shows only on the Map view; sections use the full height
 
 ### Tablet (portrait and landscape)
 
@@ -26,7 +26,9 @@ Garmin Pilot's split view:
 - Split vs full is **one remembered preference**: the next section, and the next app
   launch, open the same way.
 - Tapping **Map** (or ✕) closes the section and returns to the full-screen map.
-- Full instrument strip spans the width.
+- The instrument strip shows only with the map: above the map in a split (landscape: across
+  the map column only, the section reaches the top of the screen), hidden in full screen.
+- Inside a section the title bar names it, so pages don't repeat their heading.
 
 ### Panel Transition Summary
 

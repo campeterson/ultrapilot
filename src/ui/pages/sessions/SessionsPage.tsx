@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { useSessionStore } from '../../../state/session-store'
 import { getEvents, getTrackPoints } from '../../../data/db'
 import { trackEvent as analyticsTrack } from '../../../lib/analytics'
@@ -488,6 +489,7 @@ function TrashView({ onBack }: { onBack: () => void }) {
 // ─── Page root ────────────────────────────────────────────────────────────────
 
 export function SessionsPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const { sessions, loadingSessions, loadHistory, setHistorySession } = useSessionStore()
   const justEndedSessionId = useSessionStore(s => s.justEndedSessionId)
   const consumeJustEndedSessionId = useSessionStore(s => s.consumeJustEndedSessionId)
@@ -579,7 +581,7 @@ export function SessionsPage() {
         padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
       }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Sessions</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>{hasTitleBar ? '' : 'Sessions'}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
             ref={fileInputRef}

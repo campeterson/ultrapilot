@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { theme } from '../theme'
 import type { LayoutMode } from '../hooks/useResponsiveLayout'
 import type { PanelMode } from '../../state/panel-store'
+import { PanelTitleBarContext } from './panel-title-context'
 
 interface PanelLayoutProps {
   layout: LayoutMode
@@ -14,7 +15,8 @@ interface PanelLayoutProps {
   onSetPanelMode: (m: PanelMode) => void
   /** Close the section and return to the full map. */
   onClosePanel: () => void
-  topOffset?: string
+  /** Height of the instrument ribbon above the map ('0px' when hidden). */
+  mapTopInset: string
 }
 
 const barBtn: React.CSSProperties = {
@@ -42,8 +44,9 @@ function PanelBar({ title, mode, onSetMode, onClose }: { title: string; mode: Pa
   )
 }
 
-export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panelMode, panelTitle, onSetPanelMode, onClosePanel, topOffset }: PanelLayoutProps) {
-  const top = topOffset ?? theme.safeStripHeight
+export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panelMode, panelTitle, onSetPanelMode, onClosePanel, mapTopInset }: PanelLayoutProps) {
+  // Sections start at the top of the screen; only the map sits below the ribbon
+  const top = 'env(safe-area-inset-top, 0px)'
   const bottom = theme.safeNavHeight
   const hasPanel = panelOpen && panelContent !== null
 
@@ -53,7 +56,7 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panel
     return (
       <div style={{ position: 'fixed', top, bottom, left: theme.safeLeft, right: theme.safeRight }}>
         {/* Map always mounted so Leaflet isn't destroyed on tab switch */}
-        <div style={{ position: 'absolute', inset: 0 }}>
+        <div style={{ position: 'absolute', top: mapTopInset, left: 0, right: 0, bottom: 0 }}>
           {mapContent}
         </div>
         {hasPanel && (
@@ -87,13 +90,15 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panel
       display: 'flex', flexDirection: portrait ? 'column' : 'row',
     }}>
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', visibility: full ? 'hidden' : 'visible' }}>
-        {mapContent}
+        <div style={{ position: 'absolute', top: mapTopInset, left: 0, right: 0, bottom: 0 }}>
+          {mapContent}
+        </div>
       </div>
       {hasPanel && (
         <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column', background: theme.colors.dark, minHeight: 0 }}>
           <PanelBar title={panelTitle} mode={panelMode} onSetMode={onSetPanelMode} onClose={onClosePanel} />
           <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-            {panelContent}
+            <PanelTitleBarContext.Provider value={true}>{panelContent}</PanelTitleBarContext.Provider>
           </div>
         </div>
       )}

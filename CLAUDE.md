@@ -54,6 +54,11 @@ Every section (every tab except Map) shows either **split** with the map or **fu
 The split/full choice is one remembered preference (`src/state/panel-store.ts`), so the next
 section opens the same way. The map stays mounted under a full-screen section.
 
+The **instrument ribbon belongs to the flying map**: it shows only while the map is on screen
+(Map tab, or a tablet split — in a landscape split it spans the map column only) and is hidden
+behind any full-screen section, which then uses that space. Inside a tablet section the title
+bar names it, so pages hide their own heading (`useHasPanelTitleBar()`).
+
 **Tapping "Map" (or ✕) always returns to full-screen map with the section closed.**
 
 ## Domain Knowledge

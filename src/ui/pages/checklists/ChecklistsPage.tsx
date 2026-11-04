@@ -6,6 +6,7 @@ import { useGPSStore } from '../../../state/gps-store'
 import { sortedItems, progressOf, checklistsForMode } from '../../../data/logic/checklist-logic'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import type { Checklist, ChecklistCategory } from '../../../data/models'
 
 const CATEGORY_ORDER: ChecklistCategory[] = [
@@ -199,13 +200,16 @@ export function ChecklistsPage() {
   }
 
   const groups = groupByCategory(checklists)
+  const hasTitleBar = useHasPanelTitleBar()
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
-      {/* Header */}
-      <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, flexShrink: 0 }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Checklists</span>
-      </div>
+      {/* Header (the tablet title bar names the section already) */}
+      {!hasTitleBar && (
+        <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, flexShrink: 0 }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Checklists</span>
+        </div>
+      )}
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>

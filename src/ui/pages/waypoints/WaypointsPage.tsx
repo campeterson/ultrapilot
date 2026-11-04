@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useRouteStore } from '../../../state/route-store'
 import { useGPSStore } from '../../../state/gps-store'
@@ -21,6 +22,7 @@ interface FormState {
 const EMPTY_FORM: FormState = { name: '', lat: '', lon: '', note: '' }
 
 export function WaypointsPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const { waypoints, loading, load, save, remove, shareWaypoint, shareAllWaypoints } = useWaypointStore()
   const { importFile } = useRouteStore()
   const { position } = useGPSStore()
@@ -92,7 +94,7 @@ export function WaypointsPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.colors.dark, fontFamily: theme.font.primary }}>
       {/* Header */}
       <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>Waypoints</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, flex: 1 }}>{hasTitleBar ? '' : 'Waypoints'}</span>
         <input
           id="wp-import-input"
           type="file"

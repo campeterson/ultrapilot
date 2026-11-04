@@ -1,16 +1,14 @@
 import { useRouteStore } from '../../state/route-store'
 import { useWaypointStore } from '../../state/waypoint-store'
 import { useGPSStore } from '../../state/gps-store'
-import { useMapSettingsStore } from '../../state/map-settings-store'
 import { theme } from '../theme'
 
 /** Slim banner shown when a route is active. Floats below the instrument strip. */
-export function RouteBanner() {
+export function RouteBanner({ stripVisible }: { stripVisible: boolean }) {
   const active = useRouteStore(s => s.active)
   const routes = useRouteStore(s => s.routes)
   const waypoints = useWaypointStore(s => s.waypoints)
   const position = useGPSStore(s => s.position)
-  const showStrip = useMapSettingsStore(s => s.showInstrumentStrip)
   const { nextLeg, prevLeg, deactivateRoute } = useRouteStore()
 
   if (!active) return null
@@ -22,7 +20,7 @@ export function RouteBanner() {
   const total = route.waypointIds.length
   const leg = active.legIndex + 1
 
-  const top = showStrip ? `calc(${theme.safeStripHeight} + 4px)` : 'calc(env(safe-area-inset-top, 0px) + 4px)'
+  const top = stripVisible ? `calc(${theme.safeStripHeight} + 4px)` : 'calc(env(safe-area-inset-top, 0px) + 4px)'
 
   const fromLat = position?.lat ?? 0
   const fromLon = position?.lon ?? 0

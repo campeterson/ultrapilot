@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { useTilesetsStore, type DownloadState, type TilesetMeta } from '../../../state/tilesets-store'
 import { formatBytes } from '../../../data/logic/tileset-download'
 import type { TilesetCatalogEntry } from '../../../data/models'
@@ -163,6 +164,7 @@ function ConfirmModal({
 }
 
 export function TilesetsPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const { catalog, downloaded, downloads, initialized, init, download, remove } = useTilesetsStore()
   const [confirmRemove, setConfirmRemove] = useState<TilesetMeta | null>(null)
 
@@ -175,8 +177,8 @@ export function TilesetsPage() {
       <div style={{
         padding: '14px 16px 10px', borderBottom: `1px solid ${theme.colors.darkBorder}`,
       }}>
-        <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Offline Maps</div>
-        <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginTop: '3px' }}>
+        {!hasTitleBar && <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream }}>Offline Maps</div>}
+        <div style={{ fontSize: theme.size.small, color: theme.colors.dim, marginTop: hasTitleBar ? 0 : '3px' }}>
           {downloaded.length === 0
             ? 'Download regions for map access without a cell signal.'
             : `${downloaded.length} region${downloaded.length === 1 ? '' : 's'} · ${formatBytes(totalBytes)} stored`}
