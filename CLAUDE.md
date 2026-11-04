@@ -43,13 +43,18 @@ React + TypeScript + Vite + Zustand + `idb` library + Leaflet.js. PWA via `vite-
 
 ## Responsive Behavior (Garmin Pilot Pattern)
 
-| Width | Map | Panel | Nav Tab Behavior |
-|---|---|---|---|
-| < 768px (phone) | Full screen OR hidden | Replaces map | Tab takes over entire content area |
-| 768–1024px (tablet portrait) | Top ~52% | Bottom ~48% | Tab opens bottom panel; chevron toggles |
-| > 1024px (tablet landscape) | Left side | Right 310px | Tab opens right panel; chevron toggles |
+Every section (every tab except Map) shows either **split** with the map or **full screen**:
 
-**Tapping "Map" always returns to full-screen map with panel collapsed.**
+| Device | Split | Full screen | Switching |
+|---|---|---|---|
+| Phone | — (no split) | Section replaces the map | Always full screen; no title bar |
+| Tablet portrait | Map top ~52%, section bottom ~48% | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
+| Tablet landscape | Map left, section right ~⅓ | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
+
+The split/full choice is one remembered preference (`src/state/panel-store.ts`), so the next
+section opens the same way. The map stays mounted under a full-screen section.
+
+**Tapping "Map" (or ✕) always returns to full-screen map with the section closed.**
 
 ## Domain Knowledge
 

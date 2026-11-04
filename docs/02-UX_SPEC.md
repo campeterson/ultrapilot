@@ -12,31 +12,29 @@ The app follows the responsive panel pattern established by Garmin Pilot. The ma
 - Tapping **Map** again returns to the full-screen map
 - The instrument strip remains visible at the top in all views
 
-### Tablet Portrait (768px–1024px width)
+### Tablet (portrait and landscape)
 
-- The map fills the top ~52% of the screen
-- Tapping a non-Map tab opens a **bottom panel** (~48%) showing that content
-- A **chevron button** (˅/˄) centered at the bottom edge of the map toggles the panel open/closed without changing the selected tab
-- Tapping **Map** collapses the panel and returns to full-screen map
-- The map is always visible — it never gets replaced
-- Full instrument strip spans the width
+Every non-Map section opens either **split** with the map or **full screen**, like
+Garmin Pilot's split view:
 
-### Tablet Landscape (> 1024px width)
-
-- The map fills the left side of the screen
-- Tapping a non-Map tab opens a **right panel** (~310px) showing that content
-- A **chevron button** (‹/›) on the right edge of the map toggles the panel open/closed
-- Tapping **Map** collapses the panel and returns to full-screen map
-- The map is always visible
-- Full instrument strip spans the width
+- **Split:** portrait puts the map in the top ~52% and the section in the bottom ~48%;
+  landscape puts the map on the left and the section on the right ~⅓.
+- **Full screen:** the section covers the map. The map stays mounted (and sized)
+  underneath, so returning to it is instant.
+- Each section has a **title bar** with **⤢ Full / ◧ Split** and **✕** (close, back to
+  the full map).
+- Split vs full is **one remembered preference**: the next section, and the next app
+  launch, open the same way.
+- Tapping **Map** (or ✕) closes the section and returns to the full-screen map.
+- Full instrument strip spans the width.
 
 ### Panel Transition Summary
 
-| Form Factor | Map Position | Panel Position | Panel Toggle |
+| Form Factor | Split | Full screen | Switch |
 |---|---|---|---|
-| Phone | Full screen (or hidden) | Replaces map | Nav tab tap |
-| Tablet Portrait | Top ~52% | Bottom ~48% | Chevron ˅˄ |
-| Tablet Landscape | Left side | Right ~310px | Chevron ‹› |
+| Phone | — | Section replaces the map | Always full; nav tab tap |
+| Tablet Portrait | Map top ~52%, section bottom ~48% | Section covers the map | Title bar ⤢ / ◧, ✕ |
+| Tablet Landscape | Map left, section right ~⅓ | Section covers the map | Title bar ⤢ / ◧, ✕ |
 
 ---
 
