@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { usePlacesStore, ADDED_SOURCE } from '../../../state/places-store'
 import { PLACE_CATEGORIES } from '../../../data/logic/place-logic'
 import { DRAWN_SOURCE, ZONE_RATINGS } from '../../../data/logic/zone-logic'
@@ -13,6 +14,7 @@ const ACCEPT = '.kml,.kmz,.geojson,.json,application/vnd.google-earth.kml+xml,ap
 
 /** Points and areas: launch sites, landing-zone ratings, points of interest. */
 export function PlacesPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const { places, load, importFile, exportPlaces, removeSource, showOnFlightMap, defaultRating, setSetting } = usePlacesStore()
   const fileRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export function PlacesPage() {
 
   return (
     <div style={{ padding: '12px', fontFamily: theme.font.primary, color: theme.colors.light }}>
-      <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Places</div>
+      {!hasTitleBar && <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Places</div>}
 
       <div style={sectionStyle}>
         <AddPlacePanel />

@@ -3,6 +3,7 @@ import { NavBar, type NavTab } from './NavBar'
 import { MorePicker, type MoreView } from './MorePicker'
 import { InstrumentStrip } from './InstrumentStrip'
 import { PanelLayout } from './PanelLayout'
+import { usePanelStore } from '../../state/panel-store'
 import { UpdateBanner } from './UpdateBanner'
 import { RouteBanner } from './RouteBanner'
 import { Disclaimer } from './Disclaimer'
@@ -38,6 +39,13 @@ import { PlacesPage } from '../pages/places/PlacesPage'
 import { ReplayScreen } from '../pages/sessions/ReplayScreen'
 import { useReplayScreen } from '../hooks/useReplayScreen'
 
+/** Section titles for the tablet title bar. */
+const PANEL_TITLES: Record<string, string> = {
+  plan: 'Flight Plan', places: 'Places', instruments: 'Instruments', sessions: 'Sessions', tilesets: 'Offline Maps',
+  settings: 'Settings', wind: 'Windreader', timeline: 'Timeline', checklists: 'Checklists', wx: 'Weather & Airports',
+  waypoints: 'Waypoints', routes: 'Routes',
+}
+
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<NavTab>('map')
   const [moreOpen, setMoreOpen] = useState(false)
@@ -45,6 +53,7 @@ export function AppShell() {
   const [panelOpen, setPanelOpen] = useState(false)
 
   const layout = useResponsiveLayout()
+  const { mode: panelMode, setMode: setPanelMode } = usePanelStore()
   const { sessionStatus } = useSessionStore()
   const { showInstrumentStrip } = useMapSettingsStore()
   const flightMode = useFlightModeStore(s => s.mode)
@@ -119,6 +128,13 @@ export function AppShell() {
     if (layout !== 'phone') setPanelOpen(true)
   }
 
+  function closePanel() {
+    setMoreOpen(false)
+    setMoreView(null)
+    setPanelOpen(false)
+    setActiveTab('map')
+  }
+
   function getPanelContent() {
     if (moreView === 'plan') return <PlanPage />
     if (moreView === 'places') return <PlacesPage />
@@ -142,27 +158,34 @@ export function AppShell() {
   const isPanelTab = activeTab !== 'map' || moreView !== null
   const effectivePanelOpen = layout === 'phone' ? isPanelTab : panelOpen
 
-  const topOffset = showInstrumentStrip
-    ? theme.safeStripHeight
-    : 'env(safe-area-inset-top, 0px)'
+  // The instrument ribbon belongs to the flying map: shown only while the map is
+  // on screen (no section, or a tablet split), and in a landscape split it spans
+  // the map column only.
+  const sectionOpen = effectivePanelOpen && panelContent !== null
+  const sectionFull = sectionOpen && (layout === 'phone' || panelMode === 'full')
+  const stripVisible = showInstrumentStrip && !sectionFull
+  const stripRight = layout === 'tablet-landscape' && sectionOpen && !sectionFull ? `calc(${theme.safeRight} + (100vw - ${theme.safeLeft} - ${theme.safeRight}) / 2)` : undefined
 
   return (
     <>
-      {showInstrumentStrip && <InstrumentStrip />}
+      {stripVisible && <InstrumentStrip right={stripRight} />}
 
       <PanelLayout
         layout={layout}
         mapContent={
           <>
             {/* Live map stays mounted under the replay screen */}
-            <MapPage showControls={!replayScreen && (layout !== 'phone' || (activeTab === 'map' && moreView === null))} />
+            <MapPage showControls={!replayScreen && !sectionFull} />
             {replayScreen && <ReplayScreen />}
           </>
         }
         panelContent={panelContent}
         panelOpen={effectivePanelOpen}
-        onTogglePanel={() => setPanelOpen(v => !v)}
-        topOffset={topOffset}
+        panelMode={panelMode}
+        panelTitle={PANEL_TITLES[moreView ?? activeTab] ?? ''}
+        onSetPanelMode={setPanelMode}
+        onClosePanel={closePanel}
+        mapTopInset={stripVisible ? theme.stripHeight : '0px'}
       />
 
       <NavBar
@@ -177,7 +200,7 @@ export function AppShell() {
       />
 
       <PendingPlaceForm />
-      <RouteBanner />
+      <RouteBanner stripVisible={stripVisible} />
       <UpdateBanner />
       <Disclaimer />
     </>

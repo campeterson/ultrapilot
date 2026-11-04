@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { theme } from '../../theme'
+import { useHasPanelTitleBar } from '../../shell/panel-title-context'
 import { usePlacesStore } from '../../../state/places-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useFlightPlan } from '../../hooks/useFlightPlan'
@@ -14,6 +15,7 @@ import { buttonStyle, sectionStyle, sectionTitle } from './plan-styles'
 
 /** What-if flight planning: pick sites and a time, compare winds and drift. */
 export function PlanPage() {
+  const hasTitleBar = useHasPanelTitleBar()
   const loadSites = usePlacesStore(s => s.load)
   const { fetching, error, fetchForecasts, model, forecasts } = useFlightPlanStore()
   const view = useFlightPlan()
@@ -28,7 +30,7 @@ export function PlanPage() {
 
   return (
     <div style={{ padding: '12px', fontFamily: theme.font.primary, color: theme.colors.light }}>
-      <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Flight Plan</div>
+      {!hasTitleBar && <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Flight Plan</div>}
 
       <div style={sectionStyle}>
         <div style={sectionTitle}>

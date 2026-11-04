@@ -8,7 +8,8 @@ import { theme } from '../theme'
 import { useUnits } from '../hooks/useUnits'
 import { InstrumentPickerModal } from './InstrumentPickerModal'
 
-export function InstrumentStrip() {
+/** `right`: in a landscape split the ribbon spans the map column only. */
+export function InstrumentStrip({ right }: { right?: string } = {}) {
   const { strip, values, stripCount, setStrip } = useInstrumentStore()
   const units = useUnits()
   const layout = useResponsiveLayout()
@@ -42,7 +43,7 @@ export function InstrumentStrip() {
         position: 'fixed',
         top: 0,
         left: 0,
-        right: 0,
+        right: right ?? 0,
         height: theme.safeStripHeight,
         background: theme.colors.stripBg,
         borderBottom: `1px solid ${theme.colors.darkBorder}`,
@@ -52,7 +53,7 @@ export function InstrumentStrip() {
         backdropFilter: 'blur(8px)',
         paddingTop: 'env(safe-area-inset-top)',
         paddingLeft: theme.safeLeft,
-        paddingRight: theme.safeRight,
+        paddingRight: right ? 0 : theme.safeRight,
       }}
     >
       {visibleStrip.map((id, idx) => {
