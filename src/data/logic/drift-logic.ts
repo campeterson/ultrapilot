@@ -24,8 +24,10 @@ export interface DriftTrack {
   /** [lon, lat] pairs, launch first — ready for GeoJSON. */
   coords: [number, number][]
   ticks: DriftTick[]
-  /** Straight-line launch → end. */
+  /** Straight-line launch → end ("crow line"). */
   distNM: number
+  /** Along the curved path — longer than distNM when the wind turns. */
+  trackNM: number
   bearingDeg: number
   /** Minutes actually integrated; short when the wind data ran out. */
   minutes: number
@@ -48,6 +50,7 @@ export function driftTrack(
   const ticks: DriftTick[] = []
   let cur: [number, number] = [lat, lon]
   let done = 0
+  let trackNM = 0
   for (let m = 0; m < minutes; m += STEP_MIN) {
     // Midpoint wind in time for the step (cheap second-order accuracy)
     const v = windVecAt(hours, startTs + (m + STEP_MIN / 2) * 60_000, mslFt)
@@ -55,7 +58,9 @@ export function driftTrack(
     const speed = Math.hypot(v.x, v.y)
     if (speed > 0.05) {
       const to = ((Math.atan2(v.x, v.y) * 180) / Math.PI + 360) % 360
-      cur = destinationPoint(cur[0], cur[1], to, speed * (STEP_MIN / 60))
+      const stepNM = speed * (STEP_MIN / 60)
+      cur = destinationPoint(cur[0], cur[1], to, stepNM)
+      trackNM += stepNM
     }
     done = m + STEP_MIN
     coords.push([cur[1], cur[0]])
@@ -66,6 +71,7 @@ export function driftTrack(
     coords,
     ticks,
     distNM: haversineNM(lat, lon, cur[0], cur[1]),
+    trackNM,
     bearingDeg: bearing(lat, lon, cur[0], cur[1]),
     minutes: done,
   }

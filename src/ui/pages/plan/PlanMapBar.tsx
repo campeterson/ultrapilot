@@ -21,7 +21,7 @@ export function PlanMapBar() {
         <button onClick={() => setSetting('showOnMap', false)} aria-label="Hide drift tracks"
           style={{ minWidth: theme.tapTarget, minHeight: theme.tapTarget, margin: '-8px 0', background: 'none', border: 'none', color: theme.colors.dim, cursor: 'pointer', fontSize: theme.size.body }}>✕</button>
       </div>
-      <HourScrubber baseTs={view.baseTs} altitudesFt={view.altitudesFt} compact />
+      <HourScrubber view={view} compact />
     </div>
   )
 }

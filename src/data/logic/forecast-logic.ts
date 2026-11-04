@@ -19,18 +19,33 @@ export interface ForecastModel {
   id: string
   label: string
   note: string
+  /** How far ahead the model runs, hours. Past this it returns no data. */
+  horizonHours: number
 }
 
 /** Open-Meteo model ids. "best_match" lets Open-Meteo blend the best
  *  regional model for the location (HRRR + GFS in the US). */
 export const FORECAST_MODELS: ForecastModel[] = [
-  { id: 'best_match',     label: 'Best match',  note: 'Open-Meteo picks the best model for the location' },
-  { id: 'ncep_hrrr_conus', label: 'HRRR',       note: 'NOAA 3 km, US only, ~18 h ahead' },
-  { id: 'gfs_seamless',   label: 'GFS',         note: 'NOAA global, blends HRRR for the first hours' },
-  { id: 'ecmwf_ifs025',   label: 'ECMWF IFS',   note: 'European global, 25 km' },
-  { id: 'icon_seamless',  label: 'ICON',        note: 'DWD global + regional' },
-  { id: 'gem_seamless',   label: 'GEM',         note: 'Canadian global + regional' },
+  { id: 'best_match',               label: 'Best match',        note: 'Open-Meteo picks the best model for the location', horizonHours: 384 },
+  { id: 'ncep_hrrr_conus',          label: 'HRRR (US)',         note: 'NOAA 3 km, hourly runs; 18 h ahead (48 h on 00/06/12/18z)', horizonHours: 48 },
+  { id: 'gfs_seamless',             label: 'GFS (global)',      note: 'NOAA global, blends HRRR for the first hours', horizonHours: 384 },
+  { id: 'ecmwf_ifs025',             label: 'ECMWF IFS (global)', note: 'European global, 25 km', horizonHours: 360 },
+  { id: 'icon_seamless',            label: 'ICON (global)',     note: 'DWD global + regional', horizonHours: 180 },
+  { id: 'icon_eu',                  label: 'ICON-EU (Europe)',  note: 'DWD Europe, 7 km', horizonHours: 120 },
+  { id: 'icon_d2',                  label: 'ICON-D2 (DE hi-res)', note: 'DWD central Europe, 2 km', horizonHours: 48 },
+  { id: 'gem_seamless',             label: 'GEM (Canada/global)', note: 'Canadian global + regional', horizonHours: 240 },
+  { id: 'gem_hrdps_continental',    label: 'GEM HRDPS (CA hi-res)', note: 'Canadian 2.5 km', horizonHours: 48 },
+  { id: 'meteofrance_arome_france', label: 'AROME (France)',    note: 'Météo-France 1.3 km', horizonHours: 42 },
+  { id: 'meteofrance_arpege_europe', label: 'ARPEGE (Europe)',  note: 'Météo-France Europe, 10 km', horizonHours: 102 },
+  { id: 'metno_nordic',             label: 'MET Norway (Nordics)', note: 'MET Nordic 1 km', horizonHours: 60 },
 ]
+
+/** False when the plan time is past the model's forecast horizon — it will
+ *  come back empty, so warn before fetching. */
+export function modelReaches(modelId: string, ts: number, now: number): boolean {
+  const m = FORECAST_MODELS.find(x => x.id === modelId)
+  return !m || ts - now <= m.horizonHours * 3_600_000
+}
 
 export function modelLabel(id: string): string {
   return FORECAST_MODELS.find(m => m.id === id)?.label ?? id

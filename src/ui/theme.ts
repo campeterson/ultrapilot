@@ -20,6 +20,8 @@ export const theme = {
     // Flight-plan drift tracks, one per altitude (low → high)
     driftLevels: ['#00acc1', '#2e7d32', '#e67e22', '#8e44ad'],
     launchSite: '#C0392B',
+    // Chosen launch sites 1–3 (markers, and tracks when not comparing altitudes)
+    planSites: ['#d81b60', '#1e88e5', '#00897b'],
   },
   font: {
     primary: '"B612", monospace',

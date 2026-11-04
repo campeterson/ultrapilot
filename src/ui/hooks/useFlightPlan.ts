@@ -14,12 +14,15 @@ export interface FlightPlanView {
   plans: SitePlan[]
   /** Some chosen site has no forecast for this plan (or the wrong model). */
   needsFetch: boolean
+  compare: boolean
+  /** Cruise altitude index, clamped to the altitude set. */
+  cruiseIndex: number
 }
 
 /** Chosen sites, the viewed hour, and each site's wind + drift result. */
 export function useFlightPlan(): FlightPlanView {
   const allSites = useLaunchSiteStore(s => s.sites)
-  const { selectedSiteIds, date, hour, slot, mode, aglFt, mslFt, model, driftMinutes, forecasts } = useFlightPlanStore()
+  const { selectedSiteIds, date, hour, slot, mode, aglFt, mslFt, model, driftMinutes, forecasts, compare, cruiseIndex } = useFlightPlanStore()
 
   return useMemo(() => {
     const sites = selectedSiteIds.map(id => allSites.find(s => s.id === id)).filter((s): s is LaunchSite => !!s)
@@ -29,6 +32,7 @@ export function useFlightPlan(): FlightPlanView {
     const altitudesFt = planAltitudes(mode, aglFt, mslFt ?? defaultMslLevels(grounds))
     const current = sites.filter(s => isForecastCurrent(forecasts[s.id], model, baseTs))
     const plans = current.map(s => buildSitePlan(s, forecasts[s.id], ts, mode, altitudesFt, driftMinutes))
-    return { sites, baseTs, ts, altitudesFt, plans, needsFetch: current.length < sites.length }
-  }, [allSites, selectedSiteIds, date, hour, slot, mode, aglFt, mslFt, model, driftMinutes, forecasts])
+    const cruise = Math.min(Math.max(0, cruiseIndex), altitudesFt.length - 1)
+    return { sites, baseTs, ts, altitudesFt, plans, needsFetch: current.length < sites.length, compare, cruiseIndex: cruise }
+  }, [allSites, selectedSiteIds, date, hour, slot, mode, aglFt, mslFt, model, driftMinutes, forecasts, compare, cruiseIndex])
 }

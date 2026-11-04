@@ -75,3 +75,8 @@ export function driftColor(index: number): string {
   const c = theme.colors.driftLevels
   return c[index % c.length]
 }
+
+export function siteColor(index: number): string {
+  const c = theme.colors.planSites
+  return c[index % c.length]
+}

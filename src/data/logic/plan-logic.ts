@@ -68,3 +68,25 @@ export function coordinateError(lat: number, lon: number): string | null {
   if (!Number.isFinite(lon) || lon < -180 || lon > 180) return 'Longitude must be between -180 and 180'
   return null
 }
+
+/** Levels whose drift is drawn: all of them when comparing altitudes,
+ *  otherwise only the cruise altitude. */
+export function drawnLevels(plan: SitePlan, compare: boolean, cruiseIndex: number): PlanLevel[] {
+  return compare ? plan.levels : plan.levels.filter(l => l.index === cruiseIndex)
+}
+
+/** The model returned nothing usable at this time (e.g. past its horizon). */
+export function planHasNoData(plan: SitePlan): boolean {
+  return plan.levels.every(l => l.belowGround || l.wind === null)
+}
+
+/** [west, south, east, north] around every site and drawn track, or null. */
+export function planExtent(plans: SitePlan[], compare: boolean, cruiseIndex: number): [number, number, number, number] | null {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity
+  const add = (lon: number, lat: number) => { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat) }
+  for (const p of plans) {
+    add(p.site.lon, p.site.lat)
+    for (const l of drawnLevels(p, compare, cruiseIndex)) l.track?.coords.forEach(c => add(c[0], c[1]))
+  }
+  return Number.isFinite(w) ? [w, s, e, n] : null
+}

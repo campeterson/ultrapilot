@@ -212,3 +212,10 @@ export function directionLineLengthNM(mode: 'distance' | 'time', speedMs: number
   const kt = speedMs * 1.943844
   return kt * (minutes / 60)
 }
+
+const COMPASS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+
+/** 16-point compass name for a bearing: 44 → "NE". */
+export function compassPoint(deg: number): string {
+  return COMPASS_16[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]
+}

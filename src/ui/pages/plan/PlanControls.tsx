@@ -4,7 +4,6 @@ import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useUnits } from '../../hooks/useUnits'
 import type { FlightPlanView } from '../../hooks/useFlightPlan'
 import { FORECAST_MODELS, localDateString } from '../../../data/logic/forecast-logic'
-import { DRIFT_MINUTES_OPTIONS } from '../../../data/logic/drift-logic'
 import { parseAltitudeList } from '../../../data/logic/plan-logic'
 import { altitudeToFeet, convertAltitude, ALTITUDE_LABELS } from '../../../data/logic/units-logic'
 import { chipStyle, inputStyle, labelStyle, sectionStyle, sectionTitle } from './plan-styles'
@@ -14,7 +13,7 @@ const hour12 = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' 
 
 /** When, which model, which altitudes, how long to drift. */
 export function PlanControls({ view }: { view: FlightPlanView }) {
-  const { date, hour, model, mode, mslFt, driftMinutes, showOnMap, setSetting } = useFlightPlanStore()
+  const { date, hour, model, mode, mslFt, showOnMap, setSetting } = useFlightPlanStore()
   const units = useUnits()
   const unit = ALTITUDE_LABELS[units.altitude]
   const shown = view.altitudesFt.map(ft => Math.round(convertAltitude(ft, units.altitude))).join(', ')
@@ -70,16 +69,9 @@ export function PlanControls({ view }: { view: FlightPlanView }) {
         {mode === 'agl' ? 'Up to four heights above each site’s ground.' : 'One altitude set flown from every site — compare sites at the same level.'}
       </div>
 
-      <label style={{ ...labelStyle, marginTop: '10px' }}>Drift duration</label>
-      <div style={{ display: 'flex', gap: '6px' }}>
-        {DRIFT_MINUTES_OPTIONS.map(m => (
-          <button key={m} style={chipStyle(driftMinutes === m)} onClick={() => setSetting('driftMinutes', m)}>{m} min</button>
-        ))}
-      </div>
-
       <button onClick={() => setSetting('showOnMap', !showOnMap)}
         style={{ ...chipStyle(showOnMap), width: '100%', marginTop: '10px', flex: 'none' }}>
-        {showOnMap ? '✓ Drift tracks shown on map' : 'Show drift tracks on map'}
+        {showOnMap ? '✓ Drift tracks shown on main map' : 'Show drift tracks on main map'}
       </button>
     </div>
   )
