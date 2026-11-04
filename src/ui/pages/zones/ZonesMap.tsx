@@ -10,6 +10,8 @@ import { zonesExtent } from '../../../data/logic/zone-logic'
 import type { ZoneRating } from '../../../data/models'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import { ensureZoneLayers, setZoneData, ZONE_COLORS } from '../map/zone-layers'
+import { useSatelliteLayer } from '../map/useSatelliteLayer'
+import { BasemapToggle } from '../map/BasemapToggle'
 
 export type LonLat = [number, number]
 const DRAFT = 'zone-draft'
@@ -101,7 +103,13 @@ export function ZonesMap({ draft, draftRating, onAddPoint, onClose }: Props) {
     map.getCanvas().style.cursor = draft ? 'crosshair' : ''
   }, [draft, draftRating])
 
+  // After the map-creating effect, so the map exists when this runs
+  useSatelliteLayer(mapRef, 'zones', () => loadedRef.current, ['zones-fill', 'draft-fill'])
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '300px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${draft ? ZONE_COLORS[draftRating] : theme.colors.darkBorder}` }} />
+    <div style={{ position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '300px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${draft ? ZONE_COLORS[draftRating] : theme.colors.darkBorder}` }} />
+      <BasemapToggle view="zones" style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 5 }} />
+    </div>
   )
 }

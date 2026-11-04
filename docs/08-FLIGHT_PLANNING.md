@@ -97,3 +97,26 @@ More → **Zones**: draw areas on the zone map, or import KML, KMZ or GeoJSON, a
 Files: `src/data/zone-import.ts`, `src/data/logic/zone-logic.ts`, `zones` store in
 `db.ts` (DB v6), `src/state/zone-store.ts`, `src/ui/pages/zones/*`,
 `src/ui/pages/map/zone-layers.ts`, `useZoneLayers.ts` (zone map + drawing: `ZonesMap.tsx`, `DrawZonePanel.tsx`).
+
+## Satellite imagery
+
+Every map (flying, plan, zones) has a 🛰 button that switches it between the
+street map and satellite. The choice is remembered per map. Imagery is a raster
+layer above the street basemap and beneath all app layers (zones, tracks,
+markers), so nothing else changes.
+
+Provider (Settings → Satellite imagery):
+
+| Provider | Coverage | Key | Notes |
+|---|---|---|---|
+| USGS (default) | US only | none | NAIP aerial orthoimagery, ~z16. Credit: "USDA, USGS The National Map: Orthoimagery" |
+| Esri World Imagery | worldwide | free ArcGIS developer API key | `ibasemaps-api.arcgis.com`, keyed per Esri's Location Platform terms |
+| MapTiler Satellite | worldwide | free MapTiler key | TileJSON `satellite-v2` |
+
+Keys are stored only on the device. Viewed tiles are cached by the service worker
+(`ultrapilot-satellite-v1`, 6000 tiles / 60 days), so areas looked at at home still
+show offline at the field. There is no bulk download of imagery for a region.
+
+Files: `src/data/logic/basemap-logic.ts`, `src/state/basemap-store.ts`,
+`src/ui/pages/map/useSatelliteLayer.ts`, `BasemapToggle.tsx`,
+`src/ui/pages/settings/SatelliteSettings.tsx`.

@@ -23,6 +23,7 @@ import { MapControls } from './MapControls'
 import { useLaunchSiteStore } from '../../../state/launch-site-store'
 import { useZoneStore } from '../../../state/zone-store'
 import { useZoneLayers } from './useZoneLayers'
+import { useSatelliteLayer } from './useSatelliteLayer'
 import { ZONE_COLORS } from './zone-layers'
 import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
@@ -365,6 +366,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
   useZoneLayers(mapRef)
+  useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['zones-fill', 'history-track'])
   const { zones, showOnFlightMap } = useZoneStore()
 
   // ── Load airports + waypoints ────────────────────────────────────────────────

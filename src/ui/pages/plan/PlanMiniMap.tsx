@@ -14,6 +14,8 @@ import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import { ensurePlanLayers, fetchKey, fitPlan, setPlanData } from '../map/plan-layers'
 import { ensureZoneLayers, setZoneData } from '../map/zone-layers'
 import { useZoneStore } from '../../../state/zone-store'
+import { useSatelliteLayer } from '../map/useSatelliteLayer'
+import { BasemapToggle } from '../map/BasemapToggle'
 
 const PAD = { top: 30, bottom: 30, left: 30, right: 50 }
 const toggleSite = (id: string) => useFlightPlanStore.getState().toggleSite(id)
@@ -89,7 +91,13 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
     if (map && loadedRef.current) fitPlan(map, viewRef.current, frameSites(viewRef.current), PAD)
   }, [frameKey])
 
+  // After the map-creating effect, so the map exists when this runs
+  useSatelliteLayer(mapRef, 'plan', () => loadedRef.current, ['zones-fill', 'plan-drift-casing'])
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '320px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${theme.colors.darkBorder}` }} />
+    <div style={{ position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '320px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${theme.colors.darkBorder}` }} />
+      <BasemapToggle view="plan" style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 5 }} />
+    </div>
   )
 }

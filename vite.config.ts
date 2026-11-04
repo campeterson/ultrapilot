@@ -41,6 +41,17 @@ export default defineConfig({
             },
           },
           {
+            // Satellite imagery tiles (USGS / Esri / MapTiler) — kept so areas
+            // viewed at home still show offline at the field.
+            urlPattern: /^https:\/\/(basemap\.nationalmap\.gov|ibasemaps-api\.arcgis\.com|api\.maptiler\.com\/tiles\/satellite)/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ultrapilot-satellite-v1',
+              expiration: { maxEntries: 6000, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Protomaps glyph fonts and sprites (served from GitHub Pages).
             urlPattern: /^https:\/\/protomaps\.github\.io\/basemaps-assets\/.*/i,
             handler: 'CacheFirst',
