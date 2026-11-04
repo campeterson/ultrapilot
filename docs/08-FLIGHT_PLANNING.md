@@ -10,9 +10,11 @@ The plan has its own map inside the Flight Plan panel (More → Flight Plan), th
 same on phone and tablet. **The main map is for flying only**: it shows no launch
 sites or drift tracks.
 
-1. **Launch sites**: tap an empty spot on the plan map, or *+ Coordinates* /
-   *+ My position*. From the main map, the tap menu's *Add Launch Site* also works
-   (on airports the elevation is filled in). Elevation is optional; leave it blank
+1. **Launch sites** are places of type *Launch site* (see Places below): a point,
+   or an area, which launches from its first corner. Add one by tapping an empty
+   spot on the plan map, with *+ Coordinates* / *+ My position*, from the main
+   map's tap menu (*Add Place*; on airports the elevation is filled in), or by
+   setting any place's type to Launch site. Elevation is optional; leave it blank
    to use the forecast model's terrain height.
 2. **Choose sites**: tap a site on the plan map or in the list. A chosen site is a
    numbered dot in its site color. Max 5.
@@ -62,41 +64,50 @@ minutes, and the label at the end is the altitude.
 
 | Layer | File |
 |---|---|
-| Data | `src/data/logic/forecast-logic.ts`, `drift-logic.ts`, `plan-logic.ts`; `LaunchSite` etc. in `models.ts`; `launchSites` store in `db.ts` (DB v5) |
-| State | `src/state/launch-site-store.ts`, `src/state/flight-plan-store.ts` |
+| Data | `src/data/logic/forecast-logic.ts`, `drift-logic.ts`, `plan-logic.ts`; `LaunchSite` (derived from places) in `models.ts` |
+| State | `src/state/flight-plan-store.ts`; launch sites come from `src/state/places-store.ts` |
 | UI | `src/ui/pages/plan/*` (`PlanMiniMap.tsx` is the plan map), `src/ui/hooks/useFlightPlan.ts`, `src/ui/pages/map/plan-layers.ts` (map drawing) |
 
-## Zones
+## Places
 
-More → **Zones**: draw areas on the zone map, or import KML, KMZ or GeoJSON, and rate each one:
+More → **Places**: user points and areas (like ForeFlight's user waypoints and map
+markup). Each has a type:
 
-| Rating | Color | Meaning |
+| Type | Color | Use |
 |---|---|---|
-| Good | green | Good landing zone |
-| Caution | yellow (dashed outline) | Land with care |
-| No land | red | Warning / do not land |
+| Launch site | orange (points marked "L") | Offered in the Flight Plan. An area launches from its **first corner**. |
+| Good landing zone | green | Drift "Ends in" check |
+| Caution | yellow, dashed outline | Drift "Ends in" check |
+| Do not land | red | Drift "Ends in" check |
+| Point of interest | purple | Reference only |
 
-- **Draw**: *Draw a zone*, tap each corner on the zone map (Undo removes the
-  last), then tap the first corner or *Done* (3+ corners). Name it, pick a rating,
-  *Save zone*. Drawn zones are grouped under "Drawn on map".
-- Only areas (Polygon / MultiPolygon, holes respected) become zones; points and
-  lines are counted and skipped. One file can hold many areas; each is its own
-  zone, grouped under the file name (delete one, or the whole file).
-- On import each area's rating is guessed: words in its name/properties first
-  ("LZ", "no landing", "caution", a `rating` property…), then its fill/line
-  color by hue (KML `PolyStyle`, also through `StyleMap`; GeoJSON `fill`,
-  `stroke`…). Anything else gets the "Unrated areas become" choice. Tap a rating
-  to change it; tap a name to rename.
-- Zones always show on the Flight Plan map. On the flying map they're on by
-  default (toggle on the Zones page) and drawn beneath tracks and markers; a map
-  tap inside a zone shows its name and rating.
-- Flight plan: each drift's end point is checked against the zones. The site card
-  shows **Ends in** for the cruise altitude, and a colored ■ on any altitude row
-  whose drift ends in a zone. Overlapping zones report the most restrictive one.
+Ratings only affect drift checks when the place is an **area** (a point has no inside).
 
-Files: `src/data/zone-import.ts`, `src/data/logic/zone-logic.ts`, `zones` store in
-`db.ts` (DB v6), `src/state/zone-store.ts`, `src/ui/pages/zones/*`,
-`src/ui/pages/map/zone-layers.ts`, `useZoneLayers.ts` (zone map + drawing: `ZonesMap.tsx`, `DrawZonePanel.tsx`).
+- **Add**: on the Places map, *+ Add point* then tap; or *Draw area*, tap corners
+  (Undo), finish with the first corner or *Done*, name it and pick a type. Tap any
+  place on the map, or its name in the list, to edit it (name, type, coordinates
+  for points, elevation for launch sites). The list is grouped by type, with a
+  type picker on every row.
+- **Import** KML, KMZ or GeoJSON: points and areas (lines are skipped). The type comes
+  from UltraPilot's own export (`category` property / KML ExtendedData), else names
+  and properties ("launch", "LZ", "no landing", "caution"…), else area fill color
+  by hue; otherwise areas get the chosen default and points become points of interest.
+  Places whose id is already here are skipped, so re-importing an export doesn't
+  duplicate. Imported files are listed with a *Delete all* per file.
+- **Export** everything as **GeoJSON** (`category`, `elevFt`, `note`, `id` properties,
+  plus simplestyle colors) or **KML** (one Style per type, ExtendedData for
+  category / elevation / id). Both round-trip exactly.
+- Places show on the plan map and the Places map, and on the flying map unless
+  turned off; a flying-map tap inside a rated area shows its name and rating.
+
+Storage: one `places` IndexedDB store (DB v7). Upgrading from v6 converts the
+old `launchSites` and `zones` stores into places with the same ids, so flight-plan
+selections and stored forecasts carry over.
+
+Files: `src/data/place-io.ts` (import/export), `src/data/logic/place-logic.ts`
+(categories, launch-site/zone views), `src/data/logic/zone-logic.ts`,
+`src/state/places-store.ts`, `src/ui/pages/places/*`, `src/ui/pages/map/place-layers.ts`,
+`usePlaceLayers.ts`.
 
 ## Satellite imagery
 

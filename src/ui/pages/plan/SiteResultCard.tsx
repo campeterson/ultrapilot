@@ -5,7 +5,7 @@ import { modelLabel } from '../../../data/logic/forecast-logic'
 import { altitudeText, formatAltitude, speedText, distanceText } from '../../../data/logic/units-logic'
 import { compassPoint, formatDeg } from '../../../data/logic/gps-logic'
 import { sectionStyle, driftColor, siteColor } from './plan-styles'
-import { ZONE_COLORS } from '../map/zone-layers'
+import { ZONE_COLORS } from '../map/place-layers'
 import { zoneRatingLabel } from '../../../data/logic/zone-logic'
 
 const cell: React.CSSProperties = { padding: '6px 4px', fontFamily: theme.font.mono, fontSize: theme.size.small, color: theme.colors.cream, verticalAlign: 'top' }

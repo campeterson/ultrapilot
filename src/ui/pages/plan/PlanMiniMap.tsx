@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../map/pmtiles-protocol'
 import { theme } from '../../theme'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { usePlacesStore } from '../../../state/places-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useUnits } from '../../hooks/useUnits'
 import { useUnitsStore } from '../../../state/units-store'
@@ -12,8 +12,7 @@ import type { LaunchSite } from '../../../data/models'
 import type { FlightPlanView } from '../../hooks/useFlightPlan'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import { ensurePlanLayers, fetchKey, fitPlan, setPlanData } from '../map/plan-layers'
-import { ensureZoneLayers, setZoneData } from '../map/zone-layers'
-import { useZoneStore } from '../../../state/zone-store'
+import { ensurePlaceLayers, setPlaceData } from '../map/place-layers'
 import { useSatelliteLayer } from '../map/useSatelliteLayer'
 import { BasemapToggle } from '../map/BasemapToggle'
 
@@ -22,7 +21,7 @@ const toggleSite = (id: string) => useFlightPlanStore.getState().toggleSite(id)
 
 /** Frame the chosen sites, or every saved site when none is chosen yet. */
 const frameSites = (view: FlightPlanView): LaunchSite[] =>
-  view.sites.length ? view.sites : useLaunchSiteStore.getState().sites
+  view.sites.length ? view.sites : usePlacesStore.getState().launchSites
 
 /** Before any site exists: start where the pilot is. */
 function startCenter(): [number, number] {
@@ -38,17 +37,17 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   const loadedRef = useRef(false)
   const viewRef = useRef(view)
   viewRef.current = view
-  const sites = useLaunchSiteStore(s => s.sites)
+  const sites = usePlacesStore(s => s.launchSites)
   const { selectedSiteIds, forecasts, driftMinutes } = useFlightPlanStore()
   const units = useUnits()
-  const zones = useZoneStore(s => s.zones)
-  const loadZones = useZoneStore(s => s.load)
-  useEffect(() => { loadZones() }, [loadZones])
+  const places = usePlacesStore(s => s.places)
+  const loadPlaces = usePlacesStore(s => s.load)
+  useEffect(() => { loadPlaces() }, [loadPlaces])
 
   useEffect(() => {
     const map = mapRef.current
-    if (map && loadedRef.current) setZoneData(map, zones)
-  }, [zones])
+    if (map && loadedRef.current) setPlaceData(map, places, { hideLaunchPoints: true })
+  }, [places])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -61,15 +60,15 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
     // Tap empty map to add a launch site there (site taps are handled first)
     map.on('click', (e) => {
       if ((e as maplibregl.MapMouseEvent & { defaultPrevented?: boolean }).defaultPrevented) return
-      useLaunchSiteStore.getState().setPending({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+      usePlacesStore.getState().setPending({ lat: e.lngLat.lat, lon: e.lngLat.lng, category: 'launch' })
     })
     map.on('load', () => {
       loadedRef.current = true
       ensurePlanLayers(map, toggleSite)
-      ensureZoneLayers(map, 'plan-drift-casing')
-      setZoneData(map, useZoneStore.getState().zones)
+      ensurePlaceLayers(map, 'plan-drift-casing')
+      setPlaceData(map, usePlacesStore.getState().places, { hideLaunchPoints: true })
       const v = viewRef.current
-      setPlanData(map, useLaunchSiteStore.getState().sites, v.sites.map(s => s.id), v, useUnitsStore.getState().altitude)
+      setPlanData(map, usePlacesStore.getState().launchSites, v.sites.map(s => s.id), v, useUnitsStore.getState().altitude)
       fitPlan(map, v, frameSites(v), PAD, false)
     })
     mapRef.current = map
@@ -92,7 +91,7 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   }, [frameKey])
 
   // After the map-creating effect, so the map exists when this runs
-  useSatelliteLayer(mapRef, 'plan', () => loadedRef.current, ['zones-fill', 'plan-drift-casing'])
+  useSatelliteLayer(mapRef, 'plan', () => loadedRef.current, ['places-fill', 'plan-drift-casing'])
 
   return (
     <div style={{ position: 'relative' }}>

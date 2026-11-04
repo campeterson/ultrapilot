@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { theme } from '../../theme'
 import { useOfflineImageryStore, tilesForSites } from '../../../state/offline-imagery-store'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { usePlacesStore } from '../../../state/places-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useBasemapStore } from '../../../state/basemap-store'
 import { AVG_SAT_TILE_BYTES, OFFLINE_RADIUS_OPTIONS_NM } from '../../../data/logic/tile-logic'
@@ -18,7 +18,7 @@ const btn = (primary: boolean, disabled = false): React.CSSProperties => ({
 /** Download satellite imagery around launch sites for offline flying, and confirm it's there. */
 export function OfflineImagery() {
   const { radiusNM, setRadius, downloading, progress, message, coverage, checking, stats, download, cancel, checkCoverage, refreshStats, clear } = useOfflineImageryStore()
-  const { sites: allSites, load } = useLaunchSiteStore()
+  const { launchSites: allSites, load } = usePlacesStore()
   const selected = useFlightPlanStore(s => s.selectedSiteIds)
   const provider = useBasemapStore(s => s.provider)
 

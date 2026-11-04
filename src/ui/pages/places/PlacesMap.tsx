@@ -3,13 +3,12 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../map/pmtiles-protocol'
 import { theme } from '../../theme'
-import { useZoneStore } from '../../../state/zone-store'
+import { usePlacesStore } from '../../../state/places-store'
 import { useGPSStore } from '../../../state/gps-store'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
-import { zonesExtent } from '../../../data/logic/zone-logic'
-import type { ZoneRating } from '../../../data/models'
+import { placeAnchor, placesExtent } from '../../../data/logic/place-logic'
+import type { PlaceCategory } from '../../../data/models'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
-import { ensureZoneLayers, setZoneData, ZONE_COLORS } from '../map/zone-layers'
+import { CATEGORY_COLORS, ensurePlaceLayers, setPlaceData } from '../map/place-layers'
 import { useSatelliteLayer } from '../map/useSatelliteLayer'
 import { BasemapToggle } from '../map/BasemapToggle'
 
@@ -19,11 +18,16 @@ const DRAFT = 'zone-draft'
 const CLOSE_PX = 22
 
 interface Props {
-  /** Corners tapped so far, or null when not drawing. */
+  /** Corners tapped so far, or null when not drawing an area. */
   draft: LonLat[] | null
-  draftRating: ZoneRating
+  draftCategory: PlaceCategory
+  /** Next tap places a point. */
+  pointMode: boolean
   onAddPoint: (p: LonLat) => void
   onClose: () => void
+  onPlacePoint: (p: LonLat) => void
+  /** Tap on an existing place (when not drawing). */
+  onSelect: (id: string) => void
 }
 
 function draftData(points: LonLat[], color: string): GeoJSON.FeatureCollection {
@@ -36,19 +40,19 @@ function draftData(points: LonLat[], color: string): GeoJSON.FeatureCollection {
 
 function startCenter(): LonLat {
   const p = useGPSStore.getState().position
-  const site = useLaunchSiteStore.getState().sites[0]
-  return p ? [p.lon, p.lat] : site ? [site.lon, site.lat] : [-94.6, 38.9]
+  const first = usePlacesStore.getState().places[0]
+  return p ? [p.lon, p.lat] : first ? placeAnchor(first) : [-94.6, 38.9]
 }
 
-/** Zones map: shows every zone; in draw mode, taps add corners. */
-export function ZonesMap({ draft, draftRating, onAddPoint, onClose }: Props) {
+/** Places map: shows every place; adds points, draws areas, taps open a place. */
+export function PlacesMap({ draft, draftCategory, pointMode, onAddPoint, onClose, onPlacePoint, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const loadedRef = useRef(false)
-  const zones = useZoneStore(s => s.zones)
+  const places = usePlacesStore(s => s.places)
   // Handlers are bound once; read the latest props through a ref
-  const live = useRef({ draft, onAddPoint, onClose })
-  live.current = { draft, onAddPoint, onClose }
+  const live = useRef({ draft, pointMode, onAddPoint, onClose, onPlacePoint, onSelect })
+  live.current = { draft, pointMode, onAddPoint, onClose, onPlacePoint, onSelect }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -60,7 +64,7 @@ export function ZonesMap({ draft, draftRating, onAddPoint, onClose }: Props) {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
     map.on('load', () => {
       loadedRef.current = true
-      ensureZoneLayers(map)
+      ensurePlaceLayers(map)
       map.addSource(DRAFT, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'draft-fill', type: 'fill', source: DRAFT, filter: ['==', ['geometry-type'], 'Polygon'],
         paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.25 } })
@@ -69,14 +73,20 @@ export function ZonesMap({ draft, draftRating, onAddPoint, onClose }: Props) {
       map.addLayer({ id: 'draft-points', type: 'circle', source: DRAFT, filter: ['==', ['geometry-type'], 'Point'],
         paint: { 'circle-radius': ['case', ['get', 'first'], 8, 5], 'circle-color': '#fff',
           'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 3 } })
-      const zs = useZoneStore.getState().zones
-      setZoneData(map, zs)
-      const ext = zonesExtent(zs)
+      const ps = usePlacesStore.getState().places
+      setPlaceData(map, ps)
+      const ext = placesExtent(ps)
       if (ext) map.fitBounds([[ext[0], ext[1]], [ext[2], ext[3]]], { padding: 30, maxZoom: 15, duration: 0 })
     })
     map.on('click', (e) => {
-      const { draft: d } = live.current
-      if (!d) return
+      const { draft: d, pointMode: pm } = live.current
+      if (pm) { live.current.onPlacePoint([e.lngLat.lng, e.lngLat.lat]); return }
+      if (!d) {
+        const hit = map.queryRenderedFeatures(e.point, { layers: ['places-points', 'places-fill'] })[0]
+        const id = hit?.properties?.id as string | undefined
+        if (id) live.current.onSelect(id)
+        return
+      }
       if (d.length >= 3) {
         const first = map.project(d[0] as maplibregl.LngLatLike)
         if (Math.hypot(first.x - e.point.x, first.y - e.point.y) <= CLOSE_PX) { live.current.onClose(); return }
@@ -91,24 +101,24 @@ export function ZonesMap({ draft, draftRating, onAddPoint, onClose }: Props) {
 
   useEffect(() => {
     const map = mapRef.current
-    if (map && loadedRef.current) setZoneData(map, zones)
-  }, [zones])
+    if (map && loadedRef.current) setPlaceData(map, places)
+  }, [places])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !loadedRef.current) return
-    ;(map.getSource(DRAFT) as maplibregl.GeoJSONSource | undefined)?.setData(draftData(draft ?? [], ZONE_COLORS[draftRating]))
+    ;(map.getSource(DRAFT) as maplibregl.GeoJSONSource | undefined)?.setData(draftData(draft ?? [], CATEGORY_COLORS[draftCategory]))
     // Quick taps add corners while drawing — don't zoom on them
-    if (draft) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable()
-    map.getCanvas().style.cursor = draft ? 'crosshair' : ''
-  }, [draft, draftRating])
+    if (draft || pointMode) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable()
+    map.getCanvas().style.cursor = draft || pointMode ? 'crosshair' : ''
+  }, [draft, draftCategory, pointMode])
 
   // After the map-creating effect, so the map exists when this runs
-  useSatelliteLayer(mapRef, 'zones', () => loadedRef.current, ['zones-fill', 'draft-fill'])
+  useSatelliteLayer(mapRef, 'zones', () => loadedRef.current, ['places-fill', 'draft-fill'])
 
   return (
     <div style={{ position: 'relative' }}>
-      <div ref={containerRef} style={{ width: '100%', height: '300px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${draft ? ZONE_COLORS[draftRating] : theme.colors.darkBorder}` }} />
+      <div ref={containerRef} style={{ width: '100%', height: '300px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${draft || pointMode ? CATEGORY_COLORS[draftCategory] : theme.colors.darkBorder}` }} />
       <BasemapToggle view="zones" style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 5 }} />
     </div>
   )

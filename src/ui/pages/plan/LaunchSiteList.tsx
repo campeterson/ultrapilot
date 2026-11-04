@@ -1,20 +1,20 @@
 import { useState } from 'react'
 import { theme } from '../../theme'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { usePlacesStore, type PendingPlace } from '../../../state/places-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useUnits } from '../../hooks/useUnits'
 import { MAX_PLAN_SITES } from '../../../data/logic/plan-logic'
 import { altitudeText } from '../../../data/logic/units-logic'
-import type { LaunchSite } from '../../../data/models'
-import { LaunchSiteForm } from './LaunchSiteForm'
+import type { Place } from '../../../data/models'
+import { PlaceForm } from '../places/PlaceForm'
 import { buttonStyle, sectionStyle, sectionTitle } from './plan-styles'
 
-type FormState = { site?: LaunchSite; initial?: { lat: number; lon: number } } | null
+type FormState = { place?: Place; initial?: PendingPlace } | null
 
-/** Saved launch sites; tap to include in the plan (up to five). */
+/** Places marked Launch site; tap to include in the plan (up to five). */
 export function LaunchSiteList() {
-  const { sites, remove } = useLaunchSiteStore()
+  const { launchSites: sites, places, remove } = usePlacesStore()
   const { selectedSiteIds, toggleSite } = useFlightPlanStore()
   const position = useGPSStore(s => s.position)
   const units = useUnits()
@@ -27,7 +27,7 @@ export function LaunchSiteList() {
       <div style={sectionTitle}>Launch sites · {selectedSiteIds.length}/{MAX_PLAN_SITES} chosen</div>
       {sites.length === 0 && (
         <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginBottom: '8px', lineHeight: 1.4 }}>
-          No launch sites yet. Tap the plan map above to add one, or enter coordinates.
+          No launch sites yet. Tap the plan map above to add one, enter coordinates, or mark any place as a launch site on the Places page.
         </div>
       )}
       {sites.map(site => {
@@ -58,7 +58,7 @@ export function LaunchSiteList() {
               </>
             ) : (
               <>
-                <button onClick={() => setForm({ site })} aria-label="Edit" style={{ ...buttonStyle(), padding: '6px' }}>✎</button>
+                <button onClick={() => setForm({ place: places.find(p => p.id === site.id) })} aria-label="Edit" style={{ ...buttonStyle(), padding: '6px' }}>✎</button>
                 <button onClick={() => setConfirmDelete(site.id)} aria-label="Delete" style={{ ...buttonStyle(), padding: '6px', color: theme.colors.dim }}>🗑</button>
               </>
             )}
@@ -66,14 +66,14 @@ export function LaunchSiteList() {
         )
       })}
       <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-        <button onClick={() => setForm({})} style={{ ...buttonStyle(), flex: 1 }}>+ Coordinates</button>
+        <button onClick={() => setForm({ initial: { lat: NaN, lon: NaN, category: 'launch', name: `Launch ${sites.length + 1}` } })} style={{ ...buttonStyle(), flex: 1 }}>+ Coordinates</button>
         <button
-          onClick={() => position && setForm({ initial: { lat: position.lat, lon: position.lon } })}
+          onClick={() => position && setForm({ initial: { lat: position.lat, lon: position.lon, category: 'launch', name: `Launch ${sites.length + 1}` } })}
           disabled={!position}
           style={{ ...buttonStyle(false, !position), flex: 1 }}
         >+ My position</button>
       </div>
-      {form && <LaunchSiteForm site={form.site} initial={form.initial} onClose={() => setForm(null)} />}
+      {form && <PlaceForm place={form.place} initial={form.initial} onClose={() => setForm(null)} />}
     </div>
   )
 }
