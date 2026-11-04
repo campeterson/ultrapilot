@@ -5,6 +5,7 @@ import { ZONE_RATINGS } from '../../../data/logic/zone-logic'
 import { buttonStyle, chipStyle, sectionStyle, sectionTitle } from '../plan/plan-styles'
 import { ZONE_COLORS } from '../map/zone-layers'
 import { ZoneRow } from './ZoneRow'
+import { DrawZonePanel } from './DrawZonePanel'
 
 /** Import KML/KMZ/GeoJSON areas and rate each: good, caution, do not land. */
 export function ZonesPage() {
@@ -28,6 +29,11 @@ export function ZonesPage() {
   return (
     <div style={{ padding: '12px', fontFamily: theme.font.primary, color: theme.colors.light }}>
       <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Zones</div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitle}>Zone map</div>
+        <DrawZonePanel />
+      </div>
 
       <div style={sectionStyle}>
         <div style={sectionTitle}>Import areas</div>

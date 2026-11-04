@@ -83,3 +83,28 @@ export function zoneAt(zones: Zone[], lon: number, lat: number): Zone | null {
   }
   return best
 }
+
+// ─── Drawing ─────────────────────────────────────────────────────────────────
+
+/** Source name for zones drawn in the app (groups them on the Zones page). */
+export const DRAWN_SOURCE = 'Drawn on map'
+
+export const MIN_ZONE_POINTS = 3
+
+/** Build a zone from tapped corners ([lon, lat], unclosed). null if < 3 points. */
+export function zoneFromPoints(
+  id: string, name: string, rating: ZoneRating, points: [number, number][], createdAt: string,
+): Zone | null {
+  if (points.length < MIN_ZONE_POINTS) return null
+  const ring: [number, number][] = [...points, points[0]]
+  return { id, name, rating, polygons: [[ring]], source: DRAWN_SOURCE, note: null, createdAt }
+}
+
+/** [west, south, east, north] around every zone, or null. */
+export function zonesExtent(zones: Zone[]): [number, number, number, number] | null {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity
+  for (const z of zones) for (const poly of z.polygons) for (const [lon, lat] of poly[0] ?? []) {
+    w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat)
+  }
+  return Number.isFinite(w) ? [w, s, e, n] : null
+}

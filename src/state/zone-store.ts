@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { listZones, putZones, deleteZones } from '../data/db'
 import { parseZoneFile } from '../data/zone-import'
 import type { Zone, ZoneRating } from '../data/models'
+import { zoneFromPoints } from '../data/logic/zone-logic'
 import { trackEvent } from '../lib/analytics'
 
 const SETTINGS_KEY = 'ultrapilot_zoneSettings'
@@ -27,6 +28,8 @@ interface ZoneStore extends Settings {
   load: () => Promise<void>
   /** Returns a status message for the UI. */
   importFile: (file: File) => Promise<string>
+  /** Save a zone drawn on the map. false if it has fewer than 3 corners. */
+  addDrawn: (name: string, rating: ZoneRating, points: [number, number][]) => Promise<boolean>
   setRating: (id: string, rating: ZoneRating) => Promise<void>
   rename: (id: string, name: string) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -64,6 +67,16 @@ export const useZoneStore = create<ZoneStore>((set, get) => {
       } catch (e) {
         return `Import failed: ${(e as Error).message}`
       }
+    },
+
+    addDrawn: async (name, rating, points) => {
+      const id = `zone-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const zone = zoneFromPoints(id, name, rating, points, new Date().toISOString())
+      if (!zone) return false
+      await putZones([zone])
+      set({ zones: await listZones() })
+      trackEvent('zone_drawn')
+      return true
     },
 
     setRating: (id, rating) => update(id, { rating }),

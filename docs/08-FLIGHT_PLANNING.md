@@ -68,7 +68,7 @@ minutes, and the label at the end is the altitude.
 
 ## Zones
 
-More → **Zones**: import KML, KMZ or GeoJSON areas and rate each one:
+More → **Zones**: draw areas on the zone map, or import KML, KMZ or GeoJSON, and rate each one:
 
 | Rating | Color | Meaning |
 |---|---|---|
@@ -76,6 +76,9 @@ More → **Zones**: import KML, KMZ or GeoJSON areas and rate each one:
 | Caution | yellow (dashed outline) | Land with care |
 | No land | red | Warning / do not land |
 
+- **Draw**: *Draw a zone*, tap each corner on the zone map (Undo removes the
+  last), then tap the first corner or *Done* (3+ corners). Name it, pick a rating,
+  *Save zone*. Drawn zones are grouped under "Drawn on map".
 - Only areas (Polygon / MultiPolygon, holes respected) become zones; points and
   lines are counted and skipped. One file can hold many areas; each is its own
   zone, grouped under the file name (delete one, or the whole file).
@@ -93,4 +96,4 @@ More → **Zones**: import KML, KMZ or GeoJSON areas and rate each one:
 
 Files: `src/data/zone-import.ts`, `src/data/logic/zone-logic.ts`, `zones` store in
 `db.ts` (DB v6), `src/state/zone-store.ts`, `src/ui/pages/zones/*`,
-`src/ui/pages/map/zone-layers.ts`, `useZoneLayers.ts`.
+`src/ui/pages/map/zone-layers.ts`, `useZoneLayers.ts` (zone map + drawing: `ZonesMap.tsx`, `DrawZonePanel.tsx`).
