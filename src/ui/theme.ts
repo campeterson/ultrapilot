@@ -22,6 +22,10 @@ export const theme = {
     launchSite: '#C0392B',
     // Chosen launch sites 1–3 (markers, and tracks when not comparing altitudes)
     planSites: ['#d81b60', '#1e88e5', '#00897b'],
+    // Imported zones: good landing / caution / do not land
+    zoneGood: '#2ecc71',
+    zoneCaution: '#f1c40f',
+    zoneNogo: '#e74c3c',
   },
   font: {
     primary: '"B612", monospace',

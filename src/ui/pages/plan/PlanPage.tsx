@@ -3,6 +3,7 @@ import { theme } from '../../theme'
 import { useLaunchSiteStore } from '../../../state/launch-site-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useFlightPlan } from '../../hooks/useFlightPlan'
+import { useZoneStore } from '../../../state/zone-store'
 import { modelLabel, modelReaches } from '../../../data/logic/forecast-logic'
 import { LaunchSiteList } from './LaunchSiteList'
 import { PlanControls } from './PlanControls'
@@ -17,6 +18,7 @@ export function PlanPage() {
   const loadSites = useLaunchSiteStore(s => s.load)
   const { fetching, error, fetchForecasts, model, forecasts } = useFlightPlanStore()
   const view = useFlightPlan()
+  const hasZones = useZoneStore(s => s.zones.length > 0)
 
   useEffect(() => { loadSites() }, [loadSites])
 
@@ -66,7 +68,7 @@ export function PlanPage() {
         <>
           {view.plans.map(p => (
             <SiteResultCard key={p.site.id} plan={p} number={view.sites.indexOf(p.site) + 1}
-              cruiseIndex={view.cruiseIndex} compare={view.compare} model={model} />
+              cruiseIndex={view.cruiseIndex} compare={view.compare} model={model} hasZones={hasZones} />
           ))}
           <div style={{ color: theme.colors.dim, fontSize: theme.size.tiny, lineHeight: 1.4 }}>
             Predicted ground track holding one altitude with no airspeed of your own, stepped every minute through the

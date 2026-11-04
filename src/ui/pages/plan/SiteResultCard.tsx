@@ -5,22 +5,24 @@ import { modelLabel } from '../../../data/logic/forecast-logic'
 import { altitudeText, formatAltitude, speedText, distanceText } from '../../../data/logic/units-logic'
 import { compassPoint, formatDeg } from '../../../data/logic/gps-logic'
 import { sectionStyle, driftColor, siteColor } from './plan-styles'
+import { ZONE_COLORS } from '../map/zone-layers'
+import { zoneRatingLabel } from '../../../data/logic/zone-logic'
 
 const cell: React.CSSProperties = { padding: '6px 4px', fontFamily: theme.font.mono, fontSize: theme.size.small, color: theme.colors.cream, verticalAlign: 'top' }
 const head: React.CSSProperties = { ...cell, color: theme.colors.dim, fontFamily: theme.font.primary, fontSize: theme.size.tiny, textAlign: 'left' }
 const tile: React.CSSProperties = { flex: '1 1 40%', border: `1px solid ${theme.colors.darkBorder}`, borderRadius: '8px', padding: '6px 10px' }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, color, wide }: { label: string; value: string; color?: string; wide?: boolean }) {
   return (
-    <div style={tile}>
+    <div style={wide ? { ...tile, flex: '1 1 100%' } : tile}>
       <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, letterSpacing: '0.06em' }}>{label}</div>
-      <div style={{ fontSize: theme.size.body, color: theme.colors.cream, fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: theme.size.body, color: color ?? theme.colors.cream, fontWeight: 700 }}>{value}</div>
     </div>
   )
 }
 
 /** One site: cruise-altitude drift stats, then wind + drift at every altitude. */
-export function SiteResultCard({ plan, number, cruiseIndex, compare, model }: { plan: SitePlan; number: number; cruiseIndex: number; compare: boolean; model: string }) {
+export function SiteResultCard({ plan, number, cruiseIndex, compare, model, hasZones }: { plan: SitePlan; number: number; cruiseIndex: number; compare: boolean; model: string; hasZones: boolean }) {
   const units = useUnits()
   const h = plan.hour
   const cruise = plan.levels.find(l => l.index === cruiseIndex)
@@ -50,6 +52,10 @@ export function SiteResultCard({ plan, number, cruiseIndex, compare, model }: { 
           <Stat label="CROW LINE" value={distanceText(cruise.track.distNM, units.distance)} />
           <Stat label="BEARING" value={`${formatDeg(cruise.track.bearingDeg)} ${compassPoint(cruise.track.bearingDeg)}`} />
           <Stat label="CRUISE ALT" value={`${altitudeText(cruise.aglFt, units.altitude)} AGL`} />
+          {hasZones && (
+            <Stat wide label="ENDS IN" value={cruise.endZone ? `${cruise.endZone.name} · ${zoneRatingLabel(cruise.endZone.rating)}` : 'No zone'}
+              color={cruise.endZone ? ZONE_COLORS[cruise.endZone.rating] : theme.colors.dim} />
+          )}
         </div>
       )}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
@@ -72,6 +78,7 @@ export function SiteResultCard({ plan, number, cruiseIndex, compare, model }: { 
                     <td style={cell}>{l.wind ? `${formatDeg(l.wind.dirFrom)} ${speedText(l.wind.speedKt, units.speed)}` : '—'}</td>
                     <td style={cell}>
                       {l.track ? `${formatDeg(l.track.bearingDeg)} ${compassPoint(l.track.bearingDeg)} · ${distanceText(l.track.distNM, units.distance)}` : '—'}
+                      {l.endZone && <span title={l.endZone.name} style={{ color: ZONE_COLORS[l.endZone.rating] }}> ■</span>}
                     </td>
                   </>
                 )}

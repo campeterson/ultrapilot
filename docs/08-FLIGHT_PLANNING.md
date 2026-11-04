@@ -65,3 +65,32 @@ minutes, and the label at the end is the altitude.
 | Data | `src/data/logic/forecast-logic.ts`, `drift-logic.ts`, `plan-logic.ts`; `LaunchSite` etc. in `models.ts`; `launchSites` store in `db.ts` (DB v5) |
 | State | `src/state/launch-site-store.ts`, `src/state/flight-plan-store.ts` |
 | UI | `src/ui/pages/plan/*` (`PlanMiniMap.tsx` is the plan map), `src/ui/hooks/useFlightPlan.ts`, `src/ui/pages/map/plan-layers.ts` (map drawing) |
+
+## Zones
+
+More → **Zones**: import KML, KMZ or GeoJSON areas and rate each one:
+
+| Rating | Color | Meaning |
+|---|---|---|
+| Good | green | Good landing zone |
+| Caution | yellow (dashed outline) | Land with care |
+| No land | red | Warning / do not land |
+
+- Only areas (Polygon / MultiPolygon, holes respected) become zones; points and
+  lines are counted and skipped. One file can hold many areas; each is its own
+  zone, grouped under the file name (delete one, or the whole file).
+- On import each area's rating is guessed: words in its name/properties first
+  ("LZ", "no landing", "caution", a `rating` property…), then its fill/line
+  color by hue (KML `PolyStyle`, also through `StyleMap`; GeoJSON `fill`,
+  `stroke`…). Anything else gets the "Unrated areas become" choice. Tap a rating
+  to change it; tap a name to rename.
+- Zones always show on the Flight Plan map. On the flying map they're on by
+  default (toggle on the Zones page) and drawn beneath tracks and markers; a map
+  tap inside a zone shows its name and rating.
+- Flight plan: each drift's end point is checked against the zones. The site card
+  shows **Ends in** for the cruise altitude, and a colored ■ on any altitude row
+  whose drift ends in a zone. Overlapping zones report the most restrictive one.
+
+Files: `src/data/zone-import.ts`, `src/data/logic/zone-logic.ts`, `zones` store in
+`db.ts` (DB v6), `src/state/zone-store.ts`, `src/ui/pages/zones/*`,
+`src/ui/pages/map/zone-layers.ts`, `useZoneLayers.ts`.

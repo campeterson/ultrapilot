@@ -1,8 +1,9 @@
 // The what-if: for a site, a moment, and a set of altitudes, what is the wind
 // and where does a drift take you. Pure — composes forecast + drift logic.
-import type { ForecastHour, LaunchSite, PlanAltitudeMode, SiteForecast } from '../models'
+import type { ForecastHour, LaunchSite, PlanAltitudeMode, SiteForecast, Zone } from '../models'
 import { hourAt, siteGroundFt, windAt } from './forecast-logic'
 import { driftTrack, type DriftTrack } from './drift-logic'
+import { zoneAt } from './zone-logic'
 
 export const MAX_PLAN_SITES = 3
 
@@ -15,6 +16,8 @@ export interface PlanLevel {
   track: DriftTrack | null
   /** MSL mode only: the shared altitude is at or below this site's ground. */
   belowGround: boolean
+  /** Zone the drift ends in (most restrictive if several), or null. */
+  endZone: Zone | null
 }
 
 export interface SitePlan {
@@ -36,20 +39,24 @@ export function buildSitePlan(
   mode: PlanAltitudeMode,
   altitudesFt: number[],
   driftMinutes: number,
+  zones: Zone[] = [],
 ): SitePlan {
   const groundFt = siteGroundFt(site, forecast) ?? forecast.modelElevFt
   const levels: PlanLevel[] = altitudesFt.map((alt, index) => {
     const mslFt = mode === 'agl' ? groundFt + alt : alt
     const aglFt = mslFt - groundFt
     const belowGround = aglFt <= 0
-    if (belowGround) return { index, mslFt, aglFt, wind: null, track: null, belowGround }
+    if (belowGround) return { index, mslFt, aglFt, wind: null, track: null, belowGround, endZone: null }
+    const track = driftTrack(forecast.hours, site.lat, site.lon, ts, mslFt, driftMinutes)
+    const end = track?.coords[track.coords.length - 1]
     return {
       index,
       mslFt,
       aglFt,
       wind: windAt(forecast.hours, ts, mslFt),
-      track: driftTrack(forecast.hours, site.lat, site.lon, ts, mslFt, driftMinutes),
+      track,
       belowGround,
+      endZone: end ? zoneAt(zones, end[0], end[1]) : null,
     }
   })
   return { site, groundFt, hour: hourAt(forecast.hours, ts), levels }

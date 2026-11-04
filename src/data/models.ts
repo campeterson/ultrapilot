@@ -340,3 +340,21 @@ export interface SiteForecast {
 
 /** Planning altitudes: fixed AGL above each site, or one shared MSL set. */
 export type PlanAltitudeMode = 'agl' | 'msl'
+
+// ─── Zones ───────────────────────────────────────────────────────────────────
+
+/** good = green landing zone, caution = yellow, nogo = red / do not land. */
+export type ZoneRating = 'good' | 'caution' | 'nogo'
+
+/** An imported area. Coordinates are GeoJSON-style [lon, lat]. */
+export interface Zone {
+  id: string
+  name: string
+  rating: ZoneRating
+  /** MultiPolygon: polygons → rings (first = outer, rest = holes) → points. */
+  polygons: [number, number][][][]
+  /** File it came from, for grouping and bulk delete. */
+  source: string
+  note: string | null
+  createdAt: string  // ISO
+}

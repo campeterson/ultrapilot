@@ -21,6 +21,10 @@ import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { useZoneStore } from '../../../state/zone-store'
+import { useZoneLayers } from './useZoneLayers'
+import { ZONE_COLORS } from './zone-layers'
+import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
@@ -358,6 +362,10 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   // ── Flight plan: tap menu can start a launch site (form lives in the shell) ──
   const setPendingSite = useLaunchSiteStore(s => s.setPending)
+
+  // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
+  useZoneLayers(mapRef)
+  const { zones, showOnFlightMap } = useZoneStore()
 
   // ── Load airports + waypoints ────────────────────────────────────────────────
   useEffect(() => { loadAirports() }, [loadAirports])
@@ -698,6 +706,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
           : selection.kind === 'waypoint'      ? selection.waypoint.name
           : selection.kind === 'routeWaypoint' ? selection.waypoint.name
           : selection.airport.id
+        const tapZone = selection.kind === 'tap' && showOnFlightMap ? zoneAt(zones, selLon, selLat) : null
 
         return (
           <div
@@ -720,6 +729,11 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               {selection.kind === 'tap' && (
                 <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, letterSpacing: '0.04em' }}>
                   {selLat.toFixed(5)}, {selLon.toFixed(5)}
+                </div>
+              )}
+              {selection.kind === 'tap' && tapZone && (
+                <div style={{ fontSize: theme.size.small, color: ZONE_COLORS[tapZone.rating], fontWeight: 700, marginTop: '4px' }}>
+                  ■ {tapZone.name} · {zoneRatingLabel(tapZone.rating)}
                 </div>
               )}
               {selection.kind === 'waypoint' && (

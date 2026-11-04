@@ -12,6 +12,8 @@ import type { LaunchSite } from '../../../data/models'
 import type { FlightPlanView } from '../../hooks/useFlightPlan'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
 import { ensurePlanLayers, fetchKey, fitPlan, setPlanData } from '../map/plan-layers'
+import { ensureZoneLayers, setZoneData } from '../map/zone-layers'
+import { useZoneStore } from '../../../state/zone-store'
 
 const PAD = { top: 30, bottom: 30, left: 30, right: 50 }
 const toggleSite = (id: string) => useFlightPlanStore.getState().toggleSite(id)
@@ -37,6 +39,14 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   const sites = useLaunchSiteStore(s => s.sites)
   const { selectedSiteIds, forecasts, driftMinutes } = useFlightPlanStore()
   const units = useUnits()
+  const zones = useZoneStore(s => s.zones)
+  const loadZones = useZoneStore(s => s.load)
+  useEffect(() => { loadZones() }, [loadZones])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (map && loadedRef.current) setZoneData(map, zones)
+  }, [zones])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -54,6 +64,8 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
     map.on('load', () => {
       loadedRef.current = true
       ensurePlanLayers(map, toggleSite)
+      ensureZoneLayers(map, 'plan-drift-casing')
+      setZoneData(map, useZoneStore.getState().zones)
       const v = viewRef.current
       setPlanData(map, useLaunchSiteStore.getState().sites, v.sites.map(s => s.id), v, useUnitsStore.getState().altitude)
       fitPlan(map, v, frameSites(v), PAD, false)
