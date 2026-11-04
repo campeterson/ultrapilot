@@ -17,6 +17,9 @@ export const theme = {
     trackGreen: '#00E676',
     navBg: '#0c0c12',
     stripBg: 'rgba(14, 14, 20, 0.96)',
+    // Flight-plan drift tracks, one per altitude (low → high)
+    driftLevels: ['#00acc1', '#2e7d32', '#e67e22', '#8e44ad'],
+    launchSite: '#C0392B',
   },
   font: {
     primary: '"B612", monospace',

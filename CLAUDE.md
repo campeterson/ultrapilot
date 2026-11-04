@@ -12,6 +12,7 @@ Read these before making changes:
 - `docs/01-PROJECT_BRIEF.md` — Vision, target users, scope
 - `docs/02-UX_SPEC.md` — Garmin Pilot navigation pattern, all views, session lifecycle
 - `docs/03-TECH_ARCH.md` — Stack, file structure, data models, GPS, maps, build order
+- `docs/08-FLIGHT_PLANNING.md` — Launch sites, what-if wind forecasts, drift tracks
 
 ## Architecture Rules (Summary)
 
