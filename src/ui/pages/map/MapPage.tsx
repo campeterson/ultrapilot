@@ -20,11 +20,10 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
-import { useZoneStore } from '../../../state/zone-store'
-import { useZoneLayers } from './useZoneLayers'
+import { usePlacesStore } from '../../../state/places-store'
+import { usePlaceLayers } from './usePlaceLayers'
 import { useSatelliteLayer } from './useSatelliteLayer'
-import { ZONE_COLORS } from './zone-layers'
+import { ZONE_COLORS } from './place-layers'
 import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
@@ -362,12 +361,12 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   }, [])
 
   // ── Flight plan: tap menu can start a launch site (form lives in the shell) ──
-  const setPendingSite = useLaunchSiteStore(s => s.setPending)
+  const setPendingPlace = usePlacesStore(s => s.setPending)
 
   // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
-  useZoneLayers(mapRef)
-  useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['zones-fill', 'history-track'])
-  const { zones, showOnFlightMap } = useZoneStore()
+  usePlaceLayers(mapRef)
+  useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['places-fill', 'history-track'])
+  const { zones, showOnFlightMap } = usePlacesStore()
 
   // ── Load airports + waypoints ────────────────────────────────────────────────
   useEffect(() => { loadAirports() }, [loadAirports])
@@ -819,13 +818,13 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               </button>
             )}
 
-            {/* Add Launch Site (flight planning) */}
+            {/* Add Place (launch site, landing zone, point of interest) */}
             {(selection.kind === 'tap' || selection.kind === 'airport' || selection.kind === 'waypoint') && (
               <button
-                onClick={() => { setPendingSite({ lat: selLat, lon: selLon, name: selection.kind === 'tap' ? undefined : selName, elevFt: selection.kind === 'airport' ? selection.airport.elev : null }); setSelection(null) }}
-                style={{ ...menuBtnStyle, color: theme.colors.red }}
+                onClick={() => { setPendingPlace({ lat: selLat, lon: selLon, name: selection.kind === 'tap' ? undefined : selName, elevFt: selection.kind === 'airport' ? selection.airport.elev : null }); setSelection(null) }}
+                style={{ ...menuBtnStyle, color: theme.colors.launchSite }}
               >
-                <span>▲</span> Add Launch Site
+                <span>▲</span> Add Place
               </button>
             )}
 

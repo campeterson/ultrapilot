@@ -1,9 +1,8 @@
 import { useEffect } from 'react'
 import { theme } from '../../theme'
-import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { usePlacesStore } from '../../../state/places-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useFlightPlan } from '../../hooks/useFlightPlan'
-import { useZoneStore } from '../../../state/zone-store'
 import { modelLabel, modelReaches } from '../../../data/logic/forecast-logic'
 import { LaunchSiteList } from './LaunchSiteList'
 import { PlanControls } from './PlanControls'
@@ -15,10 +14,10 @@ import { buttonStyle, sectionStyle, sectionTitle } from './plan-styles'
 
 /** What-if flight planning: pick sites and a time, compare winds and drift. */
 export function PlanPage() {
-  const loadSites = useLaunchSiteStore(s => s.load)
+  const loadSites = usePlacesStore(s => s.load)
   const { fetching, error, fetchForecasts, model, forecasts } = useFlightPlanStore()
   const view = useFlightPlan()
-  const hasZones = useZoneStore(s => s.zones.length > 0)
+  const hasZones = usePlacesStore(s => s.zones.length > 0)
 
   useEffect(() => { loadSites() }, [loadSites])
 

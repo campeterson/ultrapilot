@@ -300,7 +300,8 @@ export interface WindBand {
 
 // ─── Flight Planning ─────────────────────────────────────────────────────────
 
-/** A saved place you launch from — the anchor for planning forecasts. */
+/** A launch-site place, as the flight plan sees it: one point (an area's first
+ *  corner). Derived from Place — see place-logic.launchSitesFrom. */
 export interface LaunchSite {
   id: string
   name: string
@@ -346,7 +347,8 @@ export type PlanAltitudeMode = 'agl' | 'msl'
 /** good = green landing zone, caution = yellow, nogo = red / do not land. */
 export type ZoneRating = 'good' | 'caution' | 'nogo'
 
-/** An imported area. Coordinates are GeoJSON-style [lon, lat]. */
+/** A rated area (good / caution / no land), as zone checks see it. Derived
+ *  from Place — see place-logic.zonesFrom. Coordinates are [lon, lat]. */
 export interface Zone {
   id: string
   name: string
@@ -356,5 +358,28 @@ export interface Zone {
   /** File it came from, for grouping and bulk delete. */
   source: string
   note: string | null
+  createdAt: string  // ISO
+}
+
+// ─── Places ──────────────────────────────────────────────────────────────────
+
+/** What a place is for. good / caution / nogo match ZoneRating. */
+export type PlaceCategory = 'launch' | ZoneRating | 'poi'
+
+export type PlaceGeometry =
+  | { type: 'Point'; coordinates: [number, number] }
+  | { type: 'MultiPolygon'; coordinates: [number, number][][][] }
+
+/** A user point or area: launch site, landing zone rating, or point of interest. */
+export interface Place {
+  id: string
+  name: string
+  category: PlaceCategory
+  geometry: PlaceGeometry
+  /** Ground elevation, ft MSL — used for launch sites. null = forecast terrain. */
+  elevFt: number | null
+  note: string | null
+  /** Where it came from: an imported file name, "Drawn on map", or "Added". */
+  source: string
   createdAt: string  // ISO
 }

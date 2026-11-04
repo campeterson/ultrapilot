@@ -1,8 +1,9 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route, Tileset, LaunchSite, Zone } from './models'
+import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route, Tileset, LaunchSite, Zone, Place } from './models'
+import { placeFromLaunchSite, placeFromZone } from './logic/place-logic'
 
 const DB_NAME = 'ultrapilot'
-const DB_VERSION = 6
+const DB_VERSION = 7
 
 type UltraPilotDB = {
   sessions: {
@@ -35,6 +36,7 @@ type UltraPilotDB = {
     key: string
     value: Tileset
   }
+  // launchSites + zones: v5/v6 only, migrated into places in v7 and dropped
   launchSites: {
     key: string
     value: LaunchSite
@@ -43,6 +45,10 @@ type UltraPilotDB = {
     key: string
     value: Zone
   }
+  places: {
+    key: string
+    value: Place
+  }
 }
 
 let _db: IDBPDatabase<UltraPilotDB> | null = null
@@ -50,7 +56,7 @@ let _db: IDBPDatabase<UltraPilotDB> | null = null
 async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
   if (_db) return _db
   _db = await openDB<UltraPilotDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    async upgrade(db, _oldVersion, _newVersion, tx) {
       if (!db.objectStoreNames.contains('sessions')) {
         db.createObjectStore('sessions', { keyPath: 'id' })
       }
@@ -74,11 +80,20 @@ async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
       if (!db.objectStoreNames.contains('tilesets')) {
         db.createObjectStore('tilesets', { keyPath: 'id' })
       }
-      if (!db.objectStoreNames.contains('launchSites')) {
-        db.createObjectStore('launchSites', { keyPath: 'id' })
-      }
-      if (!db.objectStoreNames.contains('zones')) {
-        db.createObjectStore('zones', { keyPath: 'id' })
+      // v7: launch sites and zones become places (same ids, so flight-plan
+      // selections and stored forecasts still match)
+      if (!db.objectStoreNames.contains('places')) {
+        const places = db.createObjectStore('places', { keyPath: 'id' })
+        if (db.objectStoreNames.contains('launchSites')) {
+          const old = await tx.objectStore('launchSites').getAll()
+          for (const site of old) places.put(placeFromLaunchSite(site))
+          db.deleteObjectStore('launchSites')
+        }
+        if (db.objectStoreNames.contains('zones')) {
+          const old = await tx.objectStore('zones').getAll()
+          for (const zone of old) places.put(placeFromZone(zone))
+          db.deleteObjectStore('zones')
+        }
       }
     },
   })
@@ -258,42 +273,24 @@ export async function deleteTileset(id: string): Promise<void> {
   await db.delete('tilesets', id)
 }
 
-// ─── Launch Sites ────────────────────────────────────────────────────────────
+// ─── Places ──────────────────────────────────────────────────────────────────
 
-export async function listLaunchSites(): Promise<LaunchSite[]> {
+export async function listPlaces(): Promise<Place[]> {
   const db = await getDB()
-  const all = await db.getAll('launchSites')
+  const all = await db.getAll('places')
   return all.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export async function putLaunchSite(site: LaunchSite): Promise<void> {
+export async function putPlaces(places: Place[]): Promise<void> {
   const db = await getDB()
-  await db.put('launchSites', site)
-}
-
-export async function deleteLaunchSite(id: string): Promise<void> {
-  const db = await getDB()
-  await db.delete('launchSites', id)
-}
-
-// ─── Zones ───────────────────────────────────────────────────────────────────
-
-export async function listZones(): Promise<Zone[]> {
-  const db = await getDB()
-  const all = await db.getAll('zones')
-  return all.sort((a, b) => a.source.localeCompare(b.source) || a.name.localeCompare(b.name))
-}
-
-export async function putZones(zones: Zone[]): Promise<void> {
-  const db = await getDB()
-  const tx = db.transaction('zones', 'readwrite')
-  for (const z of zones) tx.store.put(z)
+  const tx = db.transaction('places', 'readwrite')
+  for (const p of places) tx.store.put(p)
   await tx.done
 }
 
-export async function deleteZones(ids: string[]): Promise<void> {
+export async function deletePlaces(ids: string[]): Promise<void> {
   const db = await getDB()
-  const tx = db.transaction('zones', 'readwrite')
+  const tx = db.transaction('places', 'readwrite')
   for (const id of ids) tx.store.delete(id)
   await tx.done
 }

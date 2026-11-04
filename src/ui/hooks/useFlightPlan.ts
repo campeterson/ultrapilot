@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useFlightPlanStore } from '../../state/flight-plan-store'
-import { useLaunchSiteStore } from '../../state/launch-site-store'
-import { useZoneStore } from '../../state/zone-store'
+import { usePlacesStore } from '../../state/places-store'
 import { defaultMslLevels, isForecastCurrent, planBaseTs, siteGroundFt, slotTs } from '../../data/logic/forecast-logic'
 import { buildSitePlan, planAltitudes, type SitePlan } from '../../data/logic/plan-logic'
 import type { LaunchSite } from '../../data/models'
@@ -22,8 +21,8 @@ export interface FlightPlanView {
 
 /** Chosen sites, the viewed hour, and each site's wind + drift result. */
 export function useFlightPlan(): FlightPlanView {
-  const allSites = useLaunchSiteStore(s => s.sites)
-  const zones = useZoneStore(s => s.zones)
+  const allSites = usePlacesStore(s => s.launchSites)
+  const zones = usePlacesStore(s => s.zones)
   const { selectedSiteIds, date, hour, slot, mode, aglFt, mslFt, model, driftMinutes, forecasts, compare, cruiseIndex } = useFlightPlanStore()
 
   return useMemo(() => {

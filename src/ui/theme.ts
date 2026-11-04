@@ -19,7 +19,8 @@ export const theme = {
     stripBg: 'rgba(14, 14, 20, 0.96)',
     // Flight-plan drift tracks, one per altitude (low → high)
     driftLevels: ['#00acc1', '#2e7d32', '#e67e22', '#8e44ad'],
-    launchSite: '#C0392B',
+    launchSite: '#ff6f00',
+    poi: '#ab47bc',
     // Chosen launch sites 1–5 (markers, and tracks when not comparing altitudes)
     planSites: ['#d81b60', '#1e88e5', '#00897b', '#3949ab', '#6d4c41'],
     // Imported zones: good landing / caution / do not land
