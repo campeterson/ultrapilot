@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { theme } from '../../theme'
+import { BasemapToggle } from './BasemapToggle'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
@@ -285,6 +286,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
       {/* Bottom-left: D→ indicator + orientation toggle + recenter + cancel D→ */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
         <DirectToIndicator />
+        <BasemapToggle view="flight" />
         <button
           style={btnBase}
           onClick={() => setOrientation(mapOrientation === 'track-up' ? 'north-up' : 'track-up')}

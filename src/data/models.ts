@@ -297,3 +297,64 @@ export interface WindBand {
   lastTs: number     // newest sample in this band
   relation: WindBandRelation
 }
+
+// ─── Flight Planning ─────────────────────────────────────────────────────────
+
+/** A saved place you launch from — the anchor for planning forecasts. */
+export interface LaunchSite {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  /** Field elevation, ft MSL. null = use the forecast model's terrain height. */
+  elevFt: number | null
+  createdAt: string  // ISO
+}
+
+/** One forecast level for one hour: wind at an MSL height. */
+export interface ForecastLevel {
+  mslFt: number
+  speedKt: number
+  dirFrom: number   // degrees true, meteorological "from"
+}
+
+/** The whole sounding for one hour at one site, sorted low → high. */
+export interface ForecastHour {
+  ts: number                  // epoch ms, top of the hour
+  levels: ForecastLevel[]
+  surfaceSpeedKt: number | null   // 10 m
+  surfaceDirFrom: number | null
+  gustKt: number | null
+  precipProb: number | null
+}
+
+/** Hourly forecast for one launch site from one model. */
+export interface SiteForecast {
+  siteId: string
+  model: string
+  /** Terrain height the model reported for the grid cell, ft MSL. */
+  modelElevFt: number
+  hours: ForecastHour[]
+  fetchedAt: number
+}
+
+/** Planning altitudes: fixed AGL above each site, or one shared MSL set. */
+export type PlanAltitudeMode = 'agl' | 'msl'
+
+// ─── Zones ───────────────────────────────────────────────────────────────────
+
+/** good = green landing zone, caution = yellow, nogo = red / do not land. */
+export type ZoneRating = 'good' | 'caution' | 'nogo'
+
+/** An imported area. Coordinates are GeoJSON-style [lon, lat]. */
+export interface Zone {
+  id: string
+  name: string
+  rating: ZoneRating
+  /** MultiPolygon: polygons → rings (first = outer, rest = holes) → points. */
+  polygons: [number, number][][][]
+  /** File it came from, for grouping and bulk delete. */
+  source: string
+  note: string | null
+  createdAt: string  // ISO
+}

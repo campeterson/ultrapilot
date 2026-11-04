@@ -11,6 +11,7 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { toGPX, toOADSSession, downloadString, sessionFilename } from '../../../data/export'
 import { formatImportStats } from '../../../data/import'
 import { theme } from '../../theme'
+import { SatelliteSettings } from './SatelliteSettings'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 // INSTRUMENT_LABELS used in InstrumentConfigurator below
 import { InstrumentPickerModal } from '../../shell/InstrumentPickerModal'
@@ -570,6 +571,9 @@ export function SettingsPage() {
       <Row label="Distance Rings (0.5 / 1 / 2 nm)">
         <Toggle value={showDistanceRings} onToggle={() => toggle('showDistanceRings')} />
       </Row>
+
+      <SectionHeader title="SATELLITE IMAGERY" />
+      <SatelliteSettings />
 
       <SectionHeader title="INSTRUMENTS" />
       <Row label="Top Strip">

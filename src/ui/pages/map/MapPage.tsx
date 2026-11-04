@@ -20,6 +20,12 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
+import { useLaunchSiteStore } from '../../../state/launch-site-store'
+import { useZoneStore } from '../../../state/zone-store'
+import { useZoneLayers } from './useZoneLayers'
+import { useSatelliteLayer } from './useSatelliteLayer'
+import { ZONE_COLORS } from './zone-layers'
+import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
@@ -354,6 +360,14 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
       mapRef.current = null
     }
   }, [])
+
+  // ── Flight plan: tap menu can start a launch site (form lives in the shell) ──
+  const setPendingSite = useLaunchSiteStore(s => s.setPending)
+
+  // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
+  useZoneLayers(mapRef)
+  useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['zones-fill', 'history-track'])
+  const { zones, showOnFlightMap } = useZoneStore()
 
   // ── Load airports + waypoints ────────────────────────────────────────────────
   useEffect(() => { loadAirports() }, [loadAirports])
@@ -694,6 +708,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
           : selection.kind === 'waypoint'      ? selection.waypoint.name
           : selection.kind === 'routeWaypoint' ? selection.waypoint.name
           : selection.airport.id
+        const tapZone = selection.kind === 'tap' && showOnFlightMap ? zoneAt(zones, selLon, selLat) : null
 
         return (
           <div
@@ -716,6 +731,11 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
               {selection.kind === 'tap' && (
                 <div style={{ fontSize: theme.size.small, color: theme.colors.dim, fontFamily: theme.font.mono, letterSpacing: '0.04em' }}>
                   {selLat.toFixed(5)}, {selLon.toFixed(5)}
+                </div>
+              )}
+              {selection.kind === 'tap' && tapZone && (
+                <div style={{ fontSize: theme.size.small, color: ZONE_COLORS[tapZone.rating], fontWeight: 700, marginTop: '4px' }}>
+                  ■ {tapZone.name} · {zoneRatingLabel(tapZone.rating)}
                 </div>
               )}
               {selection.kind === 'waypoint' && (
@@ -796,6 +816,16 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
                 style={{ ...menuBtnStyle, color: theme.colors.cream }}
               >
                 <span>⌖</span> Add Waypoint
+              </button>
+            )}
+
+            {/* Add Launch Site (flight planning) */}
+            {(selection.kind === 'tap' || selection.kind === 'airport' || selection.kind === 'waypoint') && (
+              <button
+                onClick={() => { setPendingSite({ lat: selLat, lon: selLon, name: selection.kind === 'tap' ? undefined : selName, elevFt: selection.kind === 'airport' ? selection.airport.elev : null }); setSelection(null) }}
+                style={{ ...menuBtnStyle, color: theme.colors.red }}
+              >
+                <span>▲</span> Add Launch Site
               </button>
             )}
 

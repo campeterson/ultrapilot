@@ -458,7 +458,7 @@ export function parseSessionKml(text: string): SessionImportPayload {
 
 /** Pull the main KML document out of a KMZ (zip). By convention it's doc.kml
  *  at the root; otherwise the first .kml in the archive. */
-async function kmzToKml(bytes: ArrayBuffer): Promise<string> {
+export async function kmzToKml(bytes: ArrayBuffer): Promise<string> {
   const kmls = listZipEntries(bytes).filter(e => e.name.toLowerCase().endsWith('.kml'))
   const main = kmls.find(e => e.name.toLowerCase() === 'doc.kml')
     ?? kmls.find(e => !e.name.includes('/'))

@@ -1,8 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route, Tileset } from './models'
+import type { Session, TrackPoint, StampEvent, Checklist, Waypoint, Route, Tileset, LaunchSite, Zone } from './models'
 
 const DB_NAME = 'ultrapilot'
-const DB_VERSION = 4
+const DB_VERSION = 6
 
 type UltraPilotDB = {
   sessions: {
@@ -35,6 +35,14 @@ type UltraPilotDB = {
     key: string
     value: Tileset
   }
+  launchSites: {
+    key: string
+    value: LaunchSite
+  }
+  zones: {
+    key: string
+    value: Zone
+  }
 }
 
 let _db: IDBPDatabase<UltraPilotDB> | null = null
@@ -65,6 +73,12 @@ async function getDB(): Promise<IDBPDatabase<UltraPilotDB>> {
       }
       if (!db.objectStoreNames.contains('tilesets')) {
         db.createObjectStore('tilesets', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('launchSites')) {
+        db.createObjectStore('launchSites', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('zones')) {
+        db.createObjectStore('zones', { keyPath: 'id' })
       }
     },
   })
@@ -242,6 +256,46 @@ export async function putTileset(tileset: Tileset): Promise<void> {
 export async function deleteTileset(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('tilesets', id)
+}
+
+// ─── Launch Sites ────────────────────────────────────────────────────────────
+
+export async function listLaunchSites(): Promise<LaunchSite[]> {
+  const db = await getDB()
+  const all = await db.getAll('launchSites')
+  return all.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function putLaunchSite(site: LaunchSite): Promise<void> {
+  const db = await getDB()
+  await db.put('launchSites', site)
+}
+
+export async function deleteLaunchSite(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('launchSites', id)
+}
+
+// ─── Zones ───────────────────────────────────────────────────────────────────
+
+export async function listZones(): Promise<Zone[]> {
+  const db = await getDB()
+  const all = await db.getAll('zones')
+  return all.sort((a, b) => a.source.localeCompare(b.source) || a.name.localeCompare(b.name))
+}
+
+export async function putZones(zones: Zone[]): Promise<void> {
+  const db = await getDB()
+  const tx = db.transaction('zones', 'readwrite')
+  for (const z of zones) tx.store.put(z)
+  await tx.done
+}
+
+export async function deleteZones(ids: string[]): Promise<void> {
+  const db = await getDB()
+  const tx = db.transaction('zones', 'readwrite')
+  for (const id of ids) tx.store.delete(id)
+  await tx.done
 }
 
 /**
