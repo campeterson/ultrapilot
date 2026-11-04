@@ -48,8 +48,8 @@ Every section (every tab except Map) shows either **split** with the map or **fu
 | Device | Split | Full screen | Switching |
 |---|---|---|---|
 | Phone | — (no split) | Section replaces the map | Always full screen; no title bar |
-| Tablet portrait | Map top ~52%, section bottom ~48% | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
-| Tablet landscape | Map left, section right ~⅓ | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
+| Tablet portrait | Map top 50%, section bottom 50% | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
+| Tablet landscape | Map left 50%, section right 50% | Section covers the map | Title bar: ⤢ Full / ◧ Split, ✕ back to map |
 
 The split/full choice is one remembered preference (`src/state/panel-store.ts`), so the next
 section opens the same way. The map stays mounted under a full-screen section.

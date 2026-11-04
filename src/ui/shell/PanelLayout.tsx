@@ -74,15 +74,16 @@ export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panel
   }
 
   // ── Tablet ───────────────────────────────────────────────────────────────
-  // Split: map + panel side by side (landscape) or stacked (portrait).
+  // Split: map and section share the screen 50/50 (Garmin Pilot style),
+  // side by side in landscape, stacked in portrait.
   // Full: the panel covers the map, which stays mounted (and sized) beneath.
   const portrait = layout === 'tablet-portrait'
   const full = hasPanel && panelMode === 'full'
   const panelStyle: React.CSSProperties = full
     ? { position: 'absolute', inset: 0, zIndex: 10 }
     : portrait
-      ? { flex: '0 0 48%', borderTop: `1px solid ${theme.colors.darkBorder}` }
-      : { width: '33.33%', flexShrink: 0, borderLeft: `1px solid ${theme.colors.darkBorder}` }
+      ? { flex: '0 0 50%', borderTop: `1px solid ${theme.colors.darkBorder}` }
+      : { width: '50%', flexShrink: 0, borderLeft: `1px solid ${theme.colors.darkBorder}` }
 
   return (
     <div style={{

@@ -164,7 +164,7 @@ export function AppShell() {
   const sectionOpen = effectivePanelOpen && panelContent !== null
   const sectionFull = sectionOpen && (layout === 'phone' || panelMode === 'full')
   const stripVisible = showInstrumentStrip && !sectionFull
-  const stripRight = layout === 'tablet-landscape' && sectionOpen && !sectionFull ? `calc(${theme.safeRight} + (100vw - ${theme.safeLeft} - ${theme.safeRight}) / 3)` : undefined
+  const stripRight = layout === 'tablet-landscape' && sectionOpen && !sectionFull ? `calc(${theme.safeRight} + (100vw - ${theme.safeLeft} - ${theme.safeRight}) / 2)` : undefined
 
   return (
     <>

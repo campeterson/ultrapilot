@@ -17,8 +17,9 @@ The app follows the responsive panel pattern established by Garmin Pilot. The ma
 Every non-Map section opens either **split** with the map or **full screen**, like
 Garmin Pilot's split view:
 
-- **Split:** portrait puts the map in the top ~52% and the section in the bottom ~48%;
-  landscape puts the map on the left and the section on the right ~⅓.
+- **Split:** the screen is shared 50/50 like Garmin Pilot: portrait puts the map on the
+  top half and the section on the bottom half; landscape puts the map on the left half and the
+  section on the right half.
 - **Full screen:** the section covers the map. The map stays mounted (and sized)
   underneath, so returning to it is instant.
 - Each section has a **title bar** with **⤢ Full / ◧ Split** and **✕** (close, back to
@@ -35,8 +36,8 @@ Garmin Pilot's split view:
 | Form Factor | Split | Full screen | Switch |
 |---|---|---|---|
 | Phone | — | Section replaces the map | Always full; nav tab tap |
-| Tablet Portrait | Map top ~52%, section bottom ~48% | Section covers the map | Title bar ⤢ / ◧, ✕ |
-| Tablet Landscape | Map left, section right ~⅓ | Section covers the map | Title bar ⤢ / ◧, ✕ |
+| Tablet Portrait | Map top 50%, section bottom 50% | Section covers the map | Title bar ⤢ / ◧, ✕ |
+| Tablet Landscape | Map left 50%, section right 50% | Section covers the map | Title bar ⤢ / ◧, ✕ |
 
 ---
 
