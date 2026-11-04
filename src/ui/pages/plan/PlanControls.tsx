@@ -13,7 +13,7 @@ const hour12 = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? 'AM' 
 
 /** When, which model, which altitudes, how long to drift. */
 export function PlanControls({ view }: { view: FlightPlanView }) {
-  const { date, hour, model, mode, mslFt, showOnMap, setSetting } = useFlightPlanStore()
+  const { date, hour, model, mode, mslFt, setSetting } = useFlightPlanStore()
   const units = useUnits()
   const unit = ALTITUDE_LABELS[units.altitude]
   const shown = view.altitudesFt.map(ft => Math.round(convertAltitude(ft, units.altitude))).join(', ')
@@ -69,10 +69,6 @@ export function PlanControls({ view }: { view: FlightPlanView }) {
         {mode === 'agl' ? 'Up to four heights above each site’s ground.' : 'One altitude set flown from every site — compare sites at the same level.'}
       </div>
 
-      <button onClick={() => setSetting('showOnMap', !showOnMap)}
-        style={{ ...chipStyle(showOnMap), width: '100%', marginTop: '10px', flex: 'none' }}>
-        {showOnMap ? '✓ Drift tracks shown on main map' : 'Show drift tracks on main map'}
-      </button>
     </div>
   )
 }

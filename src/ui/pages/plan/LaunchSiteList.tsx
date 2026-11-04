@@ -27,7 +27,7 @@ export function LaunchSiteList() {
       <div style={sectionTitle}>Launch sites · {selectedSiteIds.length}/{MAX_PLAN_SITES} chosen</div>
       {sites.length === 0 && (
         <div style={{ color: theme.colors.dim, fontSize: theme.size.small, marginBottom: '8px', lineHeight: 1.4 }}>
-          No launch sites yet. Tap the map and choose “Add Launch Site”, or enter coordinates.
+          No launch sites yet. Tap the plan map above to add one, or enter coordinates.
         </div>
       )}
       {sites.map(site => {

@@ -1,4 +1,4 @@
-// Flight-plan map drawing shared by the live map and the plan panel's map:
+// Flight-plan map drawing for the plan panel's map (the main map is for flying):
 // launch sites (chosen ones numbered in their site color) and drift tracks
 // with 15-minute dots and an altitude label at the end.
 import maplibregl from 'maplibre-gl'
@@ -7,7 +7,12 @@ import { formatAltitude } from '../../../data/logic/units-logic'
 import { drawnLevels, planExtent } from '../../../data/logic/plan-logic'
 import { driftColor, siteColor } from '../plan/plan-styles'
 import type { FlightPlanView } from '../../hooks/useFlightPlan'
-import type { AltitudeUnit, LaunchSite } from '../../../data/models'
+import type { AltitudeUnit, LaunchSite, SiteForecast } from '../../../data/models'
+
+/** Changes whenever a new forecast is fetched. */
+export function fetchKey(forecasts: Record<string, SiteForecast>): string {
+  return Object.values(forecasts).map(f => f.fetchedAt).join(',')
+}
 
 const SITES = 'plan-sites'
 const DRIFT = 'plan-drift'

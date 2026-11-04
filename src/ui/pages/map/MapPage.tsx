@@ -20,10 +20,7 @@ import { getTrackPoints, getEvents } from '../../../data/db'
 import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
-import { usePlanMapLayers } from './usePlanMapLayers'
 import { useLaunchSiteStore } from '../../../state/launch-site-store'
-import { LaunchSiteForm } from '../plan/LaunchSiteForm'
-import { PlanMapBar } from '../plan/PlanMapBar'
 import { PROTOMAPS_STYLE_LIGHT } from './map-style'
 import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
@@ -132,7 +129,6 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const [selection, setSelection] = useState<MapSelection | null>(null)
   const [wpForm, setWpForm] = useState<{ lat: number; lon: number } | null>(null)
   const [wpName, setWpName] = useState('')
-  const [pendingInfo, setPendingInfo] = useState<{ name?: string; elevFt: number | null }>({ elevFt: null })
 
   // ── Init map ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -360,9 +356,8 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     }
   }, [])
 
-  // ── Flight plan: launch sites + drift tracks ─────────────────────────────────
-  usePlanMapLayers(mapRef)
-  const { pending: pendingSite, setPending: setPendingSite } = useLaunchSiteStore()
+  // ── Flight plan: tap menu can start a launch site (form lives in the shell) ──
+  const setPendingSite = useLaunchSiteStore(s => s.setPending)
 
   // ── Load airports + waypoints ────────────────────────────────────────────────
   useEffect(() => { loadAirports() }, [loadAirports])
@@ -675,7 +670,6 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {showControls && <MapControls onRecenter={handleRecenter} />}
-      {showControls && <PlanMapBar />}
 
       {/* Light-dismiss overlay */}
       {selection && !wpForm && (
@@ -812,7 +806,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
             {/* Add Launch Site (flight planning) */}
             {(selection.kind === 'tap' || selection.kind === 'airport' || selection.kind === 'waypoint') && (
               <button
-                onClick={() => { setPendingSite({ lat: selLat, lon: selLon }); setPendingInfo({ name: selection.kind === 'tap' ? undefined : selName, elevFt: selection.kind === 'airport' ? selection.airport.elev : null }); setSelection(null) }}
+                onClick={() => { setPendingSite({ lat: selLat, lon: selLon, name: selection.kind === 'tap' ? undefined : selName, elevFt: selection.kind === 'airport' ? selection.airport.elev : null }); setSelection(null) }}
                 style={{ ...menuBtnStyle, color: theme.colors.red }}
               >
                 <span>▲</span> Add Launch Site
@@ -886,12 +880,6 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
             </div>
           </div>
         </div>
-      )}
-      {pendingSite && (
-        <LaunchSiteForm
-          initial={{ ...pendingSite, ...pendingInfo }}
-          onClose={() => setPendingSite(null)}
-        />
       )}
     </div>
   )

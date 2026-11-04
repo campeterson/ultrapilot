@@ -22,7 +22,6 @@ interface Settings {
   mslFt: number[] | null
   model: string
   driftMinutes: DriftMinutes
-  showOnMap: boolean
   /** Draw every altitude's track, or just the cruise altitude's. */
   compare: boolean
   /** Index into the altitude set used as cruise altitude. */
@@ -38,7 +37,6 @@ const DEFAULT_SETTINGS: Settings = {
   mslFt: null,
   model: 'best_match',
   driftMinutes: 60,
-  showOnMap: true,
   compare: true,
   cruiseIndex: 3,
 }
@@ -105,7 +103,7 @@ export const useFlightPlanStore = create<FlightPlanStore>((set, get) => ({
     const s = get()
     const settings: Settings = {
       selectedSiteIds: s.selectedSiteIds, date: s.date, hour: s.hour, mode: s.mode, aglFt: s.aglFt,
-      mslFt: s.mslFt, model: s.model, driftMinutes: s.driftMinutes, showOnMap: s.showOnMap,
+      mslFt: s.mslFt, model: s.model, driftMinutes: s.driftMinutes,
       compare: s.compare, cruiseIndex: s.cruiseIndex,
     }
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch {}

@@ -15,6 +15,13 @@ interface Props {
   onClose: () => void
 }
 
+/** The form for a site started from a map tap (main map or plan map). */
+export function PendingLaunchSiteForm() {
+  const { pending, setPending } = useLaunchSiteStore()
+  if (!pending) return null
+  return <LaunchSiteForm initial={pending} onClose={() => setPending(null)} />
+}
+
 /** Modal to name a launch site and confirm or type its coordinates. */
 export function LaunchSiteForm({ site, initial, onClose }: Props) {
   const units = useUnits()

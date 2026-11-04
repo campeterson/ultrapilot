@@ -3,7 +3,6 @@ import { theme } from '../../theme'
 import { useLaunchSiteStore } from '../../../state/launch-site-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useFlightPlan } from '../../hooks/useFlightPlan'
-import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { modelLabel, modelReaches } from '../../../data/logic/forecast-logic'
 import { LaunchSiteList } from './LaunchSiteList'
 import { PlanControls } from './PlanControls'
@@ -18,8 +17,6 @@ export function PlanPage() {
   const loadSites = useLaunchSiteStore(s => s.load)
   const { fetching, error, fetchForecasts, model, forecasts } = useFlightPlanStore()
   const view = useFlightPlan()
-  // Phone: the panel covers the map, so the plan gets its own map here
-  const showMiniMap = useResponsiveLayout() === 'phone'
 
   useEffect(() => { loadSites() }, [loadSites])
 
@@ -31,6 +28,21 @@ export function PlanPage() {
   return (
     <div style={{ padding: '12px', fontFamily: theme.font.primary, color: theme.colors.light }}>
       <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '10px' }}>Flight Plan</div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitle}>
+          {view.plans.length > 0
+            ? `Drift track · ${new Date(view.ts).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}`
+            : 'Plan map · tap a site to choose it, tap the map to add one'}
+        </div>
+        <PlanMiniMap view={view} />
+        {view.plans.length > 0 && (
+          <>
+            <div style={{ marginTop: '10px' }}><HourScrubber view={view} /></div>
+            <div style={{ marginTop: '10px' }}><DriftOptions view={view} /></div>
+          </>
+        )}
+      </div>
 
       <LaunchSiteList />
       <PlanControls view={view} />
@@ -52,12 +64,6 @@ export function PlanPage() {
 
       {view.plans.length > 0 && (
         <>
-          <div style={sectionStyle}>
-            <div style={sectionTitle}>Drift track · {new Date(view.ts).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-            {showMiniMap && <div style={{ marginBottom: '10px' }}><PlanMiniMap view={view} /></div>}
-            <HourScrubber view={view} />
-            <div style={{ marginTop: '10px' }}><DriftOptions view={view} /></div>
-          </div>
           {view.plans.map(p => (
             <SiteResultCard key={p.site.id} plan={p} number={view.sites.indexOf(p.site) + 1}
               cruiseIndex={view.cruiseIndex} compare={view.compare} model={model} />

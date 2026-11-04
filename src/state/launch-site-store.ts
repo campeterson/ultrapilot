@@ -8,13 +8,21 @@ interface LaunchSiteStore {
   sites: LaunchSite[]
   loaded: boolean
   /** Coordinates waiting to be named — set from a map tap, cleared on save/cancel. */
-  pending: { lat: number; lon: number } | null
+  pending: PendingSite | null
   load: () => Promise<void>
   /** Saves and returns the site. */
   add: (name: string, lat: number, lon: number, elevFt: number | null) => Promise<LaunchSite>
   update: (site: LaunchSite) => Promise<void>
   remove: (id: string) => Promise<void>
-  setPending: (p: { lat: number; lon: number } | null) => void
+  setPending: (p: PendingSite | null) => void
+}
+
+/** A site being created: where, plus a suggested name/elevation (e.g. from an airport). */
+export interface PendingSite {
+  lat: number
+  lon: number
+  name?: string
+  elevFt?: number | null
 }
 
 function newId() {

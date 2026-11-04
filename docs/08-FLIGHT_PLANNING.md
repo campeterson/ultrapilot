@@ -6,19 +6,23 @@ wind forecast and plots constant-altitude drift tracks on the map.
 
 ## Using it
 
-1. **Launch sites**: tap the map → *Add Launch Site*. It also works on airports and
-   waypoints; for an airport, its elevation is filled in. Or go More → Flight Plan →
-   *+ Coordinates* / *+ My position*. Elevation is optional; leave it blank to use the
-   forecast model's terrain height.
-2. **Choose sites**: tap a site in the list or on the map (a numbered red dot means
-   chosen). Max 3.
-3. **Date / time / model / altitudes / drift duration**, then *Get forecast*.
-4. **Drift track** section (modelled on isitwindy's Drift Track card):
-   - On a phone, a map inside the panel shows all chosen sites and their tracks
-     together; it re-frames when sites, forecast, or the drawn tracks change. On a
-     tablet the main map beside the panel does this.
-   - **Scrub** the hour: one hour before the plan time, the plan hour, and two hours
-     after, all on the hour. Also in the bar floating over the main map.
+The plan has its own map inside the Flight Plan panel (More → Flight Plan), the
+same on phone and tablet. **The main map is for flying only**: it shows no launch
+sites or drift tracks.
+
+1. **Launch sites**: tap an empty spot on the plan map, or *+ Coordinates* /
+   *+ My position*. From the main map, the tap menu's *Add Launch Site* also works
+   (on airports the elevation is filled in). Elevation is optional; leave it blank
+   to use the forecast model's terrain height.
+2. **Choose sites**: tap a site on the plan map or in the list. A chosen site is a
+   numbered dot in its site color. Max 3.
+3. **Date / time / model / altitudes**, then *Get forecast*.
+4. **Plan map + drift options** (modelled on isitwindy's Drift Track card):
+   - All chosen sites and their tracks on one map. It re-frames when the sites,
+     forecast, or drawn tracks change, and holds still while you scrub hours.
+     With no site chosen it frames every saved site.
+   - **Scrub** the hour: one hour before the plan time, the plan hour, and two
+     hours after, all on the hour.
    - **Cruise alt**, **Duration** (30–120 min), and **Compare altitudes**. On:
      every altitude is drawn, colored by altitude. Off: only the cruise altitude,
      one track per site colored by site, so three sites compare cleanly.
@@ -60,4 +64,4 @@ minutes, and the label at the end is the altitude.
 |---|---|
 | Data | `src/data/logic/forecast-logic.ts`, `drift-logic.ts`, `plan-logic.ts`; `LaunchSite` etc. in `models.ts`; `launchSites` store in `db.ts` (DB v5) |
 | State | `src/state/launch-site-store.ts`, `src/state/flight-plan-store.ts` |
-| UI | `src/ui/pages/plan/*`, `src/ui/hooks/useFlightPlan.ts`, `src/ui/pages/map/plan-layers.ts` (shared drawing), `usePlanMapLayers.ts` |
+| UI | `src/ui/pages/plan/*` (`PlanMiniMap.tsx` is the plan map), `src/ui/hooks/useFlightPlan.ts`, `src/ui/pages/map/plan-layers.ts` (map drawing) |

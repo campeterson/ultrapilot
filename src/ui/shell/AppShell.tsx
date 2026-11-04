@@ -33,6 +33,7 @@ import { useTilesetsStore } from '../../state/tilesets-store'
 import { useFlightModeStore } from '../../state/flight-mode-store'
 import { WindreaderPage } from '../pages/windreader/WindreaderPage'
 import { PlanPage } from '../pages/plan/PlanPage'
+import { PendingLaunchSiteForm } from '../pages/plan/LaunchSiteForm'
 import { ReplayScreen } from '../pages/sessions/ReplayScreen'
 import { useReplayScreen } from '../hooks/useReplayScreen'
 
@@ -173,6 +174,7 @@ export function AppShell() {
         onDismiss={() => setMoreOpen(false)}
       />
 
+      <PendingLaunchSiteForm />
       <RouteBanner />
       <UpdateBanner />
       <Disclaimer />

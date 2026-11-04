@@ -7,15 +7,27 @@ import { useLaunchSiteStore } from '../../../state/launch-site-store'
 import { useFlightPlanStore } from '../../../state/flight-plan-store'
 import { useUnits } from '../../hooks/useUnits'
 import { useUnitsStore } from '../../../state/units-store'
+import { useGPSStore } from '../../../state/gps-store'
+import type { LaunchSite } from '../../../data/models'
 import type { FlightPlanView } from '../../hooks/useFlightPlan'
 import { PROTOMAPS_STYLE_LIGHT } from '../map/map-style'
-import { ensurePlanLayers, fitPlan, setPlanData } from '../map/plan-layers'
-import { fetchKey } from '../map/usePlanMapLayers'
+import { ensurePlanLayers, fetchKey, fitPlan, setPlanData } from '../map/plan-layers'
 
 const PAD = { top: 30, bottom: 30, left: 30, right: 50 }
 const toggleSite = (id: string) => useFlightPlanStore.getState().toggleSite(id)
 
-/** All chosen launch sites and their drift tracks on one map, inside the panel. */
+/** Frame the chosen sites, or every saved site when none is chosen yet. */
+const frameSites = (view: FlightPlanView): LaunchSite[] =>
+  view.sites.length ? view.sites : useLaunchSiteStore.getState().sites
+
+/** Before any site exists: start where the pilot is. */
+function startCenter(): [number, number] {
+  const p = useGPSStore.getState().position
+  return p ? [p.lon, p.lat] : [-94.6, 38.9]
+}
+
+/** The planning map: saved launch sites (tap to choose, tap empty map to add)
+ *  and every chosen site's drift tracks, inside the Flight Plan panel. */
 export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -29,17 +41,22 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   useEffect(() => {
     if (!containerRef.current) return
     const map = new maplibregl.Map({
-      container: containerRef.current, style: PROTOMAPS_STYLE_LIGHT, center: [-94.6, 38.9], zoom: 9,
+      container: containerRef.current, style: PROTOMAPS_STYLE_LIGHT, center: startCenter(), zoom: 9,
       attributionControl: false, pitchWithRotate: false, dragRotate: false,
     })
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left')
+    // Tap empty map to add a launch site there (site taps are handled first)
+    map.on('click', (e) => {
+      if ((e as maplibregl.MapMouseEvent & { defaultPrevented?: boolean }).defaultPrevented) return
+      useLaunchSiteStore.getState().setPending({ lat: e.lngLat.lat, lon: e.lngLat.lng })
+    })
     map.on('load', () => {
       loadedRef.current = true
       ensurePlanLayers(map, toggleSite)
       const v = viewRef.current
       setPlanData(map, useLaunchSiteStore.getState().sites, v.sites.map(s => s.id), v, useUnitsStore.getState().altitude)
-      fitPlan(map, v, v.sites, PAD, false)
+      fitPlan(map, v, frameSites(v), PAD, false)
     })
     mapRef.current = map
     const ro = new ResizeObserver(() => map.resize())
@@ -54,10 +71,10 @@ export function PlanMiniMap({ view }: { view: FlightPlanView }) {
   }, [sites, selectedSiteIds, view, units.altitude])
 
   // Re-frame when the sites, forecast, or drawn tracks change — not while scrubbing hours
-  const frameKey = `${selectedSiteIds.join()}|${fetchKey(forecasts)}|${view.compare}|${view.cruiseIndex}|${driftMinutes}|${view.altitudesFt.join()}`
+  const frameKey = `${sites.length}|${selectedSiteIds.join()}|${fetchKey(forecasts)}|${view.compare}|${view.cruiseIndex}|${driftMinutes}|${view.altitudesFt.join()}`
   useEffect(() => {
     const map = mapRef.current
-    if (map && loadedRef.current) fitPlan(map, viewRef.current, viewRef.current.sites, PAD)
+    if (map && loadedRef.current) fitPlan(map, viewRef.current, frameSites(viewRef.current), PAD)
   }, [frameKey])
 
   return (
