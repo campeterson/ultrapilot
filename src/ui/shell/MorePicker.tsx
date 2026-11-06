@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { theme } from '../theme'
 
-export type MoreView = 'plan' | 'places' | 'instruments' | 'sessions' | 'tilesets' | 'settings'
+export type MoreView = 'plan' | 'places' | 'live' | 'instruments' | 'sessions' | 'tilesets' | 'settings'
 
 interface MorePickerProps {
   visible: boolean
@@ -12,6 +12,7 @@ interface MorePickerProps {
 const MORE_ITEMS: { id: MoreView; label: string; icon: string }[] = [
   { id: 'plan', label: 'Flight Plan', icon: '▲' },
   { id: 'places', label: 'Places', icon: '▦' },
+  { id: 'live', label: 'Live Group', icon: '◉' },
   { id: 'instruments', label: 'Instruments', icon: '◈' },
   { id: 'sessions', label: 'Sessions', icon: '◷' },
   { id: 'tilesets', label: 'Offline Maps', icon: '◱' },

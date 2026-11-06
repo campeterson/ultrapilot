@@ -27,6 +27,15 @@ export const theme = {
     zoneGood: '#2ecc71',
     zoneCaution: '#f1c40f',
     zoneNogo: '#e74c3c',
+    // Live Group member markers, by role
+    liveRoles: {
+      balloon: '#e91e63',
+      chase: '#00bcd4',
+      ppc: '#5c6bc0',
+      ppg: '#26a69a',
+      aircraft: '#8d6e63',
+      ground: '#78909c',
+    },
   },
   font: {
     primary: '"B612", monospace',

@@ -36,12 +36,15 @@ import { WindreaderPage } from '../pages/windreader/WindreaderPage'
 import { PlanPage } from '../pages/plan/PlanPage'
 import { PendingPlaceForm } from '../pages/places/PlaceForm'
 import { PlacesPage } from '../pages/places/PlacesPage'
+import { LiveGroupPage } from '../pages/live/LiveGroupPage'
+import { useLiveGroupRuntime } from '../hooks/useLiveGroupRuntime'
+import { useLiveGroupStore } from '../../state/live-group-store'
 import { ReplayScreen } from '../pages/sessions/ReplayScreen'
 import { useReplayScreen } from '../hooks/useReplayScreen'
 
 /** Section titles for the tablet title bar. */
 const PANEL_TITLES: Record<string, string> = {
-  plan: 'Flight Plan', places: 'Places', instruments: 'Instruments', sessions: 'Sessions', tilesets: 'Offline Maps',
+  plan: 'Flight Plan', places: 'Places', live: 'Live Group', instruments: 'Instruments', sessions: 'Sessions', tilesets: 'Offline Maps',
   settings: 'Settings', wind: 'Windreader', timeline: 'Timeline', checklists: 'Checklists', wx: 'Weather & Airports',
   waypoints: 'Waypoints', routes: 'Routes',
 }
@@ -77,7 +80,16 @@ export function AppShell() {
   useEffect(() => { useTilesetsStore.getState().init() }, [])
 
   // Keep screen awake during active sessions
-  useWakeLock(sessionStatus === 'active')
+  // …and while sharing a live position (the page must stay open and visible)
+  const liveSharing = useLiveGroupStore(s => s.sharing)
+  useWakeLock(sessionStatus === 'active' || liveSharing)
+
+  // Live Group: resume, visibility, and invite links (#live=…) open the section
+  useLiveGroupRuntime(() => {
+    setMoreOpen(false)
+    setMoreView('live')
+    setPanelOpen(true)
+  })
 
   // When a session ends: reset ephemeral flight state and open the sessions
   // view on the just-ended session (SessionsPage reads justEndedSessionId from
@@ -138,6 +150,7 @@ export function AppShell() {
   function getPanelContent() {
     if (moreView === 'plan') return <PlanPage />
     if (moreView === 'places') return <PlacesPage />
+    if (moreView === 'live') return <LiveGroupPage />
     if (moreView === 'instruments') return <InstrumentsPage />
     if (moreView === 'sessions') return <SessionsPage />
     if (moreView === 'tilesets') return <TilesetsPage />
