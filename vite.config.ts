@@ -17,6 +17,8 @@ export default defineConfig({
         cacheId: version,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         globIgnores: ['sw.js'],
+        // The Live Group relay is never served from the offline cache
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,

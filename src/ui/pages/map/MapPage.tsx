@@ -22,6 +22,7 @@ import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { usePlacesStore } from '../../../state/places-store'
 import { usePlaceLayers } from './usePlaceLayers'
+import { useLiveLayers } from './useLiveLayers'
 import { useSatelliteLayer } from './useSatelliteLayer'
 import { ZONE_COLORS } from './place-layers'
 import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
@@ -365,6 +366,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
   usePlaceLayers(mapRef)
+  useLiveLayers(mapRef)
   useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['places-fill', 'history-track'])
   const { zones, showOnFlightMap } = usePlacesStore()
 
