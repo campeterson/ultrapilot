@@ -150,9 +150,9 @@ A **profile** kept on the device and reused for every group:
 
 | Layer | Piece |
 |---|---|
-| Data | `logic/live-codec.ts` — b64url, key derivation, fix encode/decode, AES-GCM, names; `logic/live-logic.ts` — send policy, staleness, role table, duplicate-callsign tags, invite parsing; `live-api.ts` — HTTP calls (side-effecting I/O, like `satellite-cache.ts`) |
-| State | `live-group-store.ts` — profile, active group, sharing, members, poll loop, clock sync; subscribes to the existing GPS store (no second `watchPosition`) |
-| UI | **More → Live Group** (split or full screen): profile, create / join / leave, invite (share, copy, QR), share toggle, member list with age, distance, bearing, altitude. **Flying map**: member markers by role with callsign, altitude and age labels, fading with age. Wake lock held while sharing. |
+| Data | `logic/live-codec.ts` — b64url, key derivation, fix encode/decode, AES-GCM, names; `logic/live-logic.ts` — send policy, staleness, role table, duplicate-callsign tags, invite parsing, member view, ground reference / AGL, direction lines; `logic/live-drift-logic.ts` — when to re-fetch winds, drift from a fix; `live-api.ts` — HTTP calls (side-effecting I/O, like `satellite-cache.ts`) |
+| State | `live-drift-store.ts` — forecast drift for one member; `live-group-store.ts` — profile, active group, sharing, members, poll loop, clock sync; subscribes to the existing GPS store (no second `watchPosition`) |
+| UI | **More → Live Group** (split or full screen): profile, create / join / leave, invite (share, copy, QR), share toggle, member list (tap for Direct-To / drift forecast), display options. **Flying map**: member markers, labels, direction lines, forecast drift (`useLiveLayers`). Wake lock held while sharing. |
 
 **Sending:** while sharing, the send rule is re-checked every second against the latest GPS
 position (not only when the GPS reports a new one — a stationary iPhone can go quiet), so
@@ -165,14 +165,45 @@ if the relay rate-limits it (429), waits 2 s and sends it once more.
 buckets; offline fixes are dropped, never queued; retries only on network / 5xx, ×3,
 250 ms backoff.
 
-## 7. Phases
+## 7. Seeing others (step 2)
 
-1. **Relay + Live Group page + map markers** at the rates in §1. *(this step)*
-2. **Chase tools:** Direct-To a member, distance / bearing-to-member instruments, and
-   the balloon's forecast drift from its live position (flight-plan wind data).
+**Labels.** Every other member on the flying map: a dot in the role's colour and a two-line
+label — `CALLSIGN · age` / `altitude datum · speed track` (e.g. `SKY 1 · 8 s` /
+`1,969 ft MSL · 12 kt 060°`). Track shows only when moving (≥ 1 kt). The member list shows
+the same plus distance and bearing from you. Dots fade at 30 s and grey at 60 s.
+
+**Direction lines** (toggle on the Live Group page, default on): a line ahead of each
+moving member along its track, as long as the distance it covers in the look-ahead time
+set for your own direction line (Settings → Map display).
+
+**MSL / AGL** (toggle beside it, default MSL). AGL is height above the **chase crew,
+taken as 0 AGL**: your own altitude when you are the chase vehicle / ground, otherwise
+the freshest chase or ground member's. With no one on the ground reporting altitude,
+labels stay MSL and say why. (Not terrain-aware — the same idea as the app's own AGL,
+which is height above the session origin.)
+
+**Direct-To a member** — tap a member → *Direct-To*. The target follows the member on
+every update, so the map's magenta line and D→ indicator track them, and so do the
+Direct-To instruments (DTE distance, DTK bearing, ETE, arrow) — those need a running
+session, as for any Direct-To. Leaving the group clears a member target.
+
+**Forecast drift** — tap an airborne member (or yourself) → *Drift forecast* (30 / 60 /
+90 min). From the member's latest position **at its current altitude**, the flight
+plan's drift integration runs on an Open-Meteo forecast (the flight plan's model) fetched
+for that spot. It is re-fetched when the member is > 15 nm from where winds were
+fetched, the forecast is an hour old, or it no longer covers the minutes ahead. Drawn as
+a dashed line with 15-minute dots and a "+60 min" label; the list says "If it holds
+altitude: 20.0 nm toward 060° ENE in 60 min". Needs a connection for the winds.
+
+## 8. Phases
+
+1. **Relay + Live Group page + map markers** at the rates in §1. *(done)*
+2. **Chase tools:** Direct-To a member (Direct-To instruments), forecast drift from a
+   member's live position, plus labels with altitude / speed / track, direction lines and
+   MSL / AGL (§7). *(done)*
 3. **View-only links, owner controls, hub mode, shared group places** (landing zones).
 
-## 8. Testing
+## 9. Testing
 
 - `npm run test:live` — unit: codec round trip and null handling, AES-GCM AAD tamper fails, send policy,
   staleness, relay core (create, join, write gate, rate limit, locs newest-per-member,

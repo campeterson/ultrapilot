@@ -2,7 +2,7 @@
 // invite links, callsigns. Pure. See docs/09-LIVE_GROUP.md.
 import type { FlightMode } from '../models'
 import { FIX_EPOCH_MS, formatSeq } from './live-codec'
-import { bearing, haversineNM } from './gps-logic'
+import { bearing, destinationPoint, haversineNM } from './gps-logic'
 import type { LiveFix } from './live-codec'
 
 // ─── roles ───────────────────────────────────────────────────────────────────
@@ -134,15 +134,61 @@ export interface MemberView {
   distNM: number | null
   bearingDeg: number | null
   altFt: number | null
+  speedKt: number | null
+  /** Ground track — only when moving (≥ 1 kt), otherwise meaningless. */
+  trackDeg: number | null
 }
+
+const MS_TO_KT = 1.943844
+const MOVING_KT = 1
 
 export function memberView(fix: LiveFix, me: { lat: number; lon: number } | null, serverNow: number): MemberView {
   const ageS = Math.max(0, (serverNow - fix.ts) / 1000)
+  const speedKt = fix.speedMs == null ? null : fix.speedMs * MS_TO_KT
   return {
     ageS,
     freshness: freshness(ageS),
     distNM: me ? haversineNM(me.lat, me.lon, fix.lat, fix.lon) : null,
     bearingDeg: me ? bearing(me.lat, me.lon, fix.lat, fix.lon) : null,
     altFt: fix.altM == null ? null : fix.altM * 3.28084,
+    speedKt,
+    trackDeg: speedKt != null && speedKt >= MOVING_KT ? fix.trackDeg : null,
   }
+}
+
+// ─── altitude reference ──────────────────────────────────────────────────────
+
+export type LiveAltMode = 'msl' | 'agl'
+
+/** Roles that are on the ground, so their GPS altitude is the local ground. */
+export const isGroundRole = (r: LiveRole) => r === 'chase' || r === 'ground'
+
+/**
+ * Ground reference for AGL labels: the chase crew is "0 AGL". Uses my own
+ * altitude when I'm the chase vehicle / ground, else the freshest chase or
+ * ground member's. null when no one on the ground is reporting altitude.
+ */
+export function groundReference(
+  members: { role: LiveRole; isMe: boolean; callsign: string; fix: LiveFix | null }[],
+  me: { role: LiveRole; altFt: number | null } | null,
+): { altFt: number; name: string } | null {
+  if (me && isGroundRole(me.role) && me.altFt != null) return { altFt: me.altFt, name: 'you' }
+  let best: { altFt: number; name: string; ts: number } | null = null
+  for (const m of members) {
+    if (m.isMe || !isGroundRole(m.role) || !m.fix || m.fix.altM == null) continue
+    if (!best || m.fix.ts > best.ts) best = { altFt: m.fix.altM * 3.28084, name: m.callsign, ts: m.fix.ts }
+  }
+  return best && { altFt: best.altFt, name: best.name }
+}
+
+/** Altitude to show: MSL, or above the ground reference (falls back to MSL without one). */
+export function displayAltitude(altFt: number | null, mode: LiveAltMode, ref: { altFt: number } | null): { ft: number; datum: 'MSL' | 'AGL' } | null {
+  if (altFt == null) return null
+  return mode === 'agl' && ref ? { ft: Math.max(0, altFt - ref.altFt), datum: 'AGL' } : { ft: altFt, datum: 'MSL' }
+}
+
+/** Where a member's direction line ends: `minutes` ahead along its track. */
+export function directionLineEnd(fix: LiveFix, view: MemberView, minutes: number): [number, number] | null {
+  if (view.trackDeg == null || view.speedKt == null) return null
+  return destinationPoint(fix.lat, fix.lon, view.trackDeg, view.speedKt * (minutes / 60))
 }

@@ -2,7 +2,8 @@
 // Run: npm run test:live
 import { createRelay, memoryStore } from '../netlify/edge-functions/lib/relay-core'
 import { deriveGroupKeys, randomKey, pubIdFor, encryptFix, decryptFix, encryptName, decryptName, encodeFix, decodeFix, FLAG_STOPPED } from '../src/data/logic/live-codec'
-import { seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness } from '../src/data/logic/live-logic'
+import { seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd } from '../src/data/logic/live-logic'
+import { needsForecast, memberDrift } from '../src/data/logic/live-drift-logic'
 
 let ok = 0, fail = 0
 const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; console.log('FAIL', name) } }
@@ -100,6 +101,30 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
   const b503 = await broken.handle(new Request('https://x/api/join', { method: 'POST', body: JSON.stringify({ g: keys.g, writeKey: keys.writeKey, memberKey, seq: s1, nameCipher: nm }) }))
   check('503 retry-after', b503.status === 503 && b503.headers.get('Retry-After') === '1')
   check('tombstone flag', decodeFix(encodeFix({ ...f, flags: FLAG_STOPPED })).flags === FLAG_STOPPED)
+  // step 2: display + drift
+  const now2 = f.ts + 10_000
+  const v = memberView({ ...f, speedMs: 10, trackDeg: 60 }, { lat: 38, lon: -94.7 }, now2)
+  check('view speed kt', Math.abs((v.speedKt ?? 0) - 19.44) < 0.01 && v.trackDeg === 60 && Math.round(v.ageS) === 10)
+  check('slow: no track', memberView({ ...f, speedMs: 0.2, trackDeg: 60 }, null, now2).trackDeg === null)
+  const fx = (role: any, altM: number | null, ts: number, isMe = false) => ({ role, isMe, callsign: role.toUpperCase(), fix: { ...f, altM, ts } })
+  const mem = [fx('balloon', 600, 1), fx('chase', 300, 5), fx('chase', 310, 9), fx('ground', null, 20)]
+  check('ref: freshest chase', groundReference(mem, { role: 'balloon', altFt: 2000 })?.altFt === 310 * 3.28084)
+  check('ref: me when chase', groundReference(mem, { role: 'chase', altFt: 1000 })?.name === 'you')
+  check('ref: none', groundReference([fx('balloon', 600, 1)], null) === null)
+  const ref = { altFt: 1000 }
+  check('agl', displayAltitude(1984, 'agl', ref)?.ft === 984 && displayAltitude(1984, 'agl', ref)?.datum === 'AGL')
+  check('agl no ref → msl', displayAltitude(1984, 'agl', null)?.datum === 'MSL' && displayAltitude(500, 'agl', ref)?.ft === 0)
+  const end = directionLineEnd({ ...f, lat: 38, lon: -94, speedMs: 30.87, trackDeg: 90 }, memberView({ ...f, lat: 38, lon: -94, speedMs: 30.87, trackDeg: 90 }, null, f.ts), 10)
+  check('dir line 10 nm east', !!end && Math.abs(end[0] - 38) < 0.01 && end[1] > -94 && Math.abs((end[1] + 94) * 60 * Math.cos(38 * Math.PI / 180) - 10) < 0.1)
+  const hours = Array.from({ length: 6 }, (_, i) => ({ ts: f.ts - 3600e3 + i * 3600e3, levels: [{ mslFt: 0, speedKt: 10, dirFrom: 270 }, { mslFt: 5000, speedKt: 20, dirFrom: 270 }], surfaceSpeedKt: null, surfaceDirFrom: null, gustKt: null, precipProb: null }))
+  const fc = { lat: f.lat, lon: f.lon, hours, fetchedAt: f.ts }
+  check('forecast ok', !needsForecast(fc, f, 60, f.ts + 60_000))
+  check('forecast old', needsForecast(fc, f, 60, f.ts + 61 * 60_000))
+  check('forecast moved', needsForecast(fc, { ...f, lat: f.lat + 0.3 }, 60, f.ts))
+  check('forecast horizon', needsForecast(fc, { ...f, ts: hours[5].ts - 30 * 60_000 }, 60, f.ts))
+  const dt = memberDrift(fc, { ...f, altM: 762 }, 60)   // 2,500 ft → 15 kt from 270
+  check('drift east 15 nm', !!dt && Math.abs(dt.distNM - 15) < 0.3 && Math.abs(dt.bearingDeg - 90) < 2)
+  check('drift no alt', memberDrift(fc, { ...f, altM: null }, 60) === null)
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)
 })()

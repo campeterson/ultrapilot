@@ -5,12 +5,13 @@ import {
 } from '../data/logic/live-codec'
 import {
   composeName, defaultRole, parseInvite, parseName, POLL_ERROR_MS, POLL_HIDDEN_MS, POLL_VISIBLE_MS, seqAt, shouldSend,
-  type LiveRole, type SentFix,
+  type LiveAltMode, type LiveRole, type SentFix,
 } from '../data/logic/live-logic'
 import * as api from '../data/live-api'
 import type { GPSPosition } from '../data/models'
 import { useGPSStore } from './gps-store'
 import { useFlightModeStore } from './flight-mode-store'
+import { useDirectToStore } from './direct-to-store'
 import { trackEvent } from '../lib/analytics'
 
 const STORAGE_KEY = 'ultrapilot_liveGroup'
@@ -36,14 +37,24 @@ export interface LiveMember {
 
 export type LiveStatus = 'idle' | 'connecting' | 'live' | 'offline'
 
-interface Persisted { profile: LiveProfile | null; group: SavedGroup | null }
+/** How other members are drawn. */
+export interface LiveDisplay {
+  /** Line ahead of each moving member along its track. */
+  lines: boolean
+  /** MSL, or AGL with the chase crew as 0. */
+  altMode: LiveAltMode
+}
+
+const DEFAULT_DISPLAY: LiveDisplay = { lines: true, altMode: 'msl' }
+
+interface Persisted { profile: LiveProfile | null; group: SavedGroup | null; display: LiveDisplay }
 
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return { profile: null, group: null, ...JSON.parse(raw) }
+    if (raw) { const p = JSON.parse(raw); return { profile: null, group: null, ...p, display: { ...DEFAULT_DISPLAY, ...p.display } } }
   } catch {}
-  return { profile: null, group: null }
+  return { profile: null, group: null, display: { ...DEFAULT_DISPLAY } }
 }
 
 interface LiveGroupStore extends Persisted {
@@ -71,6 +82,9 @@ interface LiveGroupStore extends Persisted {
   setPendingInvite: (secret: string | null) => void
   /** From the UI: page visibility drives the poll rate and clock re-sync. */
   setVisible: (visible: boolean) => void
+  setDisplay: (patch: Partial<LiveDisplay>) => void
+  /** Direct-To a member; the target follows them while they share. */
+  directToMember: (pubId: string) => void
 }
 
 // ─── runtime (not reactive) ──────────────────────────────────────────────────
@@ -91,8 +105,8 @@ const nameCache = new Map<string, { callsign: string; role: LiveRole }>()
 
 export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
   const persist = () => {
-    const { profile, group } = get()
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, group })) } catch {}
+    const { profile, group, display } = get()
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, group, display })) } catch {}
   }
   const serverNow = () => Date.now() + get().offset
   const profileOrDefault = (): LiveProfile => get().profile ?? { callsign: 'Pilot', role: defaultRole(useFlightModeStore.getState().mode) }
@@ -152,7 +166,11 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
           }
           members.push({ pubId: id, callsign: who.callsign, role: who.role, fix, isMe: id === pubId })
         }
-        if (gen === pollGen) set({ members, status: 'live', error: null })
+        if (gen === pollGen) {
+          set({ members, status: 'live', error: null })
+          // A Direct-To on a member follows them
+          for (const m of members) if (m.fix) useDirectToStore.getState().followMember(m.pubId, m.fix.lat, m.fix.lon)
+        }
       } else set({ status: 'live', error: null })
     } catch (e) {
       errors++
@@ -280,6 +298,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     leaveGroup: async () => {
       if (get().sharing) await get().stopSharing()
       stopPolling()
+      if (useDirectToStore.getState().target?.memberId) useDirectToStore.getState().clearTarget()
       nameCache.clear()
       set({ group: null, keys: null, pubId: null, members: [], status: 'idle', error: null })
       persist()
@@ -325,6 +344,22 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     },
 
     setPendingInvite: (pendingInvite) => set({ pendingInvite }),
+
+    setDisplay: (patch) => {
+      set({ display: { ...get().display, ...patch } })
+      persist()
+    },
+
+    directToMember: (pubId) => {
+      const m = get().members.find(x => x.pubId === pubId)
+      if (!m?.fix) return
+      const pos = useGPSStore.getState().position
+      useDirectToStore.getState().setTarget({
+        lat: m.fix.lat, lon: m.fix.lon, name: m.callsign, memberId: pubId,
+        fromLat: pos?.lat ?? m.fix.lat, fromLon: pos?.lon ?? m.fix.lon,
+      })
+      trackEvent('live_direct_to')
+    },
 
     setVisible: (v) => {
       const was = visible
