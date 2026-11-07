@@ -12,6 +12,7 @@ import { toGPX, toOADSSession, downloadString, sessionFilename } from '../../../
 import { formatImportStats } from '../../../data/import'
 import { theme } from '../../theme'
 import { SatelliteSettings } from './SatelliteSettings'
+import { NavOrderSettings } from './NavOrderSettings'
 import { OfflineImagery } from './OfflineImagery'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 // INSTRUMENT_LABELS used in InstrumentConfigurator below
@@ -541,6 +542,9 @@ export function SettingsPage() {
       <Row label="Record GPS Track">
         <Toggle value={recordTrack} onToggle={() => toggle('recordTrack')} />
       </Row>
+
+      <SectionHeader title="NAVIGATION BAR" />
+      <NavOrderSettings />
 
       <SectionHeader title="MAP DISPLAY" />
       <Row label="Direction Line">

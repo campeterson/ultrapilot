@@ -1,28 +1,27 @@
 import { theme } from '../theme'
-import { useFlightModeStore } from '../../state/flight-mode-store'
-import type { FlightMode } from '../../data/models'
+import { sectionInfo, type NavSection } from '../../data/logic/nav-logic'
 
-export type NavTab = 'map' | 'wind' | 'timeline' | 'checklists' | 'wx' | 'waypoints' | 'routes' | 'more'
+/** What the bar highlights: the map, a bar section, or More (for a More section). */
+export type NavActive = 'map' | 'more' | NavSection
 
 interface NavBarProps {
-  active: NavTab
-  onSelect: (tab: NavTab) => void
+  /** Sections on the bar, in order (Map and More are added around them). */
+  bar: NavSection[]
+  active: NavActive
+  onMap: () => void
+  onSection: (id: NavSection) => void
+  onMore: () => void
 }
 
-const TABS: { id: NavTab; label: string; icon: string; modes?: FlightMode[] }[] = [
-  { id: 'map', label: 'Map', icon: '◎' },
-  { id: 'wind', label: 'Wind', icon: '≋', modes: ['lta'] },
-  { id: 'timeline', label: 'Timeline', icon: '◷' },
-  { id: 'checklists', label: 'Lists', icon: '☑' },
-  { id: 'wx', label: 'Wx/Apt', icon: '⛅' },
-  { id: 'waypoints', label: 'Wpts', icon: '⌖' },
-  { id: 'routes', label: 'Routes', icon: '✈', modes: ['powered'] },
-  { id: 'more', label: 'More', icon: '⋯' },
-]
-
-export function NavBar({ active, onSelect }: NavBarProps) {
-  const mode = useFlightModeStore(s => s.mode)
-  const tabs = TABS.filter(t => !t.modes || t.modes.includes(mode))
+export function NavBar({ bar, active, onMap, onSection, onMore }: NavBarProps) {
+  const buttons: { key: string; label: string; icon: string; on: boolean; onClick: () => void }[] = [
+    { key: 'map', label: 'Map', icon: '◎', on: active === 'map', onClick: onMap },
+    ...bar.map(id => {
+      const s = sectionInfo(id)
+      return { key: id, label: s.label, icon: s.icon, on: active === id, onClick: () => onSection(id) }
+    }),
+    { key: 'more', label: 'More', icon: '⋯', on: active === 'more', onClick: onMore },
+  ]
   return (
     <nav
       style={{
@@ -41,33 +40,31 @@ export function NavBar({ active, onSelect }: NavBarProps) {
         paddingRight: theme.safeRight,
       }}
     >
-      {tabs.map(tab => {
-        const isActive = active === tab.id
-        return (
-          <button
-            key={tab.id}
-            onClick={() => onSelect(tab.id)}
-            style={{
-              flex: 1,
-              background: 'none',
-              border: 'none',
-              color: isActive ? theme.colors.red : theme.colors.light,
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '3px',
-              minHeight: theme.tapTarget,
-              fontFamily: theme.font.primary,
-              transition: 'color 0.15s',
-            }}
-          >
-            <span style={{ fontSize: '18px', lineHeight: 1 }}>{tab.icon}</span>
-            <span style={{ fontSize: theme.size.tiny, letterSpacing: '0.03em' }}>{tab.label}</span>
-          </button>
-        )
-      })}
+      {buttons.map(b => (
+        <button
+          key={b.key}
+          onClick={b.onClick}
+          style={{
+            flex: 1,
+            background: 'none',
+            border: 'none',
+            color: b.on ? theme.colors.red : theme.colors.light,
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            minHeight: theme.tapTarget,
+            minWidth: 0,
+            fontFamily: theme.font.primary,
+            transition: 'color 0.15s',
+          }}
+        >
+          <span style={{ fontSize: '18px', lineHeight: 1 }}>{b.icon}</span>
+          <span style={{ fontSize: theme.size.tiny, letterSpacing: '0.03em' }}>{b.label}</span>
+        </button>
+      ))}
     </nav>
   )
 }
