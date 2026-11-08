@@ -53,13 +53,18 @@ export const theme = {
   navHeight: '60px',
   stripHeight: '58px',        // was 52px
   // Safe-area-aware heights for use in inline styles
-  safeNavHeight: 'calc(60px + env(safe-area-inset-bottom, 0px))',
-  // iOS 26 Home Screen bug: fixed layers stop short of the screen bottom by
-  // --vp-gap (set by useViewportGap; 0 elsewhere). Anchor bottom layers here:
-  /** `bottom` for things that sit on the screen's bottom edge (nav bar, full-screen overlays). */
-  screenBottom: 'calc(0px - var(--vp-gap, 0px))',
+  // iOS 26 Home Screen bug: iOS lays the app out --vp-gap short of the screen
+  // bottom (set by useViewportGap; 0 elsewhere) and won't paint fixed elements
+  // below that. Its shortened box already ends above the home indicator, so the
+  // home-indicator padding shrinks by the gap; the strip below is painted by
+  // the page background, which is the nav bar's colour (index.html).
+  /** Bottom padding inside the nav bar (home indicator, less the iOS gap). */
+  navPad: 'max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px)))',
+  safeNavHeight: 'calc(60px + max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px))))',
+  /** `bottom` for things on the bottom edge (nav bar, full-screen overlays). */
+  screenBottom: '0px',
   /** `bottom` for things that sit just above the nav bar. */
-  aboveNav: 'calc(60px + env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px))',
+  aboveNav: 'calc(60px + max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px))))',
   safeStripHeight: 'calc(58px + env(safe-area-inset-top, 0px))',  // was 52px
   // Landscape notch / rounded corners (≈47px each side on iPhone 12+)
   safeLeft: 'env(safe-area-inset-left, 0px)',

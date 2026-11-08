@@ -34,6 +34,11 @@
       html, body { position: fixed; inset: 0; -webkit-text-size-adjust: 100%; }
       /* iOS scrolls (and zooms) the page when focusing inputs under 16px */
       input, textarea, select { font-size: max(16px, 1em) !important; }
+      /* The page background paints the whole screen — including the strip iOS 26
+         Home Screen apps leave below the layout (see useViewportGap). Make it the
+         nav bar's colour so the bar reads as one piece to the bottom edge; body
+         and #root keep the app background over the layout itself. */
+      html { background: #0c0c12; }
       /* Leaflet needs this to be explicit */
       .leaflet-container { background: #1a1a22; }
     </style>
