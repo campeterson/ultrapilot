@@ -306,6 +306,24 @@ A session contains:
 
 ---
 
+### Keeping the screen awake
+
+The screen stays on while **a session is active**, while **sharing a Live Group
+position**, or while **in a Live Group** (watching others) — a web app stops tracking
+when the screen locks. (`src/ui/hooks/useKeepAwake.ts`, rules in
+`src/data/logic/keep-awake-logic.ts`.)
+
+- **Screen Wake Lock**, taken back whenever it's lost: the system can drop it at any
+  time (calls, notifications, power saving) and always drops it when the app is hidden.
+  Re-checked on return to the app, focus, any touch, and every 10 s.
+- **Silent looping video** (tiny, no audio track, embedded for offline) where the lock
+  doesn't hold: iOS Home Screen apps before iOS 18.4 (the request succeeds but the screen
+  still sleeps), browsers without the API, or after the lock is refused.
+- If both are refused — typically when the app reopens mid-session before any touch —
+  a banner shows **"Screen may sleep — tap to keep awake"**; any tap retries with a user
+  gesture.
+- iOS **Low Power Mode** may still dim / lock the screen; turn it off for flying.
+
 ## Export
 
 ### GPX Export

@@ -11,7 +11,9 @@ import { RouteBanner } from './RouteBanner'
 import { Disclaimer } from './Disclaimer'
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout'
 import { useGPS } from '../hooks/useGPS'
-import { useWakeLock } from '../hooks/useWakeLock'
+import { useKeepAwake } from '../hooks/useKeepAwake'
+import { KeepAwakeBanner } from './KeepAwakeBanner'
+import { shouldKeepAwake } from '../../data/logic/keep-awake-logic'
 import { useIOSScrollReset } from '../hooks/useIOSScrollReset'
 import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
@@ -76,10 +78,11 @@ export function AppShell() {
   // can render pmtiles://<id> sources. Idempotent — the store guards on init.
   useEffect(() => { useTilesetsStore.getState().init() }, [])
 
-  // Keep screen awake during active sessions
-  // …and while sharing a live position (the page must stay open and visible)
+  // Keep the screen on while tracking (active session), sharing a live position,
+  // or in a Live Group (watching others) — the page must stay open and visible
   const liveSharing = useLiveGroupStore(s => s.sharing)
-  useWakeLock(sessionStatus === 'active' || liveSharing)
+  const inLiveGroup = useLiveGroupStore(s => s.group !== null)
+  const keepAwake = useKeepAwake(shouldKeepAwake({ sessionActive: sessionStatus === 'active', liveSharing, inLiveGroup }))
 
   // Live Group: resume, visibility, and invite links (#live=…) open the section
   useLiveGroupRuntime(() => {
@@ -194,6 +197,8 @@ export function AppShell() {
 
       <PendingPlaceForm />
       <RouteBanner stripVisible={stripVisible} />
+      <KeepAwakeBanner state={keepAwake.state} onRetry={keepAwake.retry}
+        top={stripVisible ? `calc(${theme.safeStripHeight} + 52px)` : 'calc(env(safe-area-inset-top, 0px) + 8px)'} />
       <UpdateBanner />
       <Disclaimer />
     </>
