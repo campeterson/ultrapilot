@@ -112,12 +112,20 @@ grp/{g}/l/{bucket}/{pubId}~{seq}~{cipher}   fixes; bucket = floor(serverSec / 60
 | `POST /api/fix` | `{g, writeKey, memberKey, seq, cipher}` | write gate; 2 s per-member rate limit (429) → 204 |
 | `GET /api/locs?g=&t=` | `t = floor(serverMs / 2000)` | `{now, members:[[pubId,seq,nameCipher]], fixes:[[pubId,seq,cipher]]}`; ETag (weak compare, 304); `Cache-Control: no-cache`, `Netlify-CDN-Cache-Control: public, max-age=2`, `Netlify-Vary: query=g\|t` |
 | `DELETE /api/group` | `{g, ownerKey}` | owner ends the group |
+| `GET /api/health` | — | storage write / read / delete probe → `{ok, readBack, ms}` (for *Check server*) |
+| `GET /api/group?g=` | — | `{exists, created, updatedAt}` — does the relay see this group (no secrets; `g` is public) |
+
+404s carry a `code`: `no-group` (relay has no such group — joins retry twice, 1 s / 2 s, in
+case a new group isn't visible yet) or `no-route`. A non-JSON answer means the relay isn't
+deployed (`no-relay`). The relay never caches "no such group".
 
 Validation: `g` `^[A-Za-z0-9_-]{43}$`, `seq` `^[0-9a-z]{7}$`, `cipher` exactly 70,
 `nameCipher` ≤ 100, body ≤ 1 KB. Storage errors → 503 `Retry-After: 1`.
 
 **Cleanup** — `netlify/functions/relay-cleanup.mts`, every 5 min: delete buckets older
-than current − 2; delete groups whose meta `updatedAt` is > 24 h old; ≤ 5,000 deletes
+than current − 2; delete a group only when its last activity is *known* to be > 24 h old
+(meta `updatedAt` metadata, else meta `created`; with no meta, the newest bucket) — if it
+can't be read, the group is left alone; ≤ 5,000 deletes
 per run. Writers bump `updatedAt` at most once a minute per isolate.
 
 The relay logic lives in `netlify/edge-functions/lib/relay-core.ts` behind a small
