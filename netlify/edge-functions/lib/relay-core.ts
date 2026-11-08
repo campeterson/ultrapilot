@@ -96,7 +96,10 @@ export function createRelay(store: () => RelayStore, now: () => number = Date.no
     if (m && now() - m.at < META_MEMO_MS) return m.meta
     const raw = await guard(() => s.get(`grp/${g}/meta`))
     const meta = raw ? (JSON.parse(raw) as Meta) : null
-    metaMemo.set(g, { meta, at: now() })
+    // Only remember a group that exists: caching "not found" would turn one
+    // early miss into minutes of failed joins on this isolate
+    if (meta) metaMemo.set(g, { meta, at: now() })
+    else metaMemo.delete(g)
     return meta
   }
 
@@ -104,7 +107,7 @@ export function createRelay(store: () => RelayStore, now: () => number = Date.no
   async function checkWrite(s: RelayStore, g: string, writeKey: unknown): Promise<Meta | Response> {
     if (typeof writeKey !== 'string' || !RE_B64.test(writeKey) || writeKey.length > 64) return bad('writeKey')
     const meta = await readMeta(s, g)
-    if (!meta) return json(404, { error: 'No such group' })
+    if (!meta) return json(404, { error: 'No such group', code: 'no-group' })
     if ((await wtagFor(writeKey)) !== meta.wtag) return json(403, { error: 'Not a member of this group' })
     return meta
   }
@@ -247,16 +250,59 @@ export function createRelay(store: () => RelayStore, now: () => number = Date.no
     const path = url.pathname.replace(/\/index\.html?$/, '').replace(/\/+$/, '')
     try {
       if (req.method === 'GET' && path === '/api/time') return json(200, { now: now() })
+      if (req.method === 'GET' && path === '/api/health') return await health()
+      if (req.method === 'GET' && path === '/api/group') return await groupStatus(url)
       if (req.method === 'PUT' && path === '/api/group') return await createGroup(req)
       if (req.method === 'DELETE' && path === '/api/group') return await endGroup(req)
       if (req.method === 'POST' && path === '/api/join') return await join(req)
       if (req.method === 'POST' && path === '/api/fix') return await fix(req)
       if (req.method === 'GET' && path === '/api/locs') return await locs(req, url)
-      return json(404, { error: 'Not found' })
+      return json(404, { error: 'Not found', code: 'no-route' })
     } catch (e) {
       if (e instanceof StorageError) return json(503, { error: 'Storage busy, retry' }, { 'Retry-After': '1' })
       throw e
     }
+  }
+
+  /** Last activity: meta's updatedAt metadata, else its creation time; null if unknown. */
+  async function lastActive(s: RelayStore, g: string): Promise<number | null> {
+    const md = await s.getMetadata(`grp/${g}/meta`).catch(() => null)
+    const n = Number(md?.updatedAt)
+    if (md && Number.isFinite(n) && n > 0) return n
+    const raw = await s.get(`grp/${g}/meta`).catch(() => null)
+    if (!raw) {
+      // No meta at all: leftover fixes from an ended group — idle once its newest bucket is old
+      const { directories } = await s.list(`grp/${g}/l/`, true).catch(() => ({ directories: [] as string[] }))
+      const newest = Math.max(-Infinity, ...directories.map(d => Number(d.replace(/\/$/, '').split('/').pop())).filter(Number.isFinite))
+      return Number.isFinite(newest) ? (newest + 1) * BUCKET_SEC * 1000 : null
+    }
+    try { const c = Number((JSON.parse(raw) as Meta).created); return Number.isFinite(c) && c > 0 ? c : null } catch { return null }
+  }
+
+  /** GET /api/health — can this relay write, read and delete in storage? */
+  async function health(): Promise<Response> {
+    const s = store()
+    const key = `health/${now()}-${Math.random().toString(36).slice(2, 8)}`
+    const t0 = Date.now()
+    try {
+      await s.set(key, 'ok')
+      const back = await s.get(key)
+      await s.delete(key)
+      return json(200, { ok: back === 'ok', readBack: back === 'ok', ms: Date.now() - t0, now: now() })
+    } catch (e) {
+      return json(200, { ok: false, error: String(e).slice(0, 200), ms: Date.now() - t0, now: now() })
+    }
+  }
+
+  /** GET /api/group?g= — does the relay see this group? (No secrets: g is public.) */
+  async function groupStatus(url: URL): Promise<Response> {
+    const g = url.searchParams.get('g')
+    if (!validG(g)) return bad('g')
+    const s = store()
+    metaMemo.delete(g)
+    const meta = await readMeta(s, g)
+    const md = meta ? await guard(() => s.getMetadata(`grp/${g}/meta`)) : null
+    return json(200, { exists: !!meta, created: meta?.created ?? null, updatedAt: typeof md?.updatedAt === 'number' ? md.updatedAt : null, now: now() })
   }
 
   /** Scheduled cleanup: old buckets, idle groups. Bounded per run. */
@@ -268,9 +314,11 @@ export function createRelay(store: () => RelayStore, now: () => number = Date.no
     for (const gdir of groups) {
       if (budget <= 0) break
       const g = gdir.replace(/^grp\//, '').replace(/\/$/, '')
-      const md = await s.getMetadata(`grp/${g}/meta`)
-      const updatedAt = typeof md?.updatedAt === 'number' ? md.updatedAt : 0
-      if (!md || now() - updatedAt > GROUP_IDLE_MS) {
+      // Delete a whole group only when it is *known* to be idle for 24 h. If the
+      // last-active time can't be read, leave the group alone — deleting a live
+      // group makes every join fail with "group has ended".
+      const last = await lastActive(s, g)
+      if (last !== null && now() - last > GROUP_IDLE_MS) {
         budget -= await deletePrefix(s, `grp/${g}/`, budget)
         continue
       }

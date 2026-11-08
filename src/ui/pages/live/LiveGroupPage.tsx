@@ -8,6 +8,7 @@ import { LiveProfileForm } from './LiveProfileForm'
 import { LiveInvite } from './LiveInvite'
 import { LiveMemberList } from './LiveMemberList'
 import { LiveDisplayOptions } from './LiveDisplayOptions'
+import { LiveServerCheck } from './LiveServerCheck'
 
 const STATUS_TEXT = { idle: '', connecting: 'Connecting…', live: 'Live', offline: 'No connection — retrying' } as const
 
@@ -75,6 +76,7 @@ export function LiveGroupPage() {
           <button onClick={async () => { if (await joinGroup(paste)) setPaste('') }} disabled={busy || !paste.trim()}
             style={{ ...buttonStyle(!!paste.trim(), busy || !paste.trim()), width: '100%', marginTop: '6px' }}>Join</button>
           <div style={small}>Ask whoever started the group to copy the code and send it to you, then paste it here. (A pasted message or link works too — the code is picked out of it.)</div>
+          <LiveServerCheck />
         </div>
       )}
 
@@ -101,6 +103,7 @@ export function LiveGroupPage() {
           <div style={sectionStyle}>
             <div style={sectionTitle}>Invite</div>
             <LiveInvite secret={group.secret} />
+            <LiveServerCheck />
           </div>
 
           <div style={{ display: 'flex', gap: '6px' }}>

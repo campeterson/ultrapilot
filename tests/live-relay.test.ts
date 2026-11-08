@@ -132,6 +132,34 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
   check('code in a message', parseInvite(codeShareText(secret)) === secret)
   check('code in prose', parseInvite(`here you go: ${secret} see you at 7`) === secret)
   check('not a code', parseInvite('x'.repeat(42)) === null && parseInvite('x'.repeat(44)) === null)
+  // join failures: no negative caching, safe cleanup, diagnostics
+  {
+    let t = Date.UTC(2026, 10, 9, 12, 0, 0)
+    const st = memoryStore()
+    // A store that loses metadata (e.g. not returned) — cleanup must not delete the live group
+    const noMeta = { ...st, getMetadata: async () => ({}) }
+    const r = createRelay(() => noMeta, () => t)
+    const rq = (method: string, path: string, body?: unknown) => r.handle(new Request('https://x' + path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }))
+    const k = await deriveGroupKeys(randomKey()); const own = randomKey(); const mk = randomKey(); const pid = await pubIdFor(mk)
+    const sq = seqAt(t); const nc = await encryptName(k, pid, sq, composeName('chase', 'C'))
+    const j1 = await rq('POST', '/api/join', { g: k.g, writeKey: k.writeKey, memberKey: mk, seq: sq, nameCipher: nc })
+    check('join before create: 404 no-group', j1.status === 404 && (await j1.json()).code === 'no-group')
+    await rq('PUT', '/api/group', { g: k.g, wtag: k.wtag, ownerKey: own })
+    check('join right after create: 200 (no cached 404)', (await rq('POST', '/api/join', { g: k.g, writeKey: k.writeKey, memberKey: mk, seq: sq, nameCipher: nc })).status === 200)
+    t += 10 * 60_000
+    await r.cleanup()
+    check('cleanup keeps fresh group without updatedAt', (await st.get(`grp/${k.g}/meta`)) !== null)
+    t += 25 * 3600_000
+    await r.cleanup()
+    check('cleanup removes group idle > 24 h (by created)', (await st.get(`grp/${k.g}/meta`)) === null)
+    const h = await (await rq('GET', '/api/health')).json()
+    check('health ok', h.ok === true && h.readBack === true && (await st.list('health/')).keys.length === 0)
+    const k2 = await deriveGroupKeys(randomKey())
+    check('group status: missing', (await (await rq('GET', `/api/group?g=${k2.g}`)).json()).exists === false)
+    await rq('PUT', '/api/group', { g: k2.g, wtag: k2.wtag, ownerKey: own })
+    check('group status: exists', (await (await rq('GET', `/api/group?g=${k2.g}`)).json()).exists === true)
+    check('unknown route: no-route', (await (await rq('GET', '/api/nope')).json()).code === 'no-route')
+  }
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)
 })()

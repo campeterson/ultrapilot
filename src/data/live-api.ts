@@ -4,7 +4,8 @@
 const API = '/api'
 
 export class RelayError extends Error {
-  constructor(public status: number, message: string) { super(message) }
+  /** `code`: 'no-group' (relay has no such group), 'no-route' / 'no-relay' (relay not answering on /api). */
+  constructor(public status: number, message: string, public code?: string) { super(message) }
 }
 
 /** Retry only transient failures (network, 5xx), 3 tries, 250 ms backoff. */
@@ -26,8 +27,9 @@ async function call(path: string, init: RequestInit = {}, tries = 3): Promise<Re
 async function send(method: string, path: string, body: unknown): Promise<Response> {
   const res = await call(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (res.status >= 400 && res.status !== 429) {
-    const msg = await res.json().then((j: { error?: string }) => j.error).catch(() => null)
-    throw new RelayError(res.status, msg ?? `Request failed (${res.status})`)
+    const body = await res.json().catch(() => null) as { error?: string; code?: string } | null
+    // No JSON at all: something other than the relay answered (not deployed)
+    throw new RelayError(res.status, body?.error ?? `Request failed (${res.status})`, body ? body.code : 'no-relay')
   }
   return res
 }
@@ -45,8 +47,34 @@ export async function createGroup(g: string, wtag: string, ownerKey: string): Pr
 }
 
 export async function joinGroup(g: string, writeKey: string, memberKey: string, seq: string, nameCipher: string): Promise<string> {
-  const res = await send('POST', '/join', { g, writeKey, memberKey, seq, nameCipher })
-  return (await res.json() as { pubId: string }).pubId
+  // A just-created group can take a moment to be visible everywhere: retry "no such group" twice
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await send('POST', '/join', { g, writeKey, memberKey, seq, nameCipher })
+      return (await res.json() as { pubId: string }).pubId
+    } catch (e) {
+      if (!(e instanceof RelayError) || e.code !== 'no-group' || attempt >= 2) throw e
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+    }
+  }
+}
+
+export interface RelayHealth { ok: boolean; readBack?: boolean; ms?: number; error?: string }
+
+/** Can the relay write, read and delete in its storage? */
+export async function relayHealth(): Promise<RelayHealth> {
+  const res = await call('/health', { cache: 'no-store' }, 1)
+  const body = await res.json().catch(() => null) as RelayHealth | null
+  if (!body) throw new RelayError(res.status, 'The Live Group server isn’t answering on this site', 'no-relay')
+  return body
+}
+
+/** Does the relay see this group? */
+export async function groupExists(g: string): Promise<{ exists: boolean; created: number | null; updatedAt: number | null }> {
+  const res = await call(`/group?g=${encodeURIComponent(g)}`, { cache: 'no-store' }, 1)
+  const body = await res.json().catch(() => null)
+  if (!body) throw new RelayError(res.status, 'The Live Group server isn’t answering on this site', 'no-relay')
+  return body
 }
 
 /** false when the relay rate-limited this fix (it's simply skipped). */

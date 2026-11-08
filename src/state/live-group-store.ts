@@ -80,6 +80,9 @@ interface LiveGroupStore extends Persisted {
   startSharing: () => void
   stopSharing: () => Promise<void>
   setPendingInvite: (secret: string | null) => void
+  /** Ask the relay: is storage working, and does my group exist? Result in `serverCheck`. */
+  checkServer: () => Promise<void>
+  serverCheck: { at: number; lines: string[]; ok: boolean } | null
   /** From the UI: page visibility drives the poll rate and clock re-sync. */
   setVisible: (visible: boolean) => void
   setDisplay: (patch: Partial<LiveDisplay>) => void
@@ -242,6 +245,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     busy: false,
     offset: 0,
     pendingInvite: null,
+    serverCheck: null,
 
     init: async () => {
       const { group, keys } = get()
@@ -288,7 +292,12 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
         trackEvent('live_group_joined')
         return true
       } catch (e) {
-        const msg = (e as api.RelayError).status === 404 ? 'That group has ended or the link is wrong' : (e as Error).message
+        const err = e as api.RelayError
+        const msg = err.code === 'no-group'
+          ? 'The server can’t find that group — it may have ended. Ask for a fresh code, or tap “Check server” below.'
+          : err.code === 'no-route' || err.code === 'no-relay'
+            ? 'The Live Group server isn’t running on this site (relay not deployed).'
+            : err.message
         set({ error: msg, status: 'idle', keys: null, group: null })
         persist()
         return false
@@ -344,6 +353,27 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     },
 
     setPendingInvite: (pendingInvite) => set({ pendingInvite }),
+
+    checkServer: async () => {
+      const lines: string[] = []
+      let ok = true
+      try {
+        const h = await api.relayHealth()
+        lines.push(h.ok ? `Server storage: working (${h.ms ?? '?'} ms)` : `Server storage: NOT working${h.error ? ` — ${h.error}` : ''}`)
+        ok = ok && h.ok
+      } catch (e) {
+        lines.push(`Server: not reachable — ${(e as Error).message}`); ok = false
+      }
+      const { keys } = get()
+      if (keys) {
+        try {
+          const st = await api.groupExists(keys.g)
+          lines.push(st.exists ? `Your group: found on the server${st.updatedAt ? ` (active ${Math.round((Date.now() - st.updatedAt) / 1000)} s ago)` : ''}` : 'Your group: NOT found on the server — create a new group and share the new code')
+          ok = ok && st.exists
+        } catch (e) { lines.push(`Your group: couldn’t check — ${(e as Error).message}`); ok = false }
+      }
+      set({ serverCheck: { at: Date.now(), lines, ok } })
+    },
 
     setDisplay: (patch) => {
       set({ display: { ...get().display, ...patch } })
