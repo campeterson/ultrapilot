@@ -74,7 +74,7 @@ export function AppShell() {
   // Start GPS on mount
   useGPS()
   useIOSScrollReset()
-  // iOS 26 Home Screen: stretch bottom layers over the gap iOS leaves at the bottom
+  // iOS 26+ Home Screen bug: fit the nav bar to the gap iOS leaves at the bottom
   useViewportGap()
 
   // Register downloaded offline tilesets with the PMTiles protocol so the map

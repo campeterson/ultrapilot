@@ -1,4 +1,4 @@
-// iOS 26 Home Screen apps with a translucent status bar (black-translucent +
+// iOS Home Screen apps (iOS 26 and later — seen on 27) with a translucent status bar (black-translucent +
 // viewport-fit=cover) lay out fixed elements in a box that stops short of the
 // screen bottom by about the status-bar height (47 pt on iPhone 12 Pro, 59 pt
 // with a Dynamic Island) — a dark strip under the nav bar. A probe pinned

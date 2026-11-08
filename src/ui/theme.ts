@@ -53,7 +53,7 @@ export const theme = {
   navHeight: '60px',
   stripHeight: '58px',        // was 52px
   // Safe-area-aware heights for use in inline styles
-  // iOS 26 Home Screen bug: iOS lays the app out --vp-gap short of the screen
+  // iOS Home Screen bug (iOS 26 and later — seen on 27): iOS lays the app out --vp-gap short of the screen
   // bottom (set by useViewportGap; 0 elsewhere) and won't paint fixed elements
   // below that. Its shortened box already ends above the home indicator, so the
   // home-indicator padding shrinks by the gap; the strip below is painted by
