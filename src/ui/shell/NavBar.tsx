@@ -35,7 +35,7 @@ export function NavBar({ bar, active, onMap, onSection, onMore }: NavBarProps) {
         display: 'flex',
         alignItems: 'stretch',
         zIndex: 200,
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingBottom: theme.navPad,
         paddingLeft: theme.safeLeft,
         paddingRight: theme.safeRight,
       }}
