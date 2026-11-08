@@ -13,6 +13,7 @@ import { formatImportStats } from '../../../data/import'
 import { theme } from '../../theme'
 import { SatelliteSettings } from './SatelliteSettings'
 import { NavOrderSettings } from './NavOrderSettings'
+import { LayoutDiagnostics } from './LayoutDiagnostics'
 import { OfflineImagery } from './OfflineImagery'
 import { INSTRUMENT_LABELS, type InstrumentId } from '../../../data/models'
 // INSTRUMENT_LABELS used in InstrumentConfigurator below
@@ -642,6 +643,7 @@ export function SettingsPage() {
           Aviator's Toolkit ↗
         </a>
       </Row>
+      <LayoutDiagnostics />
     </div>
   )
 }
