@@ -26,7 +26,7 @@ export function NavBar({ bar, active, onMap, onSection, onMore }: NavBarProps) {
     <nav
       style={{
         position: 'fixed',
-        bottom: 0,
+        bottom: theme.screenBottom,
         left: 0,
         right: 0,
         height: theme.safeNavHeight,

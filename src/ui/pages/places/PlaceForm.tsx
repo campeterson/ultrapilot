@@ -52,7 +52,7 @@ export function PlaceForm({ place, initial, onClose }: Props) {
 
   return (
     <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400 }}>
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.screenBottom, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400 }}>
       <div onClick={e => e.stopPropagation()}
         style={{ background: theme.colors.darkCard, border: `1px solid ${theme.colors.darkBorder}`, borderRadius: '16px', padding: '20px', width: 'min(340px, calc(100vw - 32px))', fontFamily: theme.font.primary, boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ fontSize: '15px', fontWeight: 700, color: theme.colors.cream, marginBottom: '14px' }}>

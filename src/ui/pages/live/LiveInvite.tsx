@@ -35,7 +35,7 @@ export function LiveInvite({ secret }: { secret: string }) {
       </div>
       {qr && (
         <div onClick={() => setQr(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '24px' }}>
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.screenBottom, background: 'rgba(0,0,0,0.85)', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '24px' }}>
           <img src={qr} alt="Live Group invite QR code" style={{ width: 'min(80vw, 80vh, 420px)', height: 'auto', background: '#fff', borderRadius: '12px' }} />
           <div style={{ color: theme.colors.cream, fontFamily: theme.font.primary, fontSize: theme.size.body, textAlign: 'center' }}>Scan with the camera to join · tap to close</div>
         </div>

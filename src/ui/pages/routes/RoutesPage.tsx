@@ -291,7 +291,7 @@ function RouteDetailModal({ route, waypoints, isActive, hasSession, onActivate, 
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.screenBottom, background: 'rgba(0,0,0,0.65)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '24px 16px', zIndex: 300,
       }}
@@ -483,7 +483,7 @@ function RouteBuilderModal({ waypoints, nearbyAirports, editRoute, onSave, onClo
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.screenBottom, background: 'rgba(0,0,0,0.65)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         paddingTop: 'calc(40px + env(safe-area-inset-top, 0px))', paddingBottom: theme.safeNavHeight, overflowY: 'auto',
         zIndex: 300,

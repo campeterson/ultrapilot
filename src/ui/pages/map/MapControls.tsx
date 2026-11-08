@@ -428,7 +428,7 @@ function RecordingIndicator() {
       </button>
 
       {modalOpen && (
-        <div onClick={() => setModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.safeNavHeight, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+        <div onClick={() => setModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.aboveNav, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: theme.colors.darkCard, border: `1px solid ${theme.colors.darkBorder}`, borderRadius: '16px', padding: '28px 24px', width: '280px', fontFamily: theme.font.primary }}>
             <div style={{ fontSize: '17px', fontWeight: 700, color: theme.colors.cream, marginBottom: '8px' }}>End Session?</div>
             <div style={{ fontSize: theme.size.body, color: theme.colors.dim, marginBottom: '24px', lineHeight: 1.5 }}>

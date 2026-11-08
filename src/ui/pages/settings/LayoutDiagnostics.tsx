@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { theme } from '../../theme'
 import { useTick } from '../../hooks/useTick'
 import { resetDocumentScroll } from '../../hooks/useIOSScrollReset'
+import { measureViewportGap } from '../../hooks/useViewportGap'
 
 /** Screen-layout readout for chasing iPhone notch / home-bar issues: if the UI
  *  ever looks shifted, a screenshot of this shows exactly what iOS did. */
@@ -23,6 +24,7 @@ export function LayoutDiagnostics() {
     ['Window', `${window.innerWidth}×${window.innerHeight}`],
     ['Visible area', vv ? `${Math.round(vv.width)}×${Math.round(vv.height)} · offset ${Math.round(vv.offsetTop)} · zoom ${vv.scale.toFixed(2)}` : '—'],
     ['Safe area', insets],
+    ['Bottom gap fix', (() => { const g = measureViewportGap(); return g ? `${g} px (iOS Home Screen bug — bottom bar stretched)` : 'none needed' })()],
     ['Page scroll', `window ${Math.round(window.scrollY)} · html ${document.documentElement.scrollTop} · body ${document.body.scrollTop} · root ${root?.scrollTop ?? 0}`],
   ]
   return (

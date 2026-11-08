@@ -172,7 +172,7 @@ export function WaypointsPage() {
           onClick={() => setDetailWp(null)}
           style={{
             position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
+            top: 0, left: 0, right: 0, bottom: theme.screenBottom,
             background: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'center',
@@ -279,7 +279,7 @@ export function WaypointsPage() {
           onClick={() => setFormOpen(false)}
           style={{
             position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
+            top: 0, left: 0, right: 0, bottom: theme.screenBottom,
             background: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'flex-start',

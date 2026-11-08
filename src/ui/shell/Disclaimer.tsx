@@ -20,7 +20,7 @@ export function Disclaimer() {
       aria-labelledby="disclaimer-heading"
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0, left: 0, right: 0, bottom: theme.screenBottom,
         zIndex: 99999,
         background: 'rgba(0, 0, 0, 0.82)',
         backdropFilter: 'blur(6px)',

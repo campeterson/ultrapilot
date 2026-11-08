@@ -54,6 +54,12 @@ export const theme = {
   stripHeight: '58px',        // was 52px
   // Safe-area-aware heights for use in inline styles
   safeNavHeight: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+  // iOS 26 Home Screen bug: fixed layers stop short of the screen bottom by
+  // --vp-gap (set by useViewportGap; 0 elsewhere). Anchor bottom layers here:
+  /** `bottom` for things that sit on the screen's bottom edge (nav bar, full-screen overlays). */
+  screenBottom: 'calc(0px - var(--vp-gap, 0px))',
+  /** `bottom` for things that sit just above the nav bar. */
+  aboveNav: 'calc(60px + env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px))',
   safeStripHeight: 'calc(58px + env(safe-area-inset-top, 0px))',  // was 52px
   // Landscape notch / rounded corners (≈47px each side on iPhone 12+)
   safeLeft: 'env(safe-area-inset-left, 0px)',
