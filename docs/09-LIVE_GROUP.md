@@ -182,7 +182,12 @@ the freshest chase or ground member's. With no one on the ground reporting altit
 labels stay MSL and say why. (Not terrain-aware — the same idea as the app's own AGL,
 which is height above the session origin.)
 
-**Direct-To a member** — tap a member → *Direct-To*. The target follows the member on
+**Direct-To a member** — tap the member's dot on the flying map (popup: callsign, role,
+age, altitude, speed / track, distance and bearing from you → *Direct To CALLSIGN*,
+*Drift forecast* for aircraft), or tap them in the Live Group list → *Direct-To*. The
+D→ widget is labelled with the callsign and adds **"45 s old"** once their position is
+30 s old and **LOST** when they stop sharing, leave, or drop out (target stays at the last
+known position). The target follows the member on
 every update, so the map's magenta line and D→ indicator track them, and so do the
 Direct-To instruments (DTE distance, DTK bearing, ETE, arrow) — those need a running
 session, as for any Direct-To. Leaving the group clears a member target.

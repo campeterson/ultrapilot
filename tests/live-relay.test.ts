@@ -2,7 +2,7 @@
 // Run: npm run test:live
 import { createRelay, memoryStore } from '../netlify/edge-functions/lib/relay-core'
 import { deriveGroupKeys, randomKey, pubIdFor, encryptFix, decryptFix, encryptName, decryptName, encodeFix, decodeFix, FLAG_STOPPED } from '../src/data/logic/live-codec'
-import { seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd } from '../src/data/logic/live-logic'
+import { seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
 import { needsForecast, memberDrift } from '../src/data/logic/live-drift-logic'
 
 let ok = 0, fail = 0
@@ -125,6 +125,9 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
   const dt = memberDrift(fc, { ...f, altM: 762 }, 60)   // 2,500 ft → 15 kt from 270
   check('drift east 15 nm', !!dt && Math.abs(dt.distNM - 15) < 0.3 && Math.abs(dt.bearingDeg - 90) < 2)
   check('drift no alt', memberDrift(fc, { ...f, altM: null }, 60) === null)
+  check('follow live', followStatus(f, f.ts + 5000).status === 'live')
+  check('follow old', followStatus(f, f.ts + 45_000).status === 'old' && Math.round(followStatus(f, f.ts + 45_000).ageS!) === 45)
+  check('follow lost', followStatus(null, f.ts).status === 'lost')
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)
 })()
