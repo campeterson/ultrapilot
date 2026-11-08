@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { theme } from '../../theme'
 import { BasemapToggle } from './BasemapToggle'
+import { useRouteStore } from '../../../state/route-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
@@ -244,6 +245,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
   const { session, sessionStatus } = useSessionStore()
   const { addStamp } = useTimelineStore()
   const { target: directTo, clearTarget } = useDirectToStore()
+  const routeActive = useRouteStore(s => s.active !== null)
   const { mapLeft, mapRight, mapBottom, setMapLeft, setMapRight, setMapBottom } = useInstrumentStore()
   const { showMapOverlays, mapOrientation, setOrientation } = useMapSettingsStore()
   const layout = useResponsiveLayout()
@@ -283,7 +285,10 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         <WindreaderOverlay top={windPanelTop} onHide={() => setWindSetting('showMapPanel', false)} />
       )}
 
-      {/* Bottom-left: cancel D→ + D→ indicator + basemap + orientation + recenter */}
+      {/* Top centre: map / satellite (drops below the route banner while a route is active) */}
+      <BasemapToggle view="flight" style={{ position: 'absolute', top: routeActive ? '52px' : '12px', left: '50%', transform: 'translateX(-50%)', zIndex: 50 }} />
+
+      {/* Bottom-left: cancel D→ + D→ indicator, then orientation and recenter side by side */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
         {directTo && (
           <button
@@ -305,7 +310,10 @@ export function MapControls({ onRecenter }: MapControlsProps) {
           </button>
         )}
         <DirectToIndicator />
-        <BasemapToggle view="flight" />
+        {isLTA && !showWindPanel && (
+          <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
+        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
         <button
           style={btnBase}
           onClick={() => setOrientation(mapOrientation === 'track-up' ? 'north-up' : 'track-up')}
@@ -314,10 +322,8 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         >
           {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
         </button>
-        {isLTA && !showWindPanel && (
-          <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
-        )}
-        <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
+        <button style={btnBase} onClick={onRecenter} title="Re-center on position" aria-label="Re-center on position">▲</button>
+        </div>
       </div>
 
       {/* STAMP button — center bottom (pushed up on tablet-portrait to clear chevron) */}

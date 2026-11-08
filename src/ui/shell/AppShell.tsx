@@ -81,6 +81,8 @@ export function AppShell() {
   // Keep the screen on while tracking (active session), sharing a live position,
   // or in a Live Group (watching others) — the page must stay open and visible
   const liveSharing = useLiveGroupStore(s => s.sharing)
+  // Keep-awake banner sits below the top-centre satellite button (and the route banner)
+  const routeActive = useRouteStore(s => s.active !== null)
   const inLiveGroup = useLiveGroupStore(s => s.group !== null)
   const keepAwake = useKeepAwake(shouldKeepAwake({ sessionActive: sessionStatus === 'active', liveSharing, inLiveGroup }))
 
@@ -198,7 +200,7 @@ export function AppShell() {
       <PendingPlaceForm />
       <RouteBanner stripVisible={stripVisible} />
       <KeepAwakeBanner state={keepAwake.state} onRetry={keepAwake.retry}
-        top={stripVisible ? `calc(${theme.safeStripHeight} + 52px)` : 'calc(env(safe-area-inset-top, 0px) + 8px)'} />
+        top={`calc(${stripVisible ? theme.safeStripHeight : 'env(safe-area-inset-top, 0px)'} + ${routeActive ? 104 : 64}px)`} />
       <UpdateBanner />
       <Disclaimer />
     </>
