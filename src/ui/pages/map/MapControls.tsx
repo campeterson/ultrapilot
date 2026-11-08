@@ -283,22 +283,8 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         <WindreaderOverlay top={windPanelTop} onHide={() => setWindSetting('showMapPanel', false)} />
       )}
 
-      {/* Bottom-left: D→ indicator + orientation toggle + recenter + cancel D→ */}
+      {/* Bottom-left: cancel D→ + D→ indicator + basemap + orientation + recenter */}
       <div style={{ position: 'absolute', bottom: '16px', left: '12px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 50, alignItems: 'center' }}>
-        <DirectToIndicator />
-        <BasemapToggle view="flight" />
-        <button
-          style={btnBase}
-          onClick={() => setOrientation(mapOrientation === 'track-up' ? 'north-up' : 'track-up')}
-          title={mapOrientation === 'track-up' ? 'Track Up — tap for North Up' : 'North Up — tap for Track Up'}
-          aria-label={`Orientation: ${mapOrientation === 'track-up' ? 'Track Up' : 'North Up'}`}
-        >
-          {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
-        </button>
-        {isLTA && !showWindPanel && (
-          <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
-        )}
-        <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
         {directTo && (
           <button
             onClick={clearTarget}
@@ -318,6 +304,20 @@ export function MapControls({ onRecenter }: MapControlsProps) {
             × D→
           </button>
         )}
+        <DirectToIndicator />
+        <BasemapToggle view="flight" />
+        <button
+          style={btnBase}
+          onClick={() => setOrientation(mapOrientation === 'track-up' ? 'north-up' : 'track-up')}
+          title={mapOrientation === 'track-up' ? 'Track Up — tap for North Up' : 'North Up — tap for Track Up'}
+          aria-label={`Orientation: ${mapOrientation === 'track-up' ? 'Track Up' : 'North Up'}`}
+        >
+          {mapOrientation === 'track-up' ? <TrackUpIcon /> : <NorthUpIcon />}
+        </button>
+        {isLTA && !showWindPanel && (
+          <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
+        )}
+        <button style={btnBase} onClick={onRecenter} title="Re-center on position">▲</button>
       </div>
 
       {/* STAMP button — center bottom (pushed up on tablet-portrait to clear chevron) */}
