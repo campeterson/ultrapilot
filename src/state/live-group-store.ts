@@ -277,7 +277,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
 
     joinGroup: async (invite) => {
       const secret = parseInvite(invite)
-      if (!secret) { set({ error: 'That isn’t a Live Group invite link' }); return false }
+      if (!secret) { set({ error: 'That isn’t a Live Group code — copy the whole code and paste it again' }); return false }
       if (get().busy) return false
       set({ busy: true, error: null })
       try {
