@@ -2,7 +2,7 @@
 // Run: npm run test:live
 import { createRelay, memoryStore } from '../netlify/edge-functions/lib/relay-core'
 import { deriveGroupKeys, randomKey, pubIdFor, encryptFix, decryptFix, encryptName, decryptName, encodeFix, decodeFix, FLAG_STOPPED } from '../src/data/logic/live-codec'
-import { seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
+import { codeShareText, seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
 import { needsForecast, memberDrift } from '../src/data/logic/live-drift-logic'
 
 let ok = 0, fail = 0
@@ -128,6 +128,10 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
   check('follow live', followStatus(f, f.ts + 5000).status === 'live')
   check('follow old', followStatus(f, f.ts + 45_000).status === 'old' && Math.round(followStatus(f, f.ts + 45_000).ageS!) === 45)
   check('follow lost', followStatus(null, f.ts).status === 'lost')
+  check('code alone', parseInvite('  ' + secret + '\n') === secret)
+  check('code in a message', parseInvite(codeShareText(secret)) === secret)
+  check('code in prose', parseInvite(`here you go: ${secret} see you at 7`) === secret)
+  check('not a code', parseInvite('x'.repeat(42)) === null && parseInvite('x'.repeat(44)) === null)
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)
 })()

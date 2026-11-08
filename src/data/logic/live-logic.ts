@@ -111,14 +111,24 @@ export function displayCallsigns(members: { pubId: string; callsign: string }[])
 
 // ─── invites ─────────────────────────────────────────────────────────────────
 
-const RE_SECRET = /^[A-Za-z0-9_-]{43}$/
+/** A group code: the 43-character group secret (letters, digits, - and _). */
+// (no lookbehind — older iOS Safari can't parse it)
+const RE_CODE = /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/
 
-/** The group secret from an invite link, a bare "#live=…" fragment, or the secret itself. */
+/**
+ * The group code from whatever was pasted: the code alone, a shared message
+ * with the code in it, or an invite link (…#live=CODE).
+ */
 export function parseInvite(text: string): string | null {
   const t = text.trim()
-  const m = t.match(/[#&?]live=([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/)
-  if (m) return m[1]
-  return RE_SECRET.test(t) ? t : null
+  const link = t.match(/[#&?]live=([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/)
+  if (link) return link[1]
+  return t.match(RE_CODE)?.[1] ?? null
+}
+
+/** What "Share code" sends: just the code and how to use it — nothing to tap. */
+export function codeShareText(code: string): string {
+  return `UltraPilot Live Group code:\n${code}\n\nIn UltraPilot: More → Live Group → Paste code → Join`
 }
 
 export function inviteLink(origin: string, groupSecret: string): string {

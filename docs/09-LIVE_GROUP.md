@@ -136,13 +136,20 @@ A **profile** kept on the device and reused for every group:
 
 ## 5. Sharing and joining
 
-- **Invite link** `https://<app>/#live=<groupSecret>`, shared by the **share sheet**,
-  **copy**, or a **QR code** shown full screen at the briefing.
-- **Join**: opening the link (the app reads the fragment, removes it from the address
-  bar, and opens Live Group), or **paste a link** inside the app.
-- **iOS:** tapping a link opens **Safari, not the Home Screen app**, and the two keep
-  separate storage — so in the installed app, joining is by **paste** (or scanning the
-  QR with the camera into Safari, then copying). The app says this.
+The **group code** is primary. It is the 43-character group secret: it goes by copy and
+paste, never typing. A tapped **link** on iOS always opens Safari, not the installed Home
+Screen app (separate storage), so the code is how app users join.
+
+- **Invite card** (everyone in the group): the code in a box, **Copy code** and **Share
+  code**. Share sends only text, so there is nothing to tap:
+  `UltraPilot Live Group code: <code> — In UltraPilot: More → Live Group → Paste code →
+  Join`.
+- **Join:** a **Group code** field with a one-tap **Paste** button (reads the clipboard;
+  iOS asks to allow it), then **Join**. The code is picked out of whatever was pasted:
+  the code alone, the shared message, or an invite link.
+- **Crew without the app** (secondary, on the invite card): **Share link** / **Copy link**
+  and **QR code**. `https://<app>/#live=<code>` opens in their browser; the app reads the
+  fragment, removes it from the address bar, and offers to join.
 - **View-only link** (step 3): `#watch=<g>.<encKey>` — can decrypt and poll but holds
   no `writeKey`, so the relay rejects its writes.
 

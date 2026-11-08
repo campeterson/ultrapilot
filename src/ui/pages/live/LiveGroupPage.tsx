@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { theme } from '../../theme'
 import { useLiveGroupStore } from '../../../state/live-group-store'
 import { useHasPanelTitleBar } from '../../shell/panel-title-context'
-import { roleLabel } from '../../../data/logic/live-logic'
+import { parseInvite, roleLabel } from '../../../data/logic/live-logic'
 import { buttonStyle, inputStyle, sectionStyle, sectionTitle } from '../plan/plan-styles'
 import { LiveProfileForm } from './LiveProfileForm'
 import { LiveInvite } from './LiveInvite'
@@ -18,6 +18,13 @@ export function LiveGroupPage() {
   const [editProfile, setEditProfile] = useState(false)
   const [paste, setPaste] = useState('')
   const [confirmLeave, setConfirmLeave] = useState(false)
+  /** One tap: read the clipboard (iOS asks to allow Paste). Falls back to typing / long-press paste. */
+  async function pasteCode() {
+    try {
+      const text = await navigator.clipboard.readText()
+      setPaste(parseInvite(text) ?? text.trim())
+    } catch { /* clipboard not readable — long-press the field and Paste */ }
+  }
   const small: React.CSSProperties = { fontSize: theme.size.tiny, color: theme.colors.dim, lineHeight: 1.4, marginTop: '6px' }
 
   return (
@@ -59,11 +66,15 @@ export function LiveGroupPage() {
         <div style={sectionStyle}>
           <div style={sectionTitle}>Start or join a group</div>
           <button onClick={createGroup} disabled={busy} style={{ ...buttonStyle(true, busy), width: '100%' }}>{busy ? 'Working…' : 'Create a group'}</button>
-          <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-            <input style={{ ...inputStyle, flex: 1 }} value={paste} onChange={e => setPaste(e.target.value)} placeholder="Paste an invite link" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
-            <button onClick={async () => { if (await joinGroup(paste)) setPaste('') }} disabled={busy || !paste.trim()} style={{ ...buttonStyle(false, busy || !paste.trim()) }}>Join</button>
+          <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, margin: '12px 0 4px' }}>Join with a group code</div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input style={{ ...inputStyle, flex: 1, fontFamily: theme.font.mono }} value={paste} onChange={e => setPaste(e.target.value)} placeholder="Group code"
+              aria-label="Group code" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+            <button onClick={pasteCode} style={buttonStyle()}>Paste</button>
           </div>
-          <div style={small}>On iPhone / iPad, an invite link opens in Safari, not the Home Screen app — copy it there and paste it here.</div>
+          <button onClick={async () => { if (await joinGroup(paste)) setPaste('') }} disabled={busy || !paste.trim()}
+            style={{ ...buttonStyle(!!paste.trim(), busy || !paste.trim()), width: '100%', marginTop: '6px' }}>Join</button>
+          <div style={small}>Ask whoever started the group to copy the code and send it to you, then paste it here. (A pasted message or link works too — the code is picked out of it.)</div>
         </div>
       )}
 
