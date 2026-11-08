@@ -15,6 +15,7 @@ import { useKeepAwake } from '../hooks/useKeepAwake'
 import { KeepAwakeBanner } from './KeepAwakeBanner'
 import { shouldKeepAwake } from '../../data/logic/keep-awake-logic'
 import { useIOSScrollReset } from '../hooks/useIOSScrollReset'
+import { useViewportGap } from '../hooks/useViewportGap'
 import { useSessionStore } from '../../state/session-store'
 import { useDirectToStore } from '../../state/direct-to-store'
 import { useRouteStore } from '../../state/route-store'
@@ -73,6 +74,8 @@ export function AppShell() {
   // Start GPS on mount
   useGPS()
   useIOSScrollReset()
+  // iOS 26 Home Screen: stretch bottom layers over the gap iOS leaves at the bottom
+  useViewportGap()
 
   // Register downloaded offline tilesets with the PMTiles protocol so the map
   // can render pmtiles://<id> sources. Idempotent — the store guards on init.

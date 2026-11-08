@@ -36,7 +36,7 @@ export function MorePicker({ visible, items, active, onSelect, onDismiss }: More
       ref={ref}
       style={{
         position: 'fixed',
-        bottom: `calc(${theme.safeNavHeight} + 8px)`,
+        bottom: `calc(${theme.aboveNav} + 8px)`,
         right: `calc(8px + ${theme.safeRight})`,
         background: theme.colors.darkCard,
         border: `1px solid ${theme.colors.darkBorder}`,

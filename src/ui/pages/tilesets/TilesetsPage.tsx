@@ -118,7 +118,7 @@ function ConfirmModal({
     <div
       onClick={onCancel}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: theme.screenBottom, background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
       }}
     >

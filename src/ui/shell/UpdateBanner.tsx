@@ -21,7 +21,7 @@ export function UpdateBanner() {
         position: 'fixed',
         left: `calc(12px + ${theme.safeLeft})`,
         right: `calc(12px + ${theme.safeRight})`,
-        bottom: `calc(12px + env(safe-area-inset-bottom, 0px))`,
+        bottom: `calc(12px + env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px))`,
         background: theme.colors.darkCard,
         border: `1px solid ${theme.colors.red}`,
         borderRadius: '12px',

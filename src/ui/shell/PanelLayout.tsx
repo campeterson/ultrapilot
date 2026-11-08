@@ -47,7 +47,7 @@ function PanelBar({ title, mode, onSetMode, onClose }: { title: string; mode: Pa
 export function PanelLayout({ layout, mapContent, panelContent, panelOpen, panelMode, panelTitle, onSetPanelMode, onClosePanel, mapTopInset }: PanelLayoutProps) {
   // Sections start at the top of the screen; only the map sits below the ribbon
   const top = 'env(safe-area-inset-top, 0px)'
-  const bottom = theme.safeNavHeight
+  const bottom = theme.aboveNav
   const hasPanel = panelOpen && panelContent !== null
 
   // ── Phone ────────────────────────────────────────────────────────────────
