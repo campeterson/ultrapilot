@@ -22,7 +22,8 @@ import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { usePlacesStore } from '../../../state/places-store'
 import { usePlaceLayers } from './usePlaceLayers'
-import { useLiveLayers } from './useLiveLayers'
+import { useLiveLayers, type MemberTap } from './useLiveLayers'
+import { LiveMemberPopup } from './LiveMemberPopup'
 import { useSatelliteLayer } from './useSatelliteLayer'
 import { ZONE_COLORS } from './place-layers'
 import { zoneAt, zoneRatingLabel } from '../../../data/logic/zone-logic'
@@ -366,7 +367,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
 
   // ── Zones (landing / caution / no-land areas) ─────────────────────────────────
   usePlaceLayers(mapRef)
-  useLiveLayers(mapRef)
+  // Tap another aircraft / the crew → popup with Direct To (follows them)
+  const [memberTap, setMemberTap] = useState<MemberTap | null>(null)
+  useLiveLayers(mapRef, t => { setSelection(null); setMemberTap(t) })
   useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['places-fill', 'history-track'])
   const { zones, showOnFlightMap } = usePlacesStore()
 
@@ -681,6 +684,14 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {showControls && <MapControls onRecenter={handleRecenter} />}
+
+      {/* Live Group member popup */}
+      {memberTap && (
+        <>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 99 }} onClick={() => setMemberTap(null)} />
+          <LiveMemberPopup tap={memberTap} containerWidth={containerRef.current?.clientWidth ?? 300} onClose={() => setMemberTap(null)} />
+        </>
+      )}
 
       {/* Light-dismiss overlay */}
       {selection && !wpForm && (

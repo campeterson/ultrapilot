@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { theme } from '../../theme'
 import { BasemapToggle } from './BasemapToggle'
 import { useRouteStore } from '../../../state/route-store'
+import { useLiveGroupStore } from '../../../state/live-group-store'
+import { useTick } from '../../hooks/useTick'
+import { ageText, followStatus } from '../../../data/logic/live-logic'
 import { useSessionStore } from '../../../state/session-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useInstrumentStore } from '../../../state/instrument-store'
@@ -178,6 +181,11 @@ function DirectToIndicator() {
   const { target: directTo } = useDirectToStore()
   const { position } = useGPSStore()
   const units = useUnits()
+  // Following a Live Group member: say when their position is getting old or lost
+  const member = useLiveGroupStore(s => directTo?.memberId ? s.members.find(m => m.pubId === directTo.memberId) : undefined)
+  const offset = useLiveGroupStore(s => s.offset)
+  const now = useTick(1000) + offset
+  const follow = directTo?.memberId ? followStatus(member?.fix, now) : null
 
   if (!directTo || !position) return null
 
@@ -208,6 +216,11 @@ function DirectToIndicator() {
         {formatDistance(dist, units.distance)}
       </div>
       <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '4px', lineHeight: 1 }}>{DISTANCE_LABELS[units.distance]}</div>
+      {follow && follow.status !== 'live' && (
+        <div style={{ fontSize: theme.size.tiny, color: theme.colors.amber, marginTop: '4px', lineHeight: 1, fontWeight: 700 }}>
+          {follow.status === 'lost' ? 'LOST' : `${ageText(follow.ageS ?? 0)} old`}
+        </div>
+      )}
     </div>
   )
 }

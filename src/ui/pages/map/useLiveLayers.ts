@@ -2,7 +2,7 @@
 // labelled "CALLSIGN · age" / "altitude · speed track", fading with age; an
 // optional direction line ahead of each moving member; and the forecast drift
 // of the member being chased.
-import { useEffect, type MutableRefObject } from 'react'
+import { useEffect, useRef, type MutableRefObject } from 'react'
 import type maplibregl from 'maplibre-gl'
 import { theme } from '../../theme'
 import { useLiveGroupStore } from '../../../state/live-group-store'
@@ -19,7 +19,10 @@ import { formatDeg, metersToFeet } from '../../../data/logic/gps-logic'
 const SRC = 'live-members'
 const OPACITY = { live: 1, fading: 0.6, stale: 0.35 } as const
 
-function ensureLayers(map: maplibregl.Map) {
+/** A tapped member: id and where on the map (px) the popup goes. */
+export interface MemberTap { pubId: string; x: number; y: number }
+
+function ensureLayers(map: maplibregl.Map, onTap: (t: MemberTap) => void) {
   if (map.getSource(SRC)) return
   map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   const lines: maplibregl.FilterSpecification = ['==', ['geometry-type'], 'LineString']
@@ -34,6 +37,9 @@ function ensureLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'live-drift-end', type: 'symbol', source: SRC, filter: ['==', ['get', 'kind'], 'driftEnd'],
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Regular'], 'text-size': 11, 'text-anchor': 'left', 'text-offset': [0.8, 0], 'text-allow-overlap': true },
     paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#000', 'text-halo-width': 1.5 } })
+  // 44 px tap target around each member dot
+  map.addLayer({ id: 'live-members-tap', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'member'],
+    paint: { 'circle-radius': 22, 'circle-color': 'transparent', 'circle-opacity': 0 } })
   map.addLayer({ id: 'live-members-dot', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'member'],
     paint: { 'circle-radius': 9, 'circle-color': ['get', 'color'], 'circle-opacity': ['get', 'opacity'],
       'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-stroke-opacity': ['get', 'opacity'] } })
@@ -41,9 +47,20 @@ function ensureLayers(map: maplibregl.Map) {
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Regular'], 'text-size': 11, 'text-anchor': 'left',
       'text-offset': [1.1, 0], 'text-allow-overlap': true, 'text-justify': 'left' },
     paint: { 'text-color': theme.colors.cream, 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': ['get', 'opacity'] } })
+
+  map.on('click', 'live-members-tap', (e) => {
+    e.preventDefault()   // not an empty-map tap
+    const id = e.features?.[0]?.properties?.pubId as string | undefined
+    if (id) onTap({ pubId: id, x: e.point.x, y: e.point.y })
+  })
+  map.on('mouseenter', 'live-members-tap', () => { map.getCanvas().style.cursor = 'pointer' })
+  map.on('mouseleave', 'live-members-tap', () => { map.getCanvas().style.cursor = '' })
 }
 
-export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>) {
+export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>, onMemberTap: (t: MemberTap) => void) {
+  // Click handler is registered once; read the latest callback through a ref
+  const tapRef = useRef(onMemberTap)
+  tapRef.current = onMemberTap
   const { members, offset, display, profile } = useLiveGroupStore()
   const drift = useLiveDriftStore()
   const lineMinutes = useMapSettingsStore(s => s.directionLineMinutes)
@@ -55,7 +72,7 @@ export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>) {
     const map = mapRef.current
     if (!map) return
     const apply = () => {
-      ensureLayers(map)
+      ensureLayers(map, t => tapRef.current(t))
       const names = displayCallsigns(members)
       const ref = groundReference(members, profile ? { role: profile.role, altFt: myAltM == null ? null : metersToFeet(myAltM) } : null)
       const features: GeoJSON.Feature[] = []
@@ -88,7 +105,7 @@ export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>) {
         ].filter(Boolean)
         features.push({
           type: 'Feature',
-          properties: { kind: 'member', color, opacity, label: `${names.get(m.pubId)} · ${ageText(v.ageS)}${parts.length ? '\n' + parts.join(' · ') : ''}` },
+          properties: { kind: 'member', pubId: m.pubId, color, opacity, label: `${names.get(m.pubId)} · ${ageText(v.ageS)}${parts.length ? '\n' + parts.join(' · ') : ''}` },
           geometry: { type: 'Point', coordinates: [m.fix.lon, m.fix.lat] },
         })
       }

@@ -192,3 +192,18 @@ export function directionLineEnd(fix: LiveFix, view: MemberView, minutes: number
   if (view.trackDeg == null || view.speedKt == null) return null
   return destinationPoint(fix.lat, fix.lon, view.trackDeg, view.speedKt * (minutes / 60))
 }
+
+// ─── following a member (Direct-To) ──────────────────────────────────────────
+
+export type FollowStatus = 'live' | 'old' | 'lost'
+
+/**
+ * How trustworthy a member Direct-To target is: 'live' while fresh, 'old' once
+ * fading (the target is where they were), 'lost' when they stopped sharing,
+ * left, or dropped out of the last two minutes.
+ */
+export function followStatus(fix: LiveFix | null | undefined, serverNow: number): { status: FollowStatus; ageS: number | null } {
+  if (!fix) return { status: 'lost', ageS: null }
+  const ageS = Math.max(0, (serverNow - fix.ts) / 1000)
+  return { status: ageS >= FADE_AFTER_S ? 'old' : 'live', ageS }
+}
