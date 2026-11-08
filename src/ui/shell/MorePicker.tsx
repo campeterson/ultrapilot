@@ -1,25 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { theme } from '../theme'
-
-export type MoreView = 'plan' | 'places' | 'live' | 'instruments' | 'sessions' | 'tilesets' | 'settings'
+import { sectionInfo, type NavSection } from '../../data/logic/nav-logic'
 
 interface MorePickerProps {
   visible: boolean
-  onSelect: (view: MoreView) => void
+  /** Sections not on the bar, in the user's order. */
+  items: NavSection[]
+  active: NavSection | null
+  onSelect: (id: NavSection) => void
   onDismiss: () => void
 }
 
-const MORE_ITEMS: { id: MoreView; label: string; icon: string }[] = [
-  { id: 'plan', label: 'Flight Plan', icon: '▲' },
-  { id: 'places', label: 'Places', icon: '▦' },
-  { id: 'live', label: 'Live Group', icon: '◉' },
-  { id: 'instruments', label: 'Instruments', icon: '◈' },
-  { id: 'sessions', label: 'Sessions', icon: '◷' },
-  { id: 'tilesets', label: 'Offline Maps', icon: '◱' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-]
-
-export function MorePicker({ visible, onSelect, onDismiss }: MorePickerProps) {
+export function MorePicker({ visible, items, active, onSelect, onDismiss }: MorePickerProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -49,13 +41,15 @@ export function MorePicker({ visible, onSelect, onDismiss }: MorePickerProps) {
         background: theme.colors.darkCard,
         border: `1px solid ${theme.colors.darkBorder}`,
         borderRadius: '10px',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        maxHeight: `calc(100vh - ${theme.safeNavHeight} - 24px - env(safe-area-inset-top, 0px))`,
         zIndex: 300,
         minWidth: '180px',
         boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
       }}
     >
-      {MORE_ITEMS.map(item => (
+      {items.map(id => sectionInfo(id)).map(item => (
         <button
           key={item.id}
           onClick={() => onSelect(item.id)}
@@ -68,7 +62,7 @@ export function MorePicker({ visible, onSelect, onDismiss }: MorePickerProps) {
             background: 'none',
             border: 'none',
             borderBottom: `1px solid ${theme.colors.darkBorder}`,
-            color: theme.colors.cream,
+            color: item.id === active ? theme.colors.red : theme.colors.cream,
             cursor: 'pointer',
             fontFamily: theme.font.primary,
             fontSize: theme.size.body,
@@ -77,7 +71,7 @@ export function MorePicker({ visible, onSelect, onDismiss }: MorePickerProps) {
           }}
         >
           <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>{item.icon}</span>
-          {item.label}
+          {item.title}
         </button>
       ))}
     </div>

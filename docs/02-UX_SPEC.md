@@ -43,12 +43,24 @@ Garmin Pilot's split view:
 
 ## Bottom Nav Bar
 
-Fixed footer across all form factors. Contains:
+Fixed footer across all form factors: **Map**, then **four sections**, then **More**.
 
-### Fixed Tabs (always visible)
+- **Map** is always the first button — it's home, and tapping it closes any section.
+- Every other section lives in **one ordered list**, set in **Settings → Navigation bar**
+  (▲ / ▼ per section, *Reset to default order*). The first four available in the
+  current flight mode are on the bar; the rest are in the **More** popover, in the same
+  order. Windreader is LTA-only and Routes powered-only, so the other mode's section is
+  hidden and keeps its slot.
+- Default order: Windreader (LTA), Timeline, Checklists, Wx/Apt, Waypoints, Routes
+  (powered), Flight Plan, Places, Live Group, Instruments, Sessions, Offline Maps,
+  Settings — so powered shows Timeline · Lists · Wx/Apt · Wpts, and LTA shows
+  Wind · Timeline · Lists · Wx/Apt.
+- **More** opens an upward popover (scrolls when long). While a section from More is
+  open, the More button shows the active (red) state.
 
-| Tab | Icon | Content |
-|---|---|---|
+Logic: `src/data/logic/nav-logic.ts`; saved order: `src/state/nav-store.ts`.
+
+---|---|---|
 | Map | Globe/map | Full-screen map with instruments and floating controls |
 | Timeline | Clock | Session timeline with summary cards and event log |
 | Checklists | Checkbox | Checklist list → individual checklist runner |

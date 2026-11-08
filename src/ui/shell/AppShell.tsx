@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { NavBar, type NavTab } from './NavBar'
-import { MorePicker, type MoreView } from './MorePicker'
+import { NavBar, type NavActive } from './NavBar'
+import { MorePicker } from './MorePicker'
+import { useNavStore } from '../../state/nav-store'
+import { isAvailable, sectionInfo, splitNav, type NavSection } from '../../data/logic/nav-logic'
 import { InstrumentStrip } from './InstrumentStrip'
 import { PanelLayout } from './PanelLayout'
 import { usePanelStore } from '../../state/panel-store'
@@ -42,17 +44,10 @@ import { useLiveGroupStore } from '../../state/live-group-store'
 import { ReplayScreen } from '../pages/sessions/ReplayScreen'
 import { useReplayScreen } from '../hooks/useReplayScreen'
 
-/** Section titles for the tablet title bar. */
-const PANEL_TITLES: Record<string, string> = {
-  plan: 'Flight Plan', places: 'Places', live: 'Live Group', instruments: 'Instruments', sessions: 'Sessions', tilesets: 'Offline Maps',
-  settings: 'Settings', wind: 'Windreader', timeline: 'Timeline', checklists: 'Checklists', wx: 'Weather & Airports',
-  waypoints: 'Waypoints', routes: 'Routes',
-}
-
 export function AppShell() {
-  const [activeTab, setActiveTab] = useState<NavTab>('map')
+  /** The open section, or null for the full-screen map. */
+  const [section, setSection] = useState<NavSection | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [moreView, setMoreView] = useState<MoreView | null>(null)
   const [panelOpen, setPanelOpen] = useState(false)
 
   const layout = useResponsiveLayout()
@@ -63,13 +58,15 @@ export function AppShell() {
   // Tablet: an open session's map replaces the live map in the map area
   const replayScreen = useReplayScreen()
 
-  // Wind tab is LTA-only and Routes is powered-only — leave a tab that the
+  // Bottom bar: Map, then the first four sections in the user's order, then More
+  const navOrder = useNavStore(s => s.order)
+  const { bar, more } = splitNav(navOrder, flightMode)
+
+  // Wind is LTA-only and Routes is powered-only — leave a section that the
   // new mode doesn't have
   useEffect(() => {
-    if ((flightMode !== 'lta' && activeTab === 'wind') || (flightMode === 'lta' && activeTab === 'routes')) {
-      setActiveTab('map')
-    }
-  }, [flightMode, activeTab])
+    if (section && !isAvailable(section, flightMode)) setSection(null)
+  }, [flightMode, section])
 
   // Start GPS on mount
   useGPS()
@@ -87,7 +84,7 @@ export function AppShell() {
   // Live Group: resume, visibility, and invite links (#live=…) open the section
   useLiveGroupRuntime(() => {
     setMoreOpen(false)
-    setMoreView('live')
+    setSection('live')
     setPanelOpen(true)
   })
 
@@ -97,9 +94,8 @@ export function AppShell() {
   const prevStatus = useRef(sessionStatus)
   useEffect(() => {
     if (prevStatus.current === 'active' && sessionStatus === 'idle') {
-      setActiveTab('map')
       setMoreOpen(false)
-      setMoreView('sessions')
+      setSection('sessions')
       setPanelOpen(true)
       useDirectToStore.getState().clearTarget()
       useRouteStore.getState().deactivateRoute()
@@ -113,63 +109,42 @@ export function AppShell() {
     prevStatus.current = sessionStatus
   }, [sessionStatus])
 
-  function handleTabSelect(tab: NavTab) {
-    if (tab === 'more') {
-      setMoreOpen(v => !v)
-      return
-    }
+  function openSection(id: NavSection) {
     setMoreOpen(false)
-    setMoreView(null)
-
-    if (tab === 'map') {
-      setPanelOpen(false)
-      setActiveTab('map')
-    } else {
-      setActiveTab(tab)
-      trackEvent(`panel_${tab}`)
-      if (layout !== 'phone') {
-        setPanelOpen(true)
-      }
-    }
-  }
-
-  function handleMoreSelect(view: MoreView) {
-    setMoreOpen(false)
-    setMoreView(view)
-    trackEvent(`panel_${view}`)
+    setSection(id)
+    trackEvent(`panel_${id}`)
     if (layout !== 'phone') setPanelOpen(true)
   }
 
   function closePanel() {
     setMoreOpen(false)
-    setMoreView(null)
+    setSection(null)
     setPanelOpen(false)
-    setActiveTab('map')
   }
 
   function getPanelContent() {
-    if (moreView === 'plan') return <PlanPage />
-    if (moreView === 'places') return <PlacesPage />
-    if (moreView === 'live') return <LiveGroupPage />
-    if (moreView === 'instruments') return <InstrumentsPage />
-    if (moreView === 'sessions') return <SessionsPage />
-    if (moreView === 'tilesets') return <TilesetsPage />
-    if (moreView === 'settings') return <SettingsPage />
-
-    switch (activeTab) {
+    switch (section) {
       case 'wind': return flightMode === 'lta' ? <WindreaderPage /> : null
       case 'timeline': return <TimelinePage />
       case 'checklists': return <ChecklistsPage />
       case 'wx': return <WxPage />
       case 'waypoints': return <WaypointsPage />
       case 'routes': return flightMode === 'powered' ? <RoutesPage /> : null
+      case 'plan': return <PlanPage />
+      case 'places': return <PlacesPage />
+      case 'live': return <LiveGroupPage />
+      case 'instruments': return <InstrumentsPage />
+      case 'sessions': return <SessionsPage />
+      case 'tilesets': return <TilesetsPage />
+      case 'settings': return <SettingsPage />
       default: return null
     }
   }
 
   const panelContent = getPanelContent()
-  const isPanelTab = activeTab !== 'map' || moreView !== null
-  const effectivePanelOpen = layout === 'phone' ? isPanelTab : panelOpen
+  const effectivePanelOpen = layout === 'phone' ? section !== null : panelOpen
+  // The bar highlights Map, a bar section, or More for a section kept there
+  const navActive: NavActive = !section || !effectivePanelOpen ? 'map' : bar.includes(section) ? section : 'more'
 
   // The instrument ribbon belongs to the flying map: shown only while the map is
   // on screen (no section, or a tablet split), and in a landscape split it spans
@@ -195,20 +170,25 @@ export function AppShell() {
         panelContent={panelContent}
         panelOpen={effectivePanelOpen}
         panelMode={panelMode}
-        panelTitle={PANEL_TITLES[moreView ?? activeTab] ?? ''}
+        panelTitle={section ? sectionInfo(section).title : ''}
         onSetPanelMode={setPanelMode}
         onClosePanel={closePanel}
         mapTopInset={stripVisible ? theme.stripHeight : '0px'}
       />
 
       <NavBar
-        active={moreView ? 'more' : activeTab}
-        onSelect={handleTabSelect}
+        bar={bar}
+        active={moreOpen ? 'more' : navActive}
+        onMap={closePanel}
+        onSection={openSection}
+        onMore={() => setMoreOpen(v => !v)}
       />
 
       <MorePicker
         visible={moreOpen}
-        onSelect={handleMoreSelect}
+        items={more}
+        active={section}
+        onSelect={openSection}
         onDismiss={() => setMoreOpen(false)}
       />
 
