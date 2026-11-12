@@ -66,6 +66,8 @@ export const FIX_EPOCH_MS = Date.UTC(2026, 0, 1)
 
 export const FLAG_STOPPED = 1
 export const FLAG_ATTENTION = 2
+/** The sender is tracking (session running or Traffic on): the group fetches ADS-B traffic. */
+export const FLAG_TRACKING = 4
 
 export interface LiveFix {
   lat: number

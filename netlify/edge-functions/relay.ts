@@ -6,5 +6,6 @@ const relay = createRelay(blobsStore)
 
 export default (req: Request) => relay.handle(req)
 
-// cache: "manual" — without it the CDN cache headers on /api/locs are ignored
-export const config = { path: '/api/*', cache: 'manual' }
+// cache: "manual" — without it the CDN cache headers on /api/locs are ignored.
+// /api/traffic is a Netlify Function (netlify/functions/traffic.mts), not the relay.
+export const config = { path: '/api/*', excludedPath: ['/api/traffic'], cache: 'manual' }

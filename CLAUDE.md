@@ -14,6 +14,7 @@ Read these before making changes:
 - `docs/03-TECH_ARCH.md` — Stack, file structure, data models, GPS, maps, build order
 - `docs/08-FLIGHT_PLANNING.md` — Flight plan (what-if winds, drift tracks), Places (launch sites, landing zones, POIs; KML/GeoJSON import/export), satellite imagery
 - `docs/09-LIVE_GROUP.md` — Live Group: real-time group location sharing (relay, callsigns, invites)
+- `docs/10-TRAFFIC.md` — ADS-B traffic: `/api/traffic` proxy, when it's fetched (session / switch / group), own-target filtering
 
 ## Architecture Rules (Summary)
 

@@ -27,6 +27,9 @@ export const theme = {
     zoneGood: '#2ecc71',
     zoneCaution: '#f1c40f',
     zoneNogo: '#e74c3c',
+    // ADS-B traffic: white arrow, dark outline (distinct from coloured group members)
+    traffic: '#ffffff',
+    trafficOutline: '#111111',
     // Live Group member markers, by role
     liveRoles: {
       balloon: '#e91e63',

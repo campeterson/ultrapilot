@@ -10,6 +10,7 @@ import { LiveMemberList } from './LiveMemberList'
 import { LiveDisplayOptions } from './LiveDisplayOptions'
 import { LiveServerCheck } from './LiveServerCheck'
 import { LiveDemo } from './LiveDemo'
+import { TrafficSection } from './TrafficSection'
 
 const STATUS_TEXT = { idle: '', connecting: 'Connecting…', live: 'Live', offline: 'No connection — retrying' } as const
 
@@ -120,6 +121,8 @@ export function LiveGroupPage() {
           </div>
         </>
       )}
+
+      <TrafficSection />
 
       {profile && <LiveDemo />}
     </div>
