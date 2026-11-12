@@ -28,13 +28,11 @@ export const useFlightModeStore = create<FlightModeStore>((set) => ({
 }))
 
 /** Switching to LTA: a balloon can't fly a course, and at 1–3 kt the track
- *  wanders, so drop any route, go North Up, and project the direction line
- *  by time. The pilot can still flip orientation back by hand. */
+ *  wanders, so drop any route and go North Up. (The direction line has its own
+ *  LTA look-ahead.) The pilot can still flip orientation back by hand. */
 function applyLTADefaults() {
   const map = useMapSettingsStore.getState()
   map.setOrientation('north-up')
-  map.setDirectionLineMode('time')
-  if (map.directionLineMinutes === 5) map.setDirectionLineMinutes(10)
   const routes = useRouteStore.getState()
   routes.deactivateRoute()
   routes.setPreview(null)

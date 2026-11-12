@@ -8,6 +8,7 @@ import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
 import { useLiveGroupStore } from '../../../state/live-group-store'
 import { ownDirectionLine, roleLabel } from '../../../data/logic/live-logic'
+import { LINE_MINUTES } from '../../../data/logic/direction-line-logic'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { toGPX, toOADSSession, downloadString, sessionFilename } from '../../../data/export'
@@ -24,7 +25,7 @@ import { PAGE_LAYOUTS, PAGE_LAYOUT_IDS, type PageLayoutId } from '../../../data/
 import { LayoutThumbnail } from '../instruments/LayoutThumbnail'
 import { useUnitsStore } from '../../../state/units-store'
 import { useUnits } from '../../hooks/useUnits'
-import { AVIATION_UNITS, METRIC_UNITS, distanceText } from '../../../data/logic/units-logic'
+import { AVIATION_UNITS, METRIC_UNITS } from '../../../data/logic/units-logic'
 import { bandSizeLabel, type WindreaderBandStep } from '../../../data/logic/windreader-logic'
 import type { UnitPrefs } from '../../../data/models'
 
@@ -394,7 +395,7 @@ function PageLayoutPicker() {
 export function SettingsPage() {
   const { session, sessionStatus, endCurrentSession, importFile } = useSessionStore()
   const { maxAGLft } = useInstrumentStore()
-  const { showDirectionLine, directionLineMode, directionLineMinutes, setDirectionLineMode, setDirectionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
+  const { showDirectionLine, lineMinutes, setLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
   const { mode: flightMode, setMode: setFlightMode } = useFlightModeStore()
   const liveRole = useLiveGroupStore(s => s.profile?.role ?? null)
   const groundCrew = !ownDirectionLine(true, liveRole)
@@ -559,25 +560,14 @@ export function SettingsPage() {
       </Row>
       {showDirectionLine && !groundCrew && (
         <>
-          {/* LTA always projects by time — a fixed 2 nm means little at balloon speeds */}
-          {flightMode === 'powered' && (
-            <Row label="Line Length">
-              <Segmented
-                value={directionLineMode}
-                options={[{ value: 'distance', label: units.distance === 'nm' ? '2 NM' : distanceText(2, units.distance).toUpperCase() }, { value: 'time', label: 'TIME' }]}
-                onChange={setDirectionLineMode}
-              />
-            </Row>
-          )}
-          {(directionLineMode === 'time' || flightMode === 'lta') && (
-            <Row label="Look Ahead">
-              <Segmented
-                value={directionLineMinutes}
-                options={[{ value: 5, label: '5 MIN' }, { value: 10, label: '10 MIN' }, { value: 30, label: '30 MIN' }]}
-                onChange={setDirectionLineMinutes}
-              />
-            </Row>
-          )}
+          {/* Where you'll be in N minutes at your groundspeed, ticked each minute (balloon: each 5–10). Separate choice per flight mode. */}
+          <Row label={`Look Ahead (${flightMode === 'lta' ? 'balloon' : 'powered'})`}>
+            <Segmented
+              value={lineMinutes[flightMode]}
+              options={LINE_MINUTES[flightMode].map(m => ({ value: m, label: `${m} MIN` }))}
+              onChange={m => setLineMinutes(flightMode, m)}
+            />
+          </Row>
         </>
       )}
       <Row label="Distance Rings (0.5 / 1 / 2 nm)">

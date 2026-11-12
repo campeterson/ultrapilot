@@ -1,17 +1,15 @@
 import { create } from 'zustand'
+import type { FlightMode } from '../data/models'
+import { DEFAULT_LINE_MINUTES, validLineMinutes, type LineMinutes } from '../data/logic/direction-line-logic'
 
 const STORAGE_KEY = 'ultrapilot_mapSettings'
 
 type ToggleKey = 'showDirectionLine' | 'showDistanceRings' | 'recordTrack' | 'showInstrumentStrip' | 'showMapOverlays'
 
-export type DirectionLineMode = 'distance' | 'time'
-export type DirectionLineMinutes = 5 | 10 | 30
-
 interface MapSettingsStore {
   showDirectionLine: boolean
-  /** 'distance' = fixed length ahead; 'time' = where you'll be in N minutes at current groundspeed */
-  directionLineMode: DirectionLineMode
-  directionLineMinutes: DirectionLineMinutes
+  /** Look-ahead (min) of the direction line — where you'll be at current groundspeed — per flight mode. */
+  lineMinutes: Record<FlightMode, LineMinutes>
   showDistanceRings: boolean
   recordTrack: boolean
   showInstrumentStrip: boolean
@@ -19,16 +17,14 @@ interface MapSettingsStore {
   mapOrientation: 'track-up' | 'north-up'
   toggle: (key: ToggleKey) => void
   setOrientation: (o: 'track-up' | 'north-up') => void
-  setDirectionLineMode: (m: DirectionLineMode) => void
-  setDirectionLineMinutes: (m: DirectionLineMinutes) => void
+  setLineMinutes: (mode: FlightMode, m: LineMinutes) => void
 }
 
-type Persisted = Omit<MapSettingsStore, 'toggle' | 'setOrientation' | 'setDirectionLineMode' | 'setDirectionLineMinutes'>
+type Persisted = Omit<MapSettingsStore, 'toggle' | 'setOrientation' | 'setLineMinutes'>
 
 const DEFAULTS: Persisted = {
   showDirectionLine: true,
-  directionLineMode: 'distance',
-  directionLineMinutes: 5,
+  lineMinutes: { ...DEFAULT_LINE_MINUTES },
   showDistanceRings: false,
   recordTrack: true,
   showInstrumentStrip: true,
@@ -39,14 +35,20 @@ const DEFAULTS: Persisted = {
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) }
+    if (raw) {
+      const p = JSON.parse(raw)
+      // Older saves had a fixed-2 nm mode and 5/10/30 min; anything not on today's lists → default
+      const lineMinutes = { powered: validLineMinutes('powered', p.lineMinutes?.powered), lta: validLineMinutes('lta', p.lineMinutes?.lta) }
+      const { directionLineMode: _m, directionLineMinutes: _n, ...rest } = p
+      return { ...DEFAULTS, ...rest, lineMinutes }
+    }
   } catch {}
   return { ...DEFAULTS }
 }
 
 function persist(state: MapSettingsStore) {
-  const { showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, mapOrientation } = state
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, mapOrientation }))
+  const { showDirectionLine, lineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, mapOrientation } = state
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ showDirectionLine, lineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, mapOrientation })) } catch {}
 }
 
 export const useMapSettingsStore = create<MapSettingsStore>((set, get) => ({
@@ -62,13 +64,8 @@ export const useMapSettingsStore = create<MapSettingsStore>((set, get) => ({
     persist(get())
   },
 
-  setDirectionLineMode: (m) => {
-    set({ directionLineMode: m })
-    persist(get())
-  },
-
-  setDirectionLineMinutes: (m) => {
-    set({ directionLineMinutes: m })
+  setLineMinutes: (mode, m) => {
+    set({ lineMinutes: { ...get().lineMinutes, [mode]: m } })
     persist(get())
   },
 }))

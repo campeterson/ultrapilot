@@ -1,4 +1,5 @@
-// Live Group members on the flying map: a dot per member coloured by role,
+// Live Group members on the flying map: an arrow pointing along each moving
+// member's track (a dot when stopped), coloured by role,
 // labelled "CALLSIGN · age" / "altitude · speed track", fading with age; an
 // optional direction line ahead of each moving member; and the forecast drift
 // of the member being chased.
@@ -9,6 +10,7 @@ import { useLiveGroupStore } from '../../../state/live-group-store'
 import { useLiveDriftStore } from '../../../state/live-drift-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useGPSStore } from '../../../state/gps-store'
+import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useTick } from '../../hooks/useTick'
 import { useUnits } from '../../hooks/useUnits'
 import { ageText, directionLineEnd, displayAltitude, displayCallsigns, groundReference, memberView, roleDisplay } from '../../../data/logic/live-logic'
@@ -17,12 +19,34 @@ import { formatAltitude, formatSpeed, ALTITUDE_LABELS, SPEED_LABELS } from '../.
 import { formatDeg, metersToFeet } from '../../../data/logic/gps-logic'
 
 const SRC = 'live-members'
+const ARROW = 'live-arrow-'   // + colour, one image per colour used
+
+/** Traffic arrow pointing up (north): filled with `color`, white outline so it reads on any basemap. */
+function arrowImage(color: string): ImageData {
+  const n = 64, c = document.createElement('canvas')
+  c.width = c.height = n
+  const g = c.getContext('2d')!
+  g.beginPath()
+  g.moveTo(32, 5); g.lineTo(55, 57); g.lineTo(32, 46); g.lineTo(9, 57)
+  g.closePath()
+  g.lineJoin = 'round'
+  g.lineWidth = 5; g.strokeStyle = '#fff'; g.stroke()
+  g.fillStyle = color; g.fill()
+  return g.getImageData(0, 0, n, n)
+}
+
+function ensureArrows(map: maplibregl.Map) {
+  for (const color of [...Object.values(theme.colors.liveRoles), theme.colors.dim]) {
+    if (!map.hasImage(ARROW + color)) map.addImage(ARROW + color, arrowImage(color), { pixelRatio: 2 })
+  }
+}
 const OPACITY = { live: 1, fading: 0.6, stale: 0.35 } as const
 
 /** A tapped member: id and where on the map (px) the popup goes. */
 export interface MemberTap { pubId: string; x: number; y: number }
 
 function ensureLayers(map: maplibregl.Map, onTap: (t: MemberTap) => void) {
+  ensureArrows(map)
   if (map.getSource(SRC)) return
   map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   const lines: maplibregl.FilterSpecification = ['==', ['geometry-type'], 'LineString']
@@ -40,12 +64,20 @@ function ensureLayers(map: maplibregl.Map, onTap: (t: MemberTap) => void) {
   // 44 px tap target around each member dot
   map.addLayer({ id: 'live-members-tap', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'member'],
     paint: { 'circle-radius': 22, 'circle-color': 'transparent', 'circle-opacity': 0 } })
-  map.addLayer({ id: 'live-members-dot', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'member'],
+  const isMember: maplibregl.ExpressionSpecification = ['==', ['get', 'kind'], 'member']
+  const moving: maplibregl.ExpressionSpecification = ['has', 'track']
+  // Moving: arrow along the track
+  map.addLayer({ id: 'live-members-arrow', type: 'symbol', source: SRC, filter: ['all', isMember, moving],
+    layout: { 'icon-image': ['concat', ARROW, ['get', 'color']], 'icon-rotate': ['get', 'track'], 'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': 1 },
+    paint: { 'icon-opacity': ['get', 'opacity'] } })
+  // Stopped (no track): a dot
+  map.addLayer({ id: 'live-members-dot', type: 'circle', source: SRC, filter: ['all', isMember, ['!', moving]],
     paint: { 'circle-radius': 9, 'circle-color': ['get', 'color'], 'circle-opacity': ['get', 'opacity'],
       'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-stroke-opacity': ['get', 'opacity'] } })
   map.addLayer({ id: 'live-members-label', type: 'symbol', source: SRC, filter: ['==', ['get', 'kind'], 'member'],
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Regular'], 'text-size': 11, 'text-anchor': 'left',
-      'text-offset': [1.1, 0], 'text-allow-overlap': true, 'text-justify': 'left' },
+      'text-offset': [1.5, 0], 'text-allow-overlap': true, 'text-justify': 'left' },
     paint: { 'text-color': theme.colors.cream, 'text-halo-color': '#000', 'text-halo-width': 1.5, 'text-opacity': ['get', 'opacity'] } })
 
   map.on('click', 'live-members-tap', (e) => {
@@ -63,7 +95,8 @@ export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>, o
   tapRef.current = onMemberTap
   const { members, offset, display, profile } = useLiveGroupStore()
   const drift = useLiveDriftStore()
-  const lineMinutes = useMapSettingsStore(s => s.directionLineMinutes)
+  const flightMode = useFlightModeStore(s => s.mode)
+  const lineMinutes = useMapSettingsStore(s => s.lineMinutes[flightMode])
   const myAltM = useGPSStore(s => s.position?.altMSL ?? null)
   const units = useUnits()
   const now = useTick(1000) + offset
@@ -106,7 +139,7 @@ export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>, o
         ].filter(Boolean)
         features.push({
           type: 'Feature',
-          properties: { kind: 'member', pubId: m.pubId, color, opacity, label: `${names.get(m.pubId)} · ${ageText(v.ageS)}${parts.length ? '\n' + parts.join(' · ') : ''}` },
+          properties: { kind: 'member', pubId: m.pubId, color, opacity, ...(v.trackDeg != null ? { track: v.trackDeg } : {}), label: `${names.get(m.pubId)} · ${ageText(v.ageS)}${parts.length ? '\n' + parts.join(' · ') : ''}` },
           geometry: { type: 'Point', coordinates: [m.fix.lon, m.fix.lat] },
         })
       }

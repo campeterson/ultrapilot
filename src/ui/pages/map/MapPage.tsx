@@ -19,7 +19,7 @@ import { useUnits } from '../../hooks/useUnits'
 import { altitudeText, distanceRingRadiiM } from '../../../data/logic/units-logic'
 import { windLineFeatures } from './replay-layers'
 import { getTrackPoints, getEvents } from '../../../data/db'
-import { destinationPoint, directionLineLengthNM } from '../../../data/logic/gps-logic'
+import { directionLine, tickEveryMinutes } from '../../../data/logic/direction-line-logic'
 import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { usePlacesStore } from '../../../state/places-store'
@@ -34,7 +34,7 @@ import { EVENT_COLORS, eventLabel } from '../../../data/logic/stamp-logic'
 import type { Airport, Waypoint } from '../../../data/models'
 
 const MAP_STORAGE_KEY = 'ultrapilot_mapState'
-const DIR_LINE_NM = 2          // distance mode: fixed 2 nm ahead
+const DIR_LINE_GAP_NM = 0.02   // start just clear of the ownship icon
 const AIRPORT_MIN_ZOOM = 8
 
 // Aviation color constants per docs/04-MAP_CONVENTIONS.md
@@ -124,7 +124,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { position, smoothedTrack } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
-  const { showDirectionLine: directionLineSetting, directionLineMode, directionLineMinutes, showDistanceRings, mapOrientation } = useMapSettingsStore()
+  const { showDirectionLine: directionLineSetting, lineMinutes: lineMinutesByMode, showDistanceRings, mapOrientation } = useMapSettingsStore()
   // A chase vehicle / Ground crew never gets a projected line ahead (docs/09 §7)
   const liveRole = useLiveGroupStore(s => s.profile?.role ?? null)
   const showDirectionLine = ownDirectionLine(directionLineSetting, liveRole)
@@ -261,6 +261,9 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
         paint: { 'line-color': '#fff', 'line-width': 5, 'line-opacity': 0.9 } })
       map.addLayer({ id: 'direction-line', type: 'line', source: 'direction-source',
         paint: { 'line-color': theme.colors.dark, 'line-width': 2.5, 'line-opacity': 0.95, 'line-dasharray': [3, 2] } })
+      // A tick each minute (each 5–10 min for balloons) — read time-to-a-point at a glance
+      map.addLayer({ id: 'direction-ticks', type: 'circle', source: 'direction-source', filter: ['==', ['geometry-type'], 'Point'],
+        paint: { 'circle-radius': 3.5, 'circle-color': '#fff', 'circle-stroke-color': theme.colors.dark, 'circle-stroke-width': 2 } })
 
       // Live track (green breadcrumb)
       map.addLayer({ id: 'track-line', type: 'line', source: 'track-source',
@@ -454,11 +457,15 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     // Direction projection line
     if (!mapLoadedRef.current) return
     const dirSrc = map.getSource('direction-source') as maplibregl.GeoJSONSource | undefined
-    if (showDirectionLine && position.speed > 0.5) {
-      const start = destinationPoint(position.lat, position.lon, track, 0.02)
-      const lengthNM = directionLineLengthNM(flightMode === 'lta' ? 'time' : directionLineMode, position.speed, directionLineMinutes, DIR_LINE_NM)
-      const end = destinationPoint(position.lat, position.lon, track, lengthNM)
-      dirSrc?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[start[1], start[0]], [end[1], end[0]]] } })
+    const minutes = lineMinutesByMode[flightMode]
+    const line = showDirectionLine && position.speed > 0.5
+      ? directionLine(position.lat, position.lon, track, position.speed * 1.943844, minutes, tickEveryMinutes(flightMode, minutes), DIR_LINE_GAP_NM)
+      : null
+    if (line) {
+      dirSrc?.setData({ type: 'FeatureCollection', features: [
+        { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line.coords } },
+        ...line.ticks.map(c => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Point' as const, coordinates: c } })),
+      ] })
     } else {
       dirSrc?.setData(emptyFC())
     }
@@ -474,7 +481,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
     } else {
       ringsSrc?.setData(emptyFC())
     }
-  }, [position, smoothedTrack, mapOrientation, showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, flightMode, units.distance])
+  }, [position, smoothedTrack, mapOrientation, showDirectionLine, lineMinutesByMode, showDistanceRings, flightMode, units.distance])
 
   // ── Windreader wind lines (LTA only) ────────────────────────────────────────
   useEffect(() => {
