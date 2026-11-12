@@ -188,7 +188,7 @@ label — `CALLSIGN · age` / `altitude datum · speed track` (e.g. `SKY 1 · 8 
 the same plus distance and bearing from you. Dots fade at 30 s and grey at 60 s.
 
 **Direction lines** (toggle on the Live Group page, default on): a line ahead of each
-moving member along its track, as long as the distance it covers in the look-ahead time
+moving **aircraft** along its track, as long as the distance it covers in the look-ahead time
 set for your own direction line (Settings → Map display).
 
 **MSL / AGL** (toggle beside it, default MSL). AGL is height above the **chase crew,
@@ -214,6 +214,16 @@ for that spot. It is re-fetched when the member is > 15 nm from where winds were
 fetched, the forecast is an hour old, or it no longer covers the minutes ahead. Drawn as
 a dashed line with 15-minute dots and a "+60 min" label; the list says "If it holds
 altitude: 20.0 nm toward 060° ENE in 60 min". Needs a connection for the winds.
+
+**By role** (`roleDisplay()` in `live-logic.ts`):
+
+| | Aircraft (balloon, PPC, PPG, other) | Chase vehicle, Ground / Ops |
+|---|---|---|
+| Direction line | yes (when the toggle is on) | **no** — a vehicle follows roads |
+| Altitude on map label and list | yes (MSL / AGL setting) | **no** — on the ground, and the AGL reference; the tap popup shows *ground … ft MSL* |
+| Drift forecast | yes | no |
+| Direct-To them | yes | yes |
+| Minimum send gap | 3 s | 5 s |
 
 ## 8. Phases
 

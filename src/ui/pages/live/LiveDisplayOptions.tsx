@@ -14,7 +14,7 @@ export function LiveDisplayOptions() {
     <div style={{ marginTop: '10px' }}>
       <div style={{ display: 'flex', gap: '6px' }}>
         <button onClick={() => setDisplay({ lines: !display.lines })} style={{ ...chipStyle(display.lines), flex: 1.2 }}>
-          {display.lines ? '✓ Direction lines' : 'Direction lines'}
+          {display.lines ? '✓ Direction lines (aircraft)' : 'Direction lines (aircraft)'}
         </button>
         <button onClick={() => setDisplay({ altMode: 'msl' })} style={chipStyle(display.altMode === 'msl')}>MSL</button>
         <button onClick={() => setDisplay({ altMode: 'agl' })} style={chipStyle(display.altMode === 'agl')}>AGL</button>
@@ -22,7 +22,7 @@ export function LiveDisplayOptions() {
       <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '6px', lineHeight: 1.4 }}>
         {display.altMode === 'agl'
           ? ref ? `AGL = height above ${ref.name === 'you' ? 'you (chase = 0 AGL)' : `${ref.name} (chase = 0 AGL)`}.` : 'AGL needs the chase vehicle’s altitude — showing MSL until it reports.'
-          : 'Direction lines show where each member is heading over the look-ahead time in Settings.'}
+          : 'Direction lines show where each aircraft is heading over the look-ahead time in Settings. Chase vehicles and ground crew don’t get one — they follow roads.'}
       </div>
     </div>
   )

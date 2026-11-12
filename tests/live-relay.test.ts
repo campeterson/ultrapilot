@@ -2,7 +2,7 @@
 // Run: npm run test:live
 import { createRelay, memoryStore } from '../netlify/edge-functions/lib/relay-core'
 import { deriveGroupKeys, randomKey, pubIdFor, encryptFix, decryptFix, encryptName, decryptName, encodeFix, decodeFix, FLAG_STOPPED } from '../src/data/logic/live-codec'
-import { codeShareText, seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
+import { roleDisplay, codeShareText, seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
 import { needsForecast, memberDrift } from '../src/data/logic/live-drift-logic'
 
 let ok = 0, fail = 0
@@ -160,6 +160,9 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
     check('group status: exists', (await (await rq('GET', `/api/group?g=${k2.g}`)).json()).exists === true)
     check('unknown route: no-route', (await (await rq('GET', '/api/nope')).json()).code === 'no-route')
   }
+  const air = roleDisplay('balloon'), car = roleDisplay('chase'), ops = roleDisplay('ground')
+  check('aircraft: line, altitude, drift', air.directionLine && air.altitudeOnLabel && air.driftForecast && roleDisplay('ppc').directionLine)
+  check('chase/ground: no line, no altitude, no drift', [car, ops].every(r => !r.directionLine && !r.altitudeOnLabel && !r.driftForecast))
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)
 })()

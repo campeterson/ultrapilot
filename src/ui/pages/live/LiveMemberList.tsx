@@ -4,7 +4,7 @@ import { useLiveGroupStore } from '../../../state/live-group-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useUnits } from '../../hooks/useUnits'
 import { useTick } from '../../hooks/useTick'
-import { ageText, displayAltitude, displayCallsigns, groundReference, memberView, roleLabel } from '../../../data/logic/live-logic'
+import { ageText, displayAltitude, displayCallsigns, groundReference, memberView, roleDisplay, roleLabel } from '../../../data/logic/live-logic'
 import { altitudeText, distanceText, speedText } from '../../../data/logic/units-logic'
 import { compassPoint, formatDeg, metersToFeet } from '../../../data/logic/gps-logic'
 import { LiveMemberActions } from './LiveMemberActions'
@@ -28,7 +28,7 @@ export function LiveMemberList() {
         const color = theme.colors.liveRoles[m.role]
         const v = m.fix ? memberView(m.fix, m.isMe ? null : me, now) : null
         const dim = !v || v.freshness === 'stale'
-        const alt = v ? displayAltitude(v.altFt, display.altMode, ref) : null
+        const alt = v && roleDisplay(m.role).altitudeOnLabel ? displayAltitude(v.altFt, display.altMode, ref) : null
         const details = [
           roleLabel(m.role),
           v ? ageText(v.ageS) : 'not sharing',
