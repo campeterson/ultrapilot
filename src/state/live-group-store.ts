@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  decryptFix, decryptName, deriveGroupKeys, encryptFix, encryptName, FLAG_STOPPED, pubIdFor, randomKey,
+  decryptFix, decryptName, deriveGroupKeys, encryptFix, encryptName, FLAG_STOPPED, FLAG_TRACKING, pubIdFor, randomKey,
   type GroupKeys, type LiveFix,
 } from '../data/logic/live-codec'
 import {
@@ -18,7 +18,12 @@ import { trackEvent } from '../lib/analytics'
 
 const STORAGE_KEY = 'ultrapilot_liveGroup'
 
-export interface LiveProfile { callsign: string; role: LiveRole }
+export interface LiveProfile {
+  callsign: string
+  role: LiveRole
+  /** ICAO address (6 hex digits) if this aircraft has ADS-B Out — so the group drops it from traffic. */
+  hex?: string | null
+}
 
 /** What this device keeps about its group. The secret is the invite. */
 interface SavedGroup {
@@ -35,6 +40,8 @@ export interface LiveMember {
   /** Latest position, or null when none in the last 1–2 minutes / stopped sharing. */
   fix: LiveFix | null
   isMe: boolean
+  /** Their ICAO hex, if they gave one. */
+  hex: string | null
 }
 
 export type LiveStatus = 'idle' | 'connecting' | 'live' | 'offline'
@@ -90,6 +97,9 @@ interface LiveGroupStore extends Persisted {
   setDisplay: (patch: Partial<LiveDisplay>) => void
   /** Direct-To a member; the target follows them while they share. */
   directToMember: (pubId: string) => void
+  /** I'm tracking (traffic store decides): every fix I share carries FLAG_TRACKING. */
+  tracking: boolean
+  setTracking: (on: boolean) => void
   /** Pretend members moving around me, for demonstrating (never sent anywhere). Not saved. */
   demo: boolean
   setDemo: (on: boolean) => void
@@ -109,7 +119,7 @@ let unsubGPS: (() => void) | null = null
  *  first fix go out even when the GPS reports no new position (stationary iOS). */
 let shareTimer: ReturnType<typeof setInterval> | null = null
 let clockSyncedAt = 0
-const nameCache = new Map<string, { callsign: string; role: LiveRole }>()
+const nameCache = new Map<string, { callsign: string; role: LiveRole; hex: string | null }>()
 /** Members from the relay; `members` = these + demo members. */
 let realMembers: LiveMember[] = []
 let demoMembers: LiveMember[] = []
@@ -143,7 +153,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     const p = profileOrDefault()
     const seq = seqAt(serverNow())
     const pubId = await pubIdFor(memberKey)
-    const name = await encryptName(keys, pubId, seq, composeName(p.role, p.callsign))
+    const name = await encryptName(keys, pubId, seq, composeName(p.role, p.callsign, p.hex ?? null))
     return api.joinGroup(keys.g, keys.writeKey, memberKey, seq, name)
   }
 
@@ -178,7 +188,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
             try { fix = await decryptFix(keys, id, f[1], f[2]) } catch { fix = null }
             if (fix && fix.flags & FLAG_STOPPED) fix = null
           }
-          members.push({ pubId: id, callsign: who.callsign, role: who.role, fix, isMe: id === pubId })
+          members.push({ pubId: id, callsign: who.callsign, role: who.role, hex: who.hex, fix, isMe: id === pubId })
         }
         if (gen === pollGen) {
           realMembers = members
@@ -206,12 +216,15 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     pollTimer = null
   }
 
+  /** With `flags` (STOPPED) it's sent now, past the send rule. */
   async function sendPosition(pos: GPSPosition, flags = 0) {
     const { keys, group, pubId } = get()
     if (!keys || !group || !pubId || sending) return
     const trackDeg = pos.speed > 0.5 ? pos.heading : null
     const now = serverNow()
-    if (!flags && !shouldSend(lastSent, { lat: pos.lat, lon: pos.lon, trackDeg }, now, profileOrDefault().role)) return
+    const force = flags !== 0
+    if (!(flags & FLAG_STOPPED) && get().tracking) flags |= FLAG_TRACKING
+    if (!force && !shouldSend(lastSent, { lat: pos.lat, lon: pos.lon, trackDeg }, now, profileOrDefault().role)) return
     sending = true
     try {
       const seq = seqAt(now)
@@ -220,7 +233,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
         speedMs: Number.isFinite(pos.speed) && pos.speed >= 0 ? pos.speed : null, trackDeg, ts: now, flags,
       })
       let ok = await api.sendFix(keys.g, keys.writeKey, group.memberKey, seq, cipher)
-      if (!ok && flags) {
+      if (!ok && flags & FLAG_STOPPED) {
         // "Stopped sharing" must get through: wait out the relay's 2 s per-member limit once
         await new Promise(r => setTimeout(r, 2100))
         const seq2 = seqAt(serverNow())
@@ -244,7 +257,7 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     if (demoGroundM == null) demoGroundM = useSessionStore.getState().session?.originAltMSL ?? pos.altMSL
     const t = Date.now() - demoStartedAt
     demoMembers = demoCast(profileOrDefault().role).map(d => ({
-      pubId: d.pubId, callsign: d.callsign, role: d.role, isMe: false,
+      pubId: d.pubId, callsign: d.callsign, role: d.role, isMe: false, hex: null,
       fix: demoFix(d, pos, demoGroundM!, t, serverNow()),
     }))
     set({ members: [...realMembers, ...demoMembers] })
@@ -274,6 +287,14 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     pendingInvite: null,
     serverCheck: null,
     demo: false,
+    tracking: false,
+
+    setTracking: (on) => {
+      if (get().tracking === on) return
+      set({ tracking: on })
+      // Tell the group within a second (the share timer sends when nothing was sent), not at the next heartbeat
+      lastSent = null
+    },
 
     setDemo: (on) => {
       if (demoTimer) clearInterval(demoTimer)

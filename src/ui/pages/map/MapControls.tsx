@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { theme } from '../../theme'
 import { BasemapToggle } from './BasemapToggle'
+import { TrafficButton } from './TrafficButton'
 import { useRouteStore } from '../../../state/route-store'
 import { useLiveGroupStore } from '../../../state/live-group-store'
 import { useTick } from '../../hooks/useTick'
@@ -326,6 +327,7 @@ export function MapControls({ onRecenter }: MapControlsProps) {
         {isLTA && !showWindPanel && (
           <button style={btnBase} onClick={() => setWindSetting('showMapPanel', true)} title="Show Windreader" aria-label="Show Windreader">≋</button>
         )}
+        <TrafficButton />
         <div style={{ display: 'flex', gap: '8px' }}>
         <button
           style={btnBase}

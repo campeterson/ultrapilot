@@ -43,6 +43,7 @@ import { PendingPlaceForm } from '../pages/places/PlaceForm'
 import { PlacesPage } from '../pages/places/PlacesPage'
 import { LiveGroupPage } from '../pages/live/LiveGroupPage'
 import { useLiveGroupRuntime } from '../hooks/useLiveGroupRuntime'
+import { useTrafficRuntime } from '../hooks/useTrafficRuntime'
 import { useLiveGroupStore } from '../../state/live-group-store'
 import { ReplayScreen } from '../pages/sessions/ReplayScreen'
 import { useReplayScreen } from '../hooks/useReplayScreen'
@@ -90,6 +91,7 @@ export function AppShell() {
   const keepAwake = useKeepAwake(shouldKeepAwake({ sessionActive: sessionStatus === 'active', liveSharing, inLiveGroup }))
 
   // Live Group: resume, visibility, and invite links (#live=…) open the section
+  useTrafficRuntime()
   useLiveGroupRuntime(() => {
     setMoreOpen(false)
     setSection('live')

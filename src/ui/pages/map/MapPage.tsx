@@ -24,6 +24,7 @@ import { theme } from '../../theme'
 import { MapControls } from './MapControls'
 import { usePlacesStore } from '../../../state/places-store'
 import { usePlaceLayers } from './usePlaceLayers'
+import { useTrafficLayers } from './useTrafficLayers'
 import { useLiveLayers, type MemberTap } from './useLiveLayers'
 import { LiveMemberPopup } from './LiveMemberPopup'
 import { useSatelliteLayer } from './useSatelliteLayer'
@@ -378,6 +379,7 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   // Tap another aircraft / the crew → popup with Direct To (follows them)
   const [memberTap, setMemberTap] = useState<MemberTap | null>(null)
   useLiveLayers(mapRef, t => { setSelection(null); setMemberTap(t) })
+  useTrafficLayers(mapRef)
   useSatelliteLayer(mapRef, 'flight', m => !!m.getSource('track-source'), ['places-fill', 'history-track'])
   const { zones, showOnFlightMap } = usePlacesStore()
 

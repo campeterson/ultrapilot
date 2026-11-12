@@ -267,3 +267,10 @@ climb and descent, and the circle follows you. Their "ground" is the session ori
 altitude, or your altitude when the demo started. Tap one for Direct-To or a drift
 forecast, the same as a real member. Turning the demo off cancels a Direct-To that
 points at a demo member.
+
+## 11. Traffic flag and ADS-B hex
+
+For ADS-B traffic (docs/10-TRAFFIC.md) each fix may carry `FLAG_TRACKING` (4): the sender's
+session is running or Traffic is on, so every member fetches traffic. The roster name may end
+in `|<6 hex digits>`, the member's ICAO address, so the group drops them from traffic. Both are
+inside the encryption; the relay is unchanged.

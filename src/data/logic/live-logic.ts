@@ -28,18 +28,25 @@ export function defaultRole(mode: FlightMode): LiveRole {
 
 export const MAX_CALLSIGN = 24
 
-/** Roster name plaintext: "<roleChar>:<callsign>", kept short enough for the relay. */
-export function composeName(role: LiveRole, callsign: string): string {
+/**
+ * Roster name plaintext: "<roleChar>:<callsign>" plus "|<icao hex>" when the member
+ * has ADS-B Out (so the group can drop them from traffic). Kept short enough for the relay.
+ */
+export function composeName(role: LiveRole, callsign: string, hex: string | null = null): string {
   const char = LIVE_ROLES.find(r => r.id === role)?.char ?? 'a'
-  let name = `${char}:${callsign.trim().slice(0, MAX_CALLSIGN)}`
+  const tail = hex && /^[0-9a-f]{6}$/.test(hex) ? `|${hex}` : ''
+  let name = `${char}:${callsign.replace(/\|/g, '').trim().slice(0, MAX_CALLSIGN)}`
   // Cipher must stay ≤ 100 chars → plaintext ≤ 45 UTF-8 bytes
-  while (new TextEncoder().encode(name).length > 45) name = name.slice(0, -1)
-  return name
+  while (new TextEncoder().encode(name + tail).length > 45) name = name.slice(0, -1)
+  return name + tail
 }
 
-export function parseName(name: string): { role: LiveRole; callsign: string } {
-  const role = LIVE_ROLES.find(r => name.startsWith(r.char + ':'))
-  return role ? { role: role.id, callsign: name.slice(2) || '?' } : { role: 'aircraft', callsign: name || '?' }
+export function parseName(name: string): { role: LiveRole; callsign: string; hex: string | null } {
+  const h = name.match(/\|([0-9a-f]{6})$/)
+  const base = h ? name.slice(0, -7) : name
+  const hex = h ? h[1] : null
+  const role = LIVE_ROLES.find(r => base.startsWith(r.char + ':'))
+  return role ? { role: role.id, callsign: base.slice(2) || '?', hex } : { role: 'aircraft', callsign: base || '?', hex }
 }
 
 // ─── sending ─────────────────────────────────────────────────────────────────

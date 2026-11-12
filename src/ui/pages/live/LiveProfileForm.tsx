@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { theme } from '../../theme'
 import { useLiveGroupStore, type LiveProfile } from '../../../state/live-group-store'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
-import { defaultRole, LIVE_ROLES, MAX_CALLSIGN, type LiveRole } from '../../../data/logic/live-logic'
+import { defaultRole, isGroundRole, LIVE_ROLES, MAX_CALLSIGN, type LiveRole } from '../../../data/logic/live-logic'
+import { normalizeHex } from '../../../data/logic/traffic-logic'
 import { buttonStyle, inputStyle, labelStyle } from '../plan/plan-styles'
 
 /** Callsign + role, kept on this device and reused for every group. */
@@ -11,11 +12,13 @@ export function LiveProfileForm({ onDone }: { onDone?: () => void }) {
   const mode = useFlightModeStore(s => s.mode)
   const [callsign, setCallsign] = useState(profile?.callsign ?? '')
   const [role, setRole] = useState<LiveRole>(profile?.role ?? defaultRole(mode))
-  const valid = callsign.trim().length > 0
+  const [hex, setHex] = useState(profile?.hex ?? '')
+  const hexOk = !hex.trim() || normalizeHex(hex) != null
+  const valid = callsign.trim().length > 0 && hexOk
 
   async function save() {
     if (!valid) return
-    const p: LiveProfile = { callsign: callsign.trim().slice(0, MAX_CALLSIGN), role }
+    const p: LiveProfile = { callsign: callsign.trim().slice(0, MAX_CALLSIGN), role, hex: isGroundRole(role) ? null : normalizeHex(hex) }
     await setProfile(p)
     onDone?.()
   }
@@ -39,6 +42,14 @@ export function LiveProfileForm({ onDone }: { onDone?: () => void }) {
           )
         })}
       </div>
+      {!isGroundRole(role) && (
+        <>
+          <label style={{ ...labelStyle, marginTop: '10px' }}>ADS-B Out hex code (optional) — so traffic doesn’t show your own aircraft</label>
+          <input style={{ ...inputStyle, fontFamily: theme.font.mono, borderColor: hexOk ? undefined : theme.colors.red }} value={hex} maxLength={8} placeholder="e.g. A1B2C3"
+            aria-label="ADS-B hex code" autoCapitalize="characters" autoCorrect="off" spellCheck={false} onChange={e => setHex(e.target.value.toUpperCase())} />
+          {!hexOk && <div style={{ color: theme.colors.red, fontSize: theme.size.tiny, marginTop: '4px' }}>6 characters, 0–9 and A–F</div>}
+        </>
+      )}
       <button onClick={save} disabled={!valid} style={{ ...buttonStyle(true, !valid), width: '100%', marginTop: '10px' }}>Save</button>
     </div>
   )
