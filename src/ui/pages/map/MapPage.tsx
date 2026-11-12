@@ -7,6 +7,8 @@ import { useSessionStore } from '../../../state/session-store'
 import { useWaypointStore } from '../../../state/waypoint-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
+import { useLiveGroupStore } from '../../../state/live-group-store'
+import { ownDirectionLine } from '../../../data/logic/live-logic'
 import { useRouteStore } from '../../../state/route-store'
 import { useAirportStore } from '../../../state/airport-store'
 import { useWeatherStore } from '../../../state/weather-store'
@@ -122,7 +124,10 @@ export function MapPage({ showControls = true }: { showControls?: boolean }) {
   const { position, smoothedTrack } = useGPSStore()
   const { session, historySessionId, trackBuffer, resetOrigin } = useSessionStore()
   const { waypoints, load: loadWaypoints, save: saveWaypoint, shareWaypoint } = useWaypointStore()
-  const { showDirectionLine, directionLineMode, directionLineMinutes, showDistanceRings, mapOrientation } = useMapSettingsStore()
+  const { showDirectionLine: directionLineSetting, directionLineMode, directionLineMinutes, showDistanceRings, mapOrientation } = useMapSettingsStore()
+  // A chase vehicle / Ground crew never gets a projected line ahead (docs/09 §7)
+  const liveRole = useLiveGroupStore(s => s.profile?.role ?? null)
+  const showDirectionLine = ownDirectionLine(directionLineSetting, liveRole)
   const { target: directTo, setTarget: setDirectTo } = useDirectToStore()
   const { waypointsForRoute, active: activeRoute, previewRouteId, jumpToLeg } = useRouteStore()
   const routeWaypoints = useWaypointStore(s => s.waypoints)

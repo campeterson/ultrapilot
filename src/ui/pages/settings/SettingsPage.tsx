@@ -6,6 +6,8 @@ import { useGPSStore } from '../../../state/gps-store'
 import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useFlightModeStore } from '../../../state/flight-mode-store'
 import { useWindreaderStore } from '../../../state/windreader-store'
+import { useLiveGroupStore } from '../../../state/live-group-store'
+import { ownDirectionLine, roleLabel } from '../../../data/logic/live-logic'
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { getTrackPoints, getEvents } from '../../../data/db'
 import { toGPX, toOADSSession, downloadString, sessionFilename } from '../../../data/export'
@@ -394,6 +396,8 @@ export function SettingsPage() {
   const { maxAGLft } = useInstrumentStore()
   const { showDirectionLine, directionLineMode, directionLineMinutes, setDirectionLineMode, setDirectionLineMinutes, showDistanceRings, recordTrack, showInstrumentStrip, showMapOverlays, toggle } = useMapSettingsStore()
   const { mode: flightMode, setMode: setFlightMode } = useFlightModeStore()
+  const liveRole = useLiveGroupStore(s => s.profile?.role ?? null)
+  const groundCrew = !ownDirectionLine(true, liveRole)
   const windreader = useWindreaderStore()
   const units = useUnits()
   const { setUnit, setAll: setAllUnits } = useUnitsStore()
@@ -549,9 +553,11 @@ export function SettingsPage() {
 
       <SectionHeader title="MAP DISPLAY" />
       <Row label="Direction Line">
-        <Toggle value={showDirectionLine} onToggle={() => toggle('showDirectionLine')} />
+        {groundCrew
+          ? <span style={{ fontSize: theme.size.small, color: theme.colors.dim, textAlign: 'right' }}>Off — you’re {roleLabel(liveRole!)} in Live Group</span>
+          : <Toggle value={showDirectionLine} onToggle={() => toggle('showDirectionLine')} />}
       </Row>
-      {showDirectionLine && (
+      {showDirectionLine && !groundCrew && (
         <>
           {/* LTA always projects by time — a fixed 2 nm means little at balloon speeds */}
           {flightMode === 'powered' && (

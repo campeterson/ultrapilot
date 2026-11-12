@@ -56,7 +56,7 @@ export const useLiveDriftStore = create<LiveDriftStore>((set, get) => {
       set({ memberId, forecast: null, error: null })
       // Each poll may move the member past the forecast's reach
       unsub = useLiveGroupStore.subscribe((s, p) => {
-        if (!s.group) { get().stop(); return }   // left the group
+        if (!s.group && !s.demo) { get().stop(); return }   // left the group (and no demo running)
         if (s.members !== p.members) check()
       })
       check()

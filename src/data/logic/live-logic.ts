@@ -187,6 +187,15 @@ export function roleDisplay(role: LiveRole): { directionLine: boolean; altitudeO
 }
 
 /**
+ * My own direction line on the map: off for a chase vehicle / Ground crew
+ * whatever the setting — same reason as for other ground members.
+ * `role` is my Live Group role, null when I've never set one.
+ */
+export function ownDirectionLine(setting: boolean, role: LiveRole | null): boolean {
+  return setting && (role == null || roleDisplay(role).directionLine)
+}
+
+/**
  * Ground reference for AGL labels: the chase crew is "0 AGL". Uses my own
  * altitude when I'm the chase vehicle / ground, else the freshest chase or
  * ground member's. null when no one on the ground is reporting altitude.
