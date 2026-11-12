@@ -7,11 +7,13 @@ import {
   composeName, defaultRole, parseInvite, parseName, POLL_ERROR_MS, POLL_HIDDEN_MS, POLL_VISIBLE_MS, seqAt, shouldSend,
   type LiveAltMode, type LiveRole, type SentFix,
 } from '../data/logic/live-logic'
+import { demoCast, demoFix, isDemoId } from '../data/logic/live-demo-logic'
 import * as api from '../data/live-api'
 import type { GPSPosition } from '../data/models'
 import { useGPSStore } from './gps-store'
 import { useFlightModeStore } from './flight-mode-store'
 import { useDirectToStore } from './direct-to-store'
+import { useSessionStore } from './session-store'
 import { trackEvent } from '../lib/analytics'
 
 const STORAGE_KEY = 'ultrapilot_liveGroup'
@@ -88,6 +90,9 @@ interface LiveGroupStore extends Persisted {
   setDisplay: (patch: Partial<LiveDisplay>) => void
   /** Direct-To a member; the target follows them while they share. */
   directToMember: (pubId: string) => void
+  /** Pretend members moving around me, for demonstrating (never sent anywhere). Not saved. */
+  demo: boolean
+  setDemo: (on: boolean) => void
 }
 
 // ─── runtime (not reactive) ──────────────────────────────────────────────────
@@ -105,6 +110,12 @@ let unsubGPS: (() => void) | null = null
 let shareTimer: ReturnType<typeof setInterval> | null = null
 let clockSyncedAt = 0
 const nameCache = new Map<string, { callsign: string; role: LiveRole }>()
+/** Members from the relay; `members` = these + demo members. */
+let realMembers: LiveMember[] = []
+let demoMembers: LiveMember[] = []
+let demoTimer: ReturnType<typeof setInterval> | null = null
+let demoStartedAt = 0
+let demoGroundM: number | null = null
 
 export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
   const persist = () => {
@@ -170,7 +181,8 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
           members.push({ pubId: id, callsign: who.callsign, role: who.role, fix, isMe: id === pubId })
         }
         if (gen === pollGen) {
-          set({ members, status: 'live', error: null })
+          realMembers = members
+          set({ members: [...realMembers, ...demoMembers], status: 'live', error: null })
           // A Direct-To on a member follows them
           for (const m of members) if (m.fix) useDirectToStore.getState().followMember(m.pubId, m.fix.lat, m.fix.lon)
         }
@@ -225,8 +237,23 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     }
   }
 
+  /** Move the demo members on; around my latest position. */
+  function demoTick() {
+    const pos = useGPSStore.getState().position
+    if (!pos) return   // no GPS yet — nothing to place them around
+    if (demoGroundM == null) demoGroundM = useSessionStore.getState().session?.originAltMSL ?? pos.altMSL
+    const t = Date.now() - demoStartedAt
+    demoMembers = demoCast(profileOrDefault().role).map(d => ({
+      pubId: d.pubId, callsign: d.callsign, role: d.role, isMe: false,
+      fix: demoFix(d, pos, demoGroundM!, t, serverNow()),
+    }))
+    set({ members: [...realMembers, ...demoMembers] })
+    for (const m of demoMembers) if (m.fix) useDirectToStore.getState().followMember(m.pubId, m.fix.lat, m.fix.lon)
+  }
+
   async function enter(group: SavedGroup, keys: GroupKeys) {
-    set({ keys, group, status: 'connecting', error: null, members: [] })
+    realMembers = []
+    set({ keys, group, status: 'connecting', error: null, members: [...demoMembers] })
     persist()
     await syncClock()
     const pubId = await announce(keys, group.memberKey)
@@ -246,6 +273,25 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
     offset: 0,
     pendingInvite: null,
     serverCheck: null,
+    demo: false,
+
+    setDemo: (on) => {
+      if (demoTimer) clearInterval(demoTimer)
+      demoTimer = null
+      demoMembers = []
+      demoGroundM = null
+      if (on) {
+        demoStartedAt = Date.now()
+        demoTimer = setInterval(demoTick, 1000)
+        set({ demo: true })
+        demoTick()
+        trackEvent('live_demo_started')
+      } else {
+        const target = useDirectToStore.getState().target
+        if (target?.memberId && isDemoId(target.memberId)) useDirectToStore.getState().clearTarget()
+        set({ demo: false, members: [...realMembers] })
+      }
+    },
 
     init: async () => {
       const { group, keys } = get()
@@ -309,7 +355,8 @@ export const useLiveGroupStore = create<LiveGroupStore>((set, get) => {
       stopPolling()
       if (useDirectToStore.getState().target?.memberId) useDirectToStore.getState().clearTarget()
       nameCache.clear()
-      set({ group: null, keys: null, pubId: null, members: [], status: 'idle', error: null })
+      realMembers = []
+      set({ group: null, keys: null, pubId: null, members: [...demoMembers], status: 'idle', error: null })
       persist()
     },
 

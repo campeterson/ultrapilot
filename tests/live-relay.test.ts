@@ -2,8 +2,10 @@
 // Run: npm run test:live
 import { createRelay, memoryStore } from '../netlify/edge-functions/lib/relay-core'
 import { deriveGroupKeys, randomKey, pubIdFor, encryptFix, decryptFix, encryptName, decryptName, encodeFix, decodeFix, FLAG_STOPPED } from '../src/data/logic/live-codec'
-import { codeShareText, seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
+import { ownDirectionLine, roleDisplay, codeShareText, seqAt, shouldSend, composeName, parseName, parseInvite, inviteLink, displayCallsigns, freshness, memberView, groundReference, displayAltitude, directionLineEnd, followStatus } from '../src/data/logic/live-logic'
 import { needsForecast, memberDrift } from '../src/data/logic/live-drift-logic'
+import { demoCast, demoFix, isDemoId } from '../src/data/logic/live-demo-logic'
+import { haversineNM } from '../src/data/logic/gps-logic'
 
 let ok = 0, fail = 0
 const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; console.log('FAIL', name) } }
@@ -159,6 +161,29 @@ const check = (name: string, cond: boolean) => { if (cond) ok++; else { fail++; 
     await rq('PUT', '/api/group', { g: k2.g, wtag: k2.wtag, ownerKey: own })
     check('group status: exists', (await (await rq('GET', `/api/group?g=${k2.g}`)).json()).exists === true)
     check('unknown route: no-route', (await (await rq('GET', '/api/nope')).json()).code === 'no-route')
+  }
+  const air = roleDisplay('balloon'), car = roleDisplay('chase'), ops = roleDisplay('ground')
+  check('aircraft: line, altitude, drift', air.directionLine && air.altitudeOnLabel && air.driftForecast && roleDisplay('ppc').directionLine)
+  check('chase/ground: no line, no altitude, no drift', [car, ops].every(r => !r.directionLine && !r.altitudeOnLabel && !r.driftForecast))
+  check('own line: chase/ground never', !ownDirectionLine(true, 'chase') && !ownDirectionLine(true, 'ground'))
+  check('own line: aircraft / no role follow the setting', ownDirectionLine(true, 'balloon') && ownDirectionLine(true, null) && !ownDirectionLine(false, 'ppc'))
+  // Demo members
+  const roles = (r: Parameters<typeof demoCast>[0]) => demoCast(r).map(d => d.role)
+  check('demo: balloon gets a chase vehicle', roles('balloon').includes('chase'))
+  check('demo: chase gets a balloon', roles('chase').includes('balloon') && roles('ground').includes('balloon'))
+  check('demo: aircraft get two aircraft', ['ppc', 'ppg', 'aircraft'].every(r => { const c = roles(r as 'ppc'); return c.length === 2 && c.every(x => x !== 'chase' && x !== 'ground') }))
+  check('demo: ids marked', demoCast('ppc').every(d => isDemoId(d.pubId)) && !isDemoId('k3Xa9'))
+  const me = { lat: 40, lon: -105 }
+  for (const role of ['balloon', 'chase', 'ppc'] as const) {
+    for (const d of demoCast(role)) {
+      const a = demoFix(d, me, 1600, 60_000, 1_000_000), b = demoFix(d, me, 1600, 61_000, 1_001_000)
+      const movedM = haversineNM(a.lat, a.lon, b.lat, b.lon) * 1852
+      check(`demo ${role}/${d.callsign}: moves at its speed`, Math.abs(movedM - d.speedMs) < d.speedMs * 0.05)
+      const brg = (Math.atan2((b.lon - a.lon) * Math.cos(a.lat * Math.PI / 180), b.lat - a.lat) * 180 / Math.PI + 360) % 360
+      check(`demo ${role}/${d.callsign}: track matches motion`, Math.abs(((brg - a.trackDeg! + 540) % 360) - 180) < 5)
+      check(`demo ${role}/${d.callsign}: nearby`, haversineNM(me.lat, me.lon, a.lat, a.lon) < 4)
+      check(`demo ${role}/${d.callsign}: altitude`, d.aglM === 0 ? a.altM === 1600 : a.altM! > 1600 + 50)
+    }
   }
   console.log(`${ok} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)

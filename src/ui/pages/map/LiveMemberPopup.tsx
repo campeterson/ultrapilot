@@ -5,7 +5,7 @@ import { useDirectToStore } from '../../../state/direct-to-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useUnits } from '../../hooks/useUnits'
 import { useTick } from '../../hooks/useTick'
-import { ageText, displayAltitude, displayCallsigns, groundReference, LIVE_ROLES, memberView, roleLabel } from '../../../data/logic/live-logic'
+import { ageText, displayAltitude, displayCallsigns, groundReference, memberView, roleDisplay, roleLabel } from '../../../data/logic/live-logic'
 import { altitudeText, distanceText, speedText } from '../../../data/logic/units-logic'
 import { compassPoint, formatDeg, metersToFeet } from '../../../data/logic/gps-logic'
 import type { MemberTap } from './useLiveLayers'
@@ -32,9 +32,12 @@ export function LiveMemberPopup({ tap, containerWidth, onClose }: { tap: MemberT
   const color = theme.colors.liveRoles[m.role]
   const v = m.fix ? memberView(m.fix, me, now) : null
   const ref = groundReference(members, profile ? { role: profile.role, altFt: me ? metersToFeet(me.altMSL) : null } : null)
-  const alt = v ? displayAltitude(v.altFt, display.altMode, ref) : null
+  const shows = roleDisplay(m.role)
+  const alt = v && shows.altitudeOnLabel ? displayAltitude(v.altFt, display.altMode, ref) : null
+  // Ground members: their elevation (MSL) is the useful number — they are the AGL reference
+  const groundElev = v && !shows.altitudeOnLabel && v.altFt != null ? `ground ${altitudeText(v.altFt, units.altitude)} MSL` : null
   const following = target?.memberId === m.pubId
-  const airborne = LIVE_ROLES.find(r => r.id === m.role)?.airborne
+  const airborne = shows.driftForecast
   const watching = drift.memberId === m.pubId
 
   return (
@@ -47,7 +50,7 @@ export function LiveMemberPopup({ tap, containerWidth, onClose }: { tap: MemberT
       <div style={{ padding: '10px 14px 8px', borderBottom: `1px solid ${theme.colors.darkBorder}` }}>
         <div style={{ fontSize: '15px', fontWeight: 700, color }}>● {name}</div>
         <div style={{ fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '3px', lineHeight: 1.4 }}>
-          {[roleLabel(m.role), v ? ageText(v.ageS) : 'not sharing', alt && `${altitudeText(alt.ft, units.altitude)} ${alt.datum}`,
+          {[roleLabel(m.role), v ? ageText(v.ageS) : 'not sharing', alt && `${altitudeText(alt.ft, units.altitude)} ${alt.datum}`, groundElev,
             v?.speedKt != null && `${speedText(v.speedKt, units.speed)}${v.trackDeg != null ? ` ${formatDeg(v.trackDeg)}` : ''}`].filter(Boolean).join(' · ')}
         </div>
         {v?.distNM != null && v.bearingDeg != null && (

@@ -188,7 +188,7 @@ label — `CALLSIGN · age` / `altitude datum · speed track` (e.g. `SKY 1 · 8 
 the same plus distance and bearing from you. Dots fade at 30 s and grey at 60 s.
 
 **Direction lines** (toggle on the Live Group page, default on): a line ahead of each
-moving member along its track, as long as the distance it covers in the look-ahead time
+moving **aircraft** along its track, as long as the distance it covers in the look-ahead time
 set for your own direction line (Settings → Map display).
 
 **MSL / AGL** (toggle beside it, default MSL). AGL is height above the **chase crew,
@@ -215,6 +215,16 @@ fetched, the forecast is an hour old, or it no longer covers the minutes ahead. 
 a dashed line with 15-minute dots and a "+60 min" label; the list says "If it holds
 altitude: 20.0 nm toward 060° ENE in 60 min". Needs a connection for the winds.
 
+**By role** (`roleDisplay()` in `live-logic.ts`):
+
+| | Aircraft (balloon, PPC, PPG, other) | Chase vehicle, Ground / Ops |
+|---|---|---|
+| Direction line | yes (when the toggle is on) | **no** — a vehicle follows roads |
+| Altitude on map label and list | yes (MSL / AGL setting) | **no** — on the ground, and the AGL reference; the tap popup shows *ground … ft MSL* |
+| Drift forecast | yes | no |
+| Direct-To them | yes | yes |
+| Minimum send gap | 3 s | 5 s |
+
 ## 8. Phases
 
 1. **Relay + Live Group page + map markers** at the rates in §1. *(done)*
@@ -232,3 +242,26 @@ altitude: 20.0 nm toward 060° ENE in 60 min". Needs a connection for the winds.
   one group by link and see each other's markers; the relay core stands in for Netlify.
 - Before real use: deploy preview + the relay spec's bot spike script (§11.10) and a
   field test (walk, car, screen lock, dead zone).
+
+## 10. Demo members and the chase vehicle's own line
+
+**Your own direction line** is off whenever your Live Group role is Chase vehicle
+or Ground / Ops, whatever the Settings switch says. Settings shows "Off — you're
+Chase vehicle in Live Group" in its place (`ownDirectionLine()` in `live-logic.ts`).
+
+**Simulate group members** (Live Group page → Demo) adds pretend members so the
+feature can be shown with one phone. They are made on the device
+(`live-demo-logic.ts`), never sent to the relay, not saved, and marked "(demo)".
+They work with or without a group, and next to real members.
+
+| Your role | Simulated |
+|---|---|
+| Balloon | Chase vehicle (~21 kt, on the ground) and a second balloon drifting (~8 kt, ~1,500 ft AGL) |
+| Chase / Ground | A balloon drifting (~9 kt) and a PPC (~27 kt) |
+| PPC / PPG / Other aircraft | Two aircraft (~25 kt and ~39 kt) at about 500 and 1,000 ft AGL |
+
+Each one circles you at its own radius (1.3–2.8 km) at a steady speed, with a slow
+climb and descent, and the circle follows you. Their "ground" is the session origin
+altitude, or your altitude when the demo started. Tap one for Direct-To or a drift
+forecast, the same as a real member. Turning the demo off cancels a Direct-To that
+points at a demo member.

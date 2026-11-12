@@ -4,7 +4,7 @@ import { useLiveDriftStore } from '../../../state/live-drift-store'
 import { useDirectToStore } from '../../../state/direct-to-store'
 import { useSessionStore } from '../../../state/session-store'
 import { useUnits } from '../../hooks/useUnits'
-import { LIVE_ROLES } from '../../../data/logic/live-logic'
+import { roleDisplay } from '../../../data/logic/live-logic'
 import { LIVE_DRIFT_MINUTES, memberDrift } from '../../../data/logic/live-drift-logic'
 import { distanceText } from '../../../data/logic/units-logic'
 import { compassPoint, formatDeg } from '../../../data/logic/gps-logic'
@@ -19,7 +19,7 @@ export function LiveMemberActions({ member }: { member: LiveMember }) {
   const drift = useLiveDriftStore()
   const units = useUnits()
   const following = target?.memberId === member.pubId
-  const airborne = LIVE_ROLES.find(r => r.id === member.role)?.airborne
+  const airborne = roleDisplay(member.role).driftForecast
   const watching = drift.memberId === member.pubId
   const track = watching && drift.forecast && member.fix ? memberDrift(drift.forecast, member.fix, drift.minutes) : null
   const small: React.CSSProperties = { fontSize: theme.size.tiny, color: theme.colors.dim, marginTop: '6px', lineHeight: 1.4 }

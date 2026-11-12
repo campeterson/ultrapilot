@@ -174,6 +174,28 @@ export type LiveAltMode = 'msl' | 'agl'
 export const isGroundRole = (r: LiveRole) => r === 'chase' || r === 'ground'
 
 /**
+ * What the map and list show for a member, by role — one place, so the map,
+ * list and popup agree. Ground members (chase vehicle, Ground / Ops):
+ * - no direction line — a vehicle follows roads; a straight projection ahead misleads
+ * - no altitude on the label — they're on the ground (and are the AGL reference)
+ * - no drift forecast — it's for aircraft
+ * Direct-To works for everyone.
+ */
+export function roleDisplay(role: LiveRole): { directionLine: boolean; altitudeOnLabel: boolean; driftForecast: boolean } {
+  const air = !isGroundRole(role)
+  return { directionLine: air, altitudeOnLabel: air, driftForecast: air }
+}
+
+/**
+ * My own direction line on the map: off for a chase vehicle / Ground crew
+ * whatever the setting — same reason as for other ground members.
+ * `role` is my Live Group role, null when I've never set one.
+ */
+export function ownDirectionLine(setting: boolean, role: LiveRole | null): boolean {
+  return setting && (role == null || roleDisplay(role).directionLine)
+}
+
+/**
  * Ground reference for AGL labels: the chase crew is "0 AGL". Uses my own
  * altitude when I'm the chase vehicle / ground, else the freshest chase or
  * ground member's. null when no one on the ground is reporting altitude.

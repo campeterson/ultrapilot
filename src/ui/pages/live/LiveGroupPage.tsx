@@ -9,6 +9,7 @@ import { LiveInvite } from './LiveInvite'
 import { LiveMemberList } from './LiveMemberList'
 import { LiveDisplayOptions } from './LiveDisplayOptions'
 import { LiveServerCheck } from './LiveServerCheck'
+import { LiveDemo } from './LiveDemo'
 
 const STATUS_TEXT = { idle: '', connecting: 'Connecting…', live: 'Live', offline: 'No connection — retrying' } as const
 
@@ -119,6 +120,8 @@ export function LiveGroupPage() {
           </div>
         </>
       )}
+
+      {profile && <LiveDemo />}
     </div>
   )
 }

@@ -11,7 +11,7 @@ import { useMapSettingsStore } from '../../../state/map-settings-store'
 import { useGPSStore } from '../../../state/gps-store'
 import { useTick } from '../../hooks/useTick'
 import { useUnits } from '../../hooks/useUnits'
-import { ageText, directionLineEnd, displayAltitude, displayCallsigns, groundReference, memberView } from '../../../data/logic/live-logic'
+import { ageText, directionLineEnd, displayAltitude, displayCallsigns, groundReference, memberView, roleDisplay } from '../../../data/logic/live-logic'
 import { memberDrift } from '../../../data/logic/live-drift-logic'
 import { formatAltitude, formatSpeed, ALTITUDE_LABELS, SPEED_LABELS } from '../../../data/logic/units-logic'
 import { formatDeg, metersToFeet } from '../../../data/logic/gps-logic'
@@ -93,12 +93,13 @@ export function useLiveLayers(mapRef: MutableRefObject<maplibregl.Map | null>, o
         }
         if (m.isMe) continue   // my own aircraft is drawn by the map already
 
-        if (display.lines) {
+        const shows = roleDisplay(m.role)
+        if (display.lines && shows.directionLine) {
           const end = directionLineEnd(m.fix, v, lineMinutes)
           if (end) features.push({ type: 'Feature', properties: { kind: 'dir', color, opacity }, geometry: { type: 'LineString', coordinates: [[m.fix.lon, m.fix.lat], [end[1], end[0]]] } })
         }
 
-        const alt = displayAltitude(v.altFt, display.altMode, ref)
+        const alt = shows.altitudeOnLabel ? displayAltitude(v.altFt, display.altMode, ref) : null
         const parts = [
           alt && `${Number(formatAltitude(alt.ft, units.altitude)).toLocaleString()} ${ALTITUDE_LABELS[units.altitude]} ${alt.datum}`,
           v.speedKt != null && `${formatSpeed(v.speedKt, units.speed)} ${SPEED_LABELS[units.speed]}${v.trackDeg != null ? ` ${formatDeg(v.trackDeg)}` : ''}`,
