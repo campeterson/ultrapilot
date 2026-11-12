@@ -182,14 +182,16 @@ buckets; offline fixes are dropped, never queued; retries only on network / 5xx,
 
 ## 7. Seeing others (step 2)
 
-**Labels.** Every other member on the flying map: a dot in the role's colour and a two-line
+**Labels.** Every other member on the flying map: an **arrow** in the role's colour pointing
+along their track (a **dot** when they're stopped, < 1 kt, so no track) and a two-line
 label — `CALLSIGN · age` / `altitude datum · speed track` (e.g. `SKY 1 · 8 s` /
 `1,969 ft MSL · 12 kt 060°`). Track shows only when moving (≥ 1 kt). The member list shows
-the same plus distance and bearing from you. Dots fade at 30 s and grey at 60 s.
+the same plus distance and bearing from you. Markers fade at 30 s and grey at 60 s.
 
 **Direction lines** (toggle on the Live Group page, default on): a line ahead of each
 moving **aircraft** along its track, as long as the distance it covers in the look-ahead time
-set for your own direction line (Settings → Map display).
+set for your own direction line (Settings → Map display → Look Ahead, for your current
+flight mode).
 
 **MSL / AGL** (toggle beside it, default MSL). AGL is height above the **chase crew,
 taken as 0 AGL**: your own altitude when you are the chase vehicle / ground, otherwise

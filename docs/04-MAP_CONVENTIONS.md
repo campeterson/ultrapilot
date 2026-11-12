@@ -49,6 +49,22 @@ Reserve `rotateTo()` for the mode toggle button only.
 
 ---
 
+### Direction Line (track vector)
+
+A dashed line ahead of the ownship along the GPS track, as long as the distance covered in
+the **look-ahead time** at the current groundspeed, with a tick at each step. Time-based
+like the Garmin / ForeFlight track vector (Garmin: 30 s – 20 min, default 60 s), never a
+fixed distance, so it always means "where I'll be in N minutes".
+
+| Flight mode | Look ahead | Default | Ticks |
+|---|---|---|---|
+| Powered | 1 / 2 / 5 / 10 min | 2 min | every minute |
+| LTA (balloon) | 10 / 30 / 60 min | 30 min | every 5 min (10-min line), else every 10 |
+
+Each mode keeps its own choice (Settings → Map display → Look Ahead). Hidden below 0.5 m/s,
+and always off for a Live Group chase vehicle / Ground crew. Live Group members' direction
+lines use the same look-ahead. Logic: `src/data/logic/direction-line-logic.ts`.
+
 ## Section 2: Map Colors
 
 Follows the industry-standard convention established by Garmin and ForeFlight. Any pilot
