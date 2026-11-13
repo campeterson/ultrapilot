@@ -7,7 +7,12 @@
 // of 5 in 15–100 — so odd coordinates can't bypass the cache and burn the
 // upstream's 1 request/second limit.
 
-export const DEFAULT_UPSTREAM = 'https://api.airplanes.live/v2/point'
+/**
+ * adsb.lol: open data (ODbL), no key, ADSBx v2 schema at /v2/point/{lat}/{lon}/{nm}.
+ * (airplanes.live now answers 403 "please contact us" to unregistered API users.)
+ * UPSTREAM_URL may list several, comma-separated: each is tried in turn when one fails.
+ */
+export const DEFAULT_UPSTREAM = 'https://api.adsb.lol/v2/point'
 const MAX_ALT_FT = 18_000
 const MAX_POS_AGE_S = 15
 
@@ -85,17 +90,25 @@ export async function handleTraffic(req: Request, upstream: string, fetchFn: typ
   const lat = Number(q.get('lat')), lon = Number(q.get('lon')), nm = Number(q.get('nm'))
   if (!canonicalArea(lat, lon, nm)) return json({ error: 'area must be lat/lon rounded to 0.05 and nm a multiple of 5 (15-100)' }, 400)
 
-  let res: Response
-  try {
-    res = await fetchFn(`${upstream}/${lat}/${lon}/${nm}`, { headers: { 'User-Agent': 'UltraPilot-relay/1.0' }, signal: AbortSignal.timeout(8000) })
-  } catch {
-    return json({ error: 'traffic source unreachable' }, 502)
+  // Try each source in turn; the first good answer wins
+  const failures: string[] = []
+  let limited = false
+  let data: { now?: number; ac?: UpstreamAc[] } | null = null
+  for (const base of upstream.split(',').map(u => u.trim().replace(/\/+$/, '')).filter(Boolean)) {
+    const host = base.replace(/^https?:\/\//, '').split('/')[0]
+    try {
+      const res = await fetchFn(`${base}/${lat}/${lon}/${nm}`, { headers: { 'User-Agent': 'UltraPilot-relay/1.0' }, signal: AbortSignal.timeout(8000) })
+      if (!res.ok) { limited ||= res.status === 429; failures.push(`${host} returned ${res.status}`); continue }
+      const body = await res.json() as { now?: number; ac?: UpstreamAc[] }
+      if (!Array.isArray(body?.ac)) { failures.push(`${host} sent bad data`); continue }
+      data = body
+      break
+    } catch {
+      failures.push(`${host} unreachable`)
+    }
   }
   // 429 = upstream rate limit. Don't cache errors; tell the client to back off.
-  if (!res.ok) return json({ error: `traffic source returned ${res.status}` }, res.status === 429 ? 503 : 502, { 'Retry-After': '5' })
-
-  let data: { now?: number; ac?: UpstreamAc[] }
-  try { data = await res.json() } catch { return json({ error: 'traffic source sent bad data' }, 502) }
+  if (!data) return json({ error: `traffic source: ${failures.join('; ') || 'none configured'}` }, limited ? 503 : 502, { 'Retry-After': '5' })
   const body: TrafficResponse = { t: data.now ?? Date.now(), area: { lat, lon, nm }, aircraft: cleanTraffic(data.ac ?? []) }
   return new Response(JSON.stringify(body), {
     headers: {
