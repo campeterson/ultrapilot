@@ -54,6 +54,15 @@ const get = async (q: string, method = 'GET') => {
   check('upstream 500 → 502 no-store', r.s === 502 && r.h.get('cache-control') === 'no-store')
   upstreamStatus = 200; throwNet = true; r = await get('lat=41.70&lon=-111.80&nm=15')
   check('unreachable → 502', r.s === 502); throwNet = false
+  // Several sources: a failing first one falls through to the next
+  const multi: typeof fetch = async (url) => String(url).startsWith('http://dead')
+    ? new Response('{"error":"Please contact us"}', { status: 403 })
+    : upstream(url)
+  const m = await handleTraffic(new Request('http://x/api/traffic?lat=41.70&lon=-111.80&nm=15'), 'http://dead/v2/point, http://up/v2/point', multi)
+  check('falls through to the next source', m.status === 200 && (await m.json()).aircraft.length === 3)
+  const d = await handleTraffic(new Request('http://x/api/traffic?lat=41.70&lon=-111.80&nm=15'), 'http://dead/v2/point', multi)
+  const dj = await d.json()
+  check('all fail: 502 naming the source and status', d.status === 502 && dj.error === 'traffic source: dead returned 403')
 
   // ── client area always accepted by the server ──
   let bad = 0

@@ -23,12 +23,17 @@ Built from the "group relay + ADS-B traffic on Netlify" spec, with one change ag
 ## 2. Server: `/api/traffic`
 
 - Upstream `GET {UPSTREAM_URL}/{lat}/{lon}/{nm}`, ADSBx v2 schema; default
-  `https://api.airplanes.live/v2/point` (free, **non-commercial**, 1 req/s, no SLA).
-  Swap with the `UPSTREAM_URL` environment variable (e.g. adsb.lol, open data).
+  `https://api.adsb.lol/v2/point` (open data, ODbL, no key, no SLA).
+  **airplanes.live** answers 403 "Please contact us at contact@airplanes.live…" to
+  unregistered API users (seen Nov 2026), so it isn't the default; it's free for
+  **non-commercial** use once they've agreed.
+- `UPSTREAM_URL` overrides it and may list several sources, comma-separated: each is tried
+  in turn when one fails (error, bad data, unreachable). The error names each source and its
+  status, e.g. `traffic source: api.adsb.lol returned 429`.
 - Only **canonical areas**: lat/lon multiples of 0.05°, `nm` a multiple of 5 in 15–100 —
   anything else is 400, so the cache can't be bypassed.
-- 8 s timeout, `User-Agent: UltraPilot-relay/1.0`. Upstream 429 → 503 + `Retry-After: 5`;
-  other failures 502. Errors are `no-store`.
+- 8 s timeout, `User-Agent: UltraPilot-relay/1.0`. When every source fails: 503 + `Retry-After: 5` if any was
+  rate-limited (429), otherwise 502. Errors are `no-store`.
 - Drops: no position, `alt_baro: "ground"`, above 18,000 ft, position older than 15 s.
   Doesn't drop group members (the response is shared across groups).
 - Each target: `hex, cs, reg, type, lat, lon, alt` (baro, else GPS), `altGeom` (GPS),
